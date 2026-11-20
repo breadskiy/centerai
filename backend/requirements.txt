@@ -1,0 +1,15 @@
+fastapi==0.123.9
+uvicorn==0.38.0
+pydantic==2.11.10
+SQLAlchemy==2.0.44
+psycopg2-binary>=2.9.10,<3
+python-multipart>=0.0.32,<1
+httpx==0.28.1
+cryptography>=46,<51
+croniter>=6,<7
+tzdata>=2025.2
+regex>=2025.10.23
+celery[redis]>=5.5,<6
+tree-sitter>=0.25,<0.26
+tree-sitter-kotlin>=1.1,<2
+alembic>=1.16,<2

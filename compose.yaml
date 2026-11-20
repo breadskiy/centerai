@@ -1,0 +1,55 @@
+x-runtime: &runtime
+  build: .
+  environment:
+    DATABASE_URL: postgresql+psycopg2://centerai:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/centerai
+    REDIS_URL: redis://redis:6379/0
+    WORKER_MODE: celery
+    ALLOWED_REPOSITORIES: ${ALLOWED_REPOSITORIES:-TBagirov/training}
+    PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8000}
+  volumes:
+    - workspace:/workspace/data
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: centerai
+      POSTGRES_USER: centerai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U centerai"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+  api:
+    <<: *runtime
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      db: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/settings',timeout=3)"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+  worker:
+    <<: *runtime
+    command: ["celery","-A","backend.worker:celery","worker","--concurrency=1","--loglevel=WARNING"]
+    depends_on:
+      api: {condition: service_healthy}
+      redis: {condition: service_started}
+  beat:
+    <<: *runtime
+    command: ["celery","-A","backend.worker:celery","beat","--schedule=/workspace/data/celerybeat","--loglevel=WARNING"]
+    depends_on:
+      api: {condition: service_healthy}
+      redis: {condition: service_started}
+volumes:
+  workspace:
+  postgres:

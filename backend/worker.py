@@ -1,0 +1,123 @@
+import json
+import logging
+import os
+import time
+
+from celery import Celery
+from sqlalchemy import select, update
+
+from .db import Event, Finding, NodeRun, Project, Run, Session, Workflow, cipher
+from .graph import Context, Packet, REGISTRY, next_due, validate
+
+log = logging.getLogger(__name__)
+celery = Celery("centerai", broker=os.getenv("REDIS_URL", "redis://redis:6379/0"))
+celery.conf.update(beat_schedule={"process-workspace": {"task": "centerai.tick", "schedule": 2.0}},
+                   worker_prefetch_multiplier=1, task_ignore_result=True)
+
+
+def record(session, run, status, message, node=None):
+    session.add(Event(run_id=run.id, status=status, message=message, node_id=node))
+
+
+def enqueue(session, workflow, trigger):
+    validate(workflow.graph)
+    project = session.get(Project, workflow.project_id)
+    run = Run(workflow_id=workflow.id, project_id=project.id, workflow_name=workflow.name,
+              project_name=project.name, revision=workflow.revision, graph=workflow.graph, trigger=trigger)
+    session.add(run)
+    session.flush()
+    session.add_all([NodeRun(run_id=run.id, node_id=n["id"], status="pending") for n in run.graph["nodes"]])
+    record(session, run, "queued", "Запуск поставлен в очередь")
+    return run
+
+
+def execute(run_id):
+    now = time.time()
+    with Session() as db:
+        claimed = db.execute(update(Run).where(Run.id == run_id, Run.status == "queued")
+                             .values(status="running", started=now, heartbeat=now))
+        if not claimed.rowcount:
+            return
+        run = db.get(Run, run_id)
+        record(db, run, "running", "Проверка началась")
+        db.commit()
+        current = None
+        try:
+            nodes, parents, order = validate(run.graph)
+            files = json.loads(cipher().decrypt(db.get(Project, run.project_id).snapshot))
+            ctx = Context(db, run, files)
+            packets, reports = {}, {}
+            for node_id in order:
+                node = nodes[node_id]
+                current = db.get(NodeRun, (run.id, node_id))
+                links = parents[node_id]
+                active = [packets[e.source] for e in links if e.source in packets and
+                          (not e.branch or packets[e.source].branch == e.branch)]
+                if links and not active:
+                    current.status, current.finished = "skipped", time.time()
+                    record(db, run, "skipped", "Условие ветви не выполнено", node_id)
+                    db.commit()
+                    continue
+                current.status, current.started = "running", time.time()
+                run.heartbeat = time.time()
+                record(db, run, "running", REGISTRY[node.type].title, node_id)
+                db.commit()
+                data = Packet({k: v for p in active for k, v in p.findings.items()})
+                output = REGISTRY[node.type].execute(ctx, node.config, data)
+                packets[node_id] = output
+                current.output = {"count": len(output.findings), "ids": list(output.findings), "branch": output.branch}
+                if node.type == "repository_source":
+                    current.output = {"files": len(files)}
+                if node.type == "report_generator":
+                    for key, row in output.findings.items():
+                        if key not in reports:
+                            db.add(Finding(run_id=run.id, fingerprint=key, severity=row["severity"], category=row["category"], detail=row))
+                    reports.update(output.findings)
+                    run.count = len(reports)
+                current.status, current.finished = "success", time.time()
+                record(db, run, "success", f"Завершено · находок {len(output.findings)}", node_id)
+                db.commit()
+            run.status = "success"
+            record(db, run, "success", "Проверка завершена")
+        except Exception as exc:
+            db.rollback()
+            run.status = "failed"
+            run.error = str(exc) if type(exc) is ValueError else "Ошибка обработки данных на этапе проверки"
+            if current:
+                current.status, current.finished = "failed", time.time()
+            db.execute(update(NodeRun).where(NodeRun.run_id == run.id, NodeRun.status == "pending").values(status="skipped"))
+            record(db, run, "failed", run.error, current.node_id if current else None)
+        run.finished = time.time()
+        db.commit()
+
+
+@celery.task(name="centerai.tick", expires=10)
+def tick():
+    now = time.time()
+    with Session() as db:
+        for flow in db.scalars(select(Workflow).where(Workflow.archived.is_(False), Workflow.next_due <= now)):
+            cfg = next(n["config"] for n in flow.graph["nodes"] if n["type"] == "schedule_trigger")
+            claimed = db.execute(update(Workflow).where(Workflow.id == flow.id, Workflow.next_due == flow.next_due,
+                                                        Workflow.revision == flow.revision)
+                                 .values(next_due=next_due(cfg, now)))
+            if claimed.rowcount:
+                enqueue(db, flow, "schedule")
+        # A lost worker must not replay external notification side effects.
+        for run in db.scalars(select(Run).where(Run.status == "running", Run.heartbeat < now - 900)):
+            run.status, run.finished, run.error = "failed", now, "Выполнение прервано после остановки обработчика"
+            db.execute(update(NodeRun).where(NodeRun.run_id == run.id, NodeRun.status == "running").values(status="failed", finished=now))
+            db.execute(update(NodeRun).where(NodeRun.run_id == run.id, NodeRun.status == "pending").values(status="skipped"))
+            record(db, run, "failed", run.error)
+        db.commit()
+        queued = db.scalars(select(Run.id).where(Run.status == "queued").order_by(Run.created).limit(4)).all()
+    for run_id in queued:
+        execute(run_id)
+
+
+def local_worker(stop):
+    while not stop.is_set():
+        try:
+            tick()
+        except Exception:
+            log.error("Worker cycle failed; retrying")
+        stop.wait(.5)
