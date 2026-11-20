@@ -1,0 +1,149 @@
+{
+  "findings": [
+    {
+      "path": "build.gradle.kts",
+      "severity": "MEDIUM",
+      "description": "Версия входит в диапазон учебного справочника уязвимостей.",
+      "remediation": "Сверьте совместимость с исправленными версиями: 3.9.0.",
+      "category": "SCA",
+      "group": "commons-net",
+      "artifact": "commons-net",
+      "version": "3.8.0",
+      "advisoryId": "GHSA-cgp8-4m63-fhh5"
+    },
+    {
+      "path": "src/main/kotlin/lab/repairdesk/integration/WarrantyHeaders.kt",
+      "severity": "MEDIUM",
+      "description": "Значение учётных данных может быть извлечено из файлов проекта.",
+      "remediation": "Замените значение в хранилище секретов и передавайте его через окружение.",
+      "category": "SECRET",
+      "class": "recoverable-token",
+      "line": 9
+    },
+    {
+      "path": "src/main/resources/application.yml",
+      "severity": "HIGH",
+      "description": "Значение учётных данных может быть извлечено из файлов проекта.",
+      "remediation": "Замените значение в хранилище секретов и передавайте его через окружение.",
+      "category": "SECRET",
+      "class": "configuration-token",
+      "line": 13
+    },
+    {
+      "path": "src/main/kotlin/lab/repairdesk/config/RepairSecurity.kt",
+      "severity": "HIGH",
+      "description": "Первое подходящее правило разрешает анонимный вызов обработчика, читающего записи.",
+      "remediation": "Проверьте назначение маршрута и ограничьте доступ нужной ролью.",
+      "category": "SAST",
+      "class": "route-authorization",
+      "line": 18
+    },
+    {
+      "path": "build.gradle.kts",
+      "severity": "HIGH",
+      "description": "Версия входит в диапазон учебного справочника уязвимостей.",
+      "remediation": "Сверьте совместимость с исправленными версиями: 20231013.",
+      "category": "SCA",
+      "group": "org.json",
+      "artifact": "json",
+      "version": "20230227",
+      "advisoryId": "GHSA-4jq9-2xhw-jpx7"
+    },
+    {
+      "path": "build.gradle.kts",
+      "severity": "HIGH",
+      "description": "Версия входит в диапазон учебного справочника уязвимостей.",
+      "remediation": "Сверьте совместимость с исправленными версиями: 1.14.2.",
+      "category": "SCA",
+      "group": "org.jsoup",
+      "artifact": "jsoup",
+      "version": "1.14.1",
+      "advisoryId": "GHSA-m72m-mhq2-9p6c"
+    },
+    {
+      "path": "build.gradle.kts",
+      "severity": "CRITICAL",
+      "description": "Версия входит в диапазон учебного справочника уязвимостей.",
+      "remediation": "Сверьте совместимость с исправленными версиями: 1.10.0.",
+      "category": "SCA",
+      "group": "org.apache.commons",
+      "artifact": "commons-text",
+      "version": "1.9",
+      "advisoryId": "GHSA-599f-7c49-w659"
+    },
+    {
+      "path": "src/main/kotlin/lab/repairdesk/repair/RepairTicketReader.kt",
+      "severity": "HIGH",
+      "description": "ID из маршрута передаётся в запрос. Запись содержит владельца, который отсутствует в предикате.",
+      "remediation": "Ограничьте запрос одновременно идентификатором объекта и текущим пользователем.",
+      "category": "SAST",
+      "class": "object-authorization",
+      "line": 11
+    },
+    {
+      "path": "src/main/kotlin/lab/repairdesk/integration/QuoteRequest.kt",
+      "severity": "MEDIUM",
+      "description": "Значение учётных данных может быть извлечено из файлов проекта.",
+      "remediation": "Замените значение в хранилище секретов и передавайте его через окружение.",
+      "category": "SECRET",
+      "class": "api-key",
+      "line": 7
+    },
+    {
+      "path": "src/main/kotlin/lab/repairdesk/integration/PartsImportSettings.kt",
+      "severity": "HIGH",
+      "description": "Значение учётных данных может быть извлечено из файлов проекта.",
+      "remediation": "Замените значение в хранилище секретов и передавайте его через окружение.",
+      "category": "SECRET",
+      "class": "password",
+      "line": 4
+    },
+    {
+      "path": "src/main/kotlin/lab/repairdesk/integration/SupplierHttpsClient.kt",
+      "severity": "MEDIUM",
+      "description": "HostnameVerifier принимает любое имя.",
+      "remediation": "Используйте стандартную проверку имени узла при TLS-соединении.",
+      "category": "SAST",
+      "class": "tls-verification",
+      "line": 13
+    },
+    {
+      "path": "src/main/kotlin/lab/repairdesk/integration/DepotStatusClient.kt",
+      "severity": "LOW",
+      "description": "Значение учётных данных может быть извлечено из файлов проекта.",
+      "remediation": "Замените значение в хранилище секретов и передавайте его через окружение.",
+      "category": "SECRET",
+      "class": "secret-fallback",
+      "line": 8
+    },
+    {
+      "path": "src/main/kotlin/lab/repairdesk/config/RepairCors.kt",
+      "severity": "MEDIUM",
+      "description": "В одной конфигурации совмещены wildcard-origin и credentials.",
+      "remediation": "Укажите конкретные доверенные origin или отключите credentials.",
+      "category": "SAST",
+      "class": "credentialed-cors",
+      "line": 13
+    },
+    {
+      "path": "src/main/kotlin/lab/repairdesk/repair/RepairLookupController.kt",
+      "severity": "HIGH",
+      "description": "Строка запроса содержит подстановку данных.",
+      "remediation": "Передавайте значение параметром подготовленного запроса.",
+      "category": "SAST",
+      "class": "sql-injection",
+      "line": 14
+    },
+    {
+      "path": "build.gradle.kts",
+      "severity": "MEDIUM",
+      "description": "Версия входит в диапазон учебного справочника уязвимостей.",
+      "remediation": "Сверьте совместимость с исправленными версиями: 1.26.0.",
+      "category": "SCA",
+      "group": "org.apache.commons",
+      "artifact": "commons-compress",
+      "version": "1.25.0",
+      "advisoryId": "GHSA-4g9r-vxhx-9pgx"
+    }
+  ]
+}

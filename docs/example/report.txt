@@ -1,0 +1,109 @@
+Repair Desk
+Проверка исходного кода
+Статус: success
+Находки: 15
+
+SCA · MEDIUM · commons-net · 3.8.0
+build.gradle.kts:36
+Версия входит в диапазон учебного справочника уязвимостей.
+commons-net:commons-net:3.8.0
+GHSA-cgp8-4m63-fhh5
+Сверьте совместимость с исправленными версиями: 3.9.0.
+
+SECRET · MEDIUM · Токен из строковых фрагментов
+src/main/kotlin/lab/repairdesk/integration/WarrantyHeaders.kt:9
+Значение учётных данных может быть извлечено из файлов проекта.
+Значение скрыто ••••
+recoverable-token
+Замените значение в хранилище секретов и передавайте его через окружение.
+
+SECRET · HIGH · Токен в настройках
+src/main/resources/application.yml:13
+Значение учётных данных может быть извлечено из файлов проекта.
+Значение скрыто ••••
+configuration-token
+Замените значение в хранилище секретов и передавайте его через окружение.
+
+SAST · HIGH · Публичный маршрут с доступом к данным
+src/main/kotlin/lab/repairdesk/config/RepairSecurity.kt:18
+Первое подходящее правило разрешает анонимный вызов обработчика, читающего записи.
+fun securityFilterChain(…) · route-authorization
+route-authorization
+Проверьте назначение маршрута и ограничьте доступ нужной ролью.
+
+SCA · HIGH · json · 20230227
+build.gradle.kts:38
+Версия входит в диапазон учебного справочника уязвимостей.
+org.json:json:20230227
+GHSA-4jq9-2xhw-jpx7
+Сверьте совместимость с исправленными версиями: 20231013.
+
+SCA · HIGH · jsoup · 1.14.1
+build.gradle.kts:32
+Версия входит в диапазон учебного справочника уязвимостей.
+org.jsoup:jsoup:1.14.1
+GHSA-m72m-mhq2-9p6c
+Сверьте совместимость с исправленными версиями: 1.14.2.
+
+SCA · CRITICAL · commons-text · 1.9
+build.gradle.kts:31
+Версия входит в диапазон учебного справочника уязвимостей.
+org.apache.commons:commons-text:1.9
+GHSA-599f-7c49-w659
+Сверьте совместимость с исправленными версиями: 1.10.0.
+
+SAST · HIGH · Чтение объекта без проверки владельца
+src/main/kotlin/lab/repairdesk/repair/RepairTicketReader.kt:11
+ID из маршрута передаётся в запрос. Запись содержит владельца, который отсутствует в предикате.
+fun read(…) · object-authorization
+object-authorization
+Ограничьте запрос одновременно идентификатором объекта и текущим пользователем.
+
+SECRET · MEDIUM · Встроенный ключ API
+src/main/kotlin/lab/repairdesk/integration/QuoteRequest.kt:7
+Значение учётных данных может быть извлечено из файлов проекта.
+Значение скрыто ••••
+api-key
+Замените значение в хранилище секретов и передавайте его через окружение.
+
+SECRET · HIGH · Пароль в исходниках
+src/main/kotlin/lab/repairdesk/integration/PartsImportSettings.kt:4
+Значение учётных данных может быть извлечено из файлов проекта.
+Значение скрыто ••••
+password
+Замените значение в хранилище секретов и передавайте его через окружение.
+
+SAST · MEDIUM · Проверка имени узла отключена
+src/main/kotlin/lab/repairdesk/integration/SupplierHttpsClient.kt:13
+HostnameVerifier принимает любое имя.
+fun newConnection(…) · tls-verification
+tls-verification
+Используйте стандартную проверку имени узла при TLS-соединении.
+
+SECRET · LOW · Секрет по умолчанию
+src/main/kotlin/lab/repairdesk/integration/DepotStatusClient.kt:8
+Значение учётных данных может быть извлечено из файлов проекта.
+Значение скрыто ••••
+secret-fallback
+Замените значение в хранилище секретов и передавайте его через окружение.
+
+SAST · MEDIUM · CORS разрешает сторонние origin
+src/main/kotlin/lab/repairdesk/config/RepairCors.kt:13
+В одной конфигурации совмещены wildcard-origin и credentials.
+fun corsConfigurationSource(…) · credentialed-cors
+credentialed-cors
+Укажите конкретные доверенные origin или отключите credentials.
+
+SAST · HIGH · Динамический SQL
+src/main/kotlin/lab/repairdesk/repair/RepairLookupController.kt:14
+Строка запроса содержит подстановку данных.
+fun findByFrameTag(…) · sql-injection
+sql-injection
+Передавайте значение параметром подготовленного запроса.
+
+SCA · MEDIUM · commons-compress · 1.25.0
+build.gradle.kts:33
+Версия входит в диапазон учебного справочника уязвимостей.
+org.apache.commons:commons-compress:1.25.0
+GHSA-4g9r-vxhx-9pgx
+Сверьте совместимость с исправленными версиями: 1.26.0.

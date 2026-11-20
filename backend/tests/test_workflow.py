@@ -4,9 +4,8 @@ import time
 import zipfile
 from unittest.mock import Mock
 import pytest
-from sqlalchemy import select
 
-from backend.db import Credential, Run, Session, Workflow
+from backend.db import Credential, Session, Workflow
 from backend.graph import default_graph, validate
 from backend.sources import fetch_repository, unpack
 from backend.worker import tick
@@ -16,7 +15,14 @@ API = "/api/v1"
 
 
 def create_flow(client, project, graph=None):
-    response = client.post(API + "/workflows", json={"name": "Pipeline", "project_id": project["id"], "graph": graph or default_graph()})
+    response = client.post(
+        API + "/workflows",
+        json={
+            "name": "Pipeline",
+            "project_id": project["id"],
+            "graph": graph or default_graph(),
+        },
+    )
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -38,8 +44,15 @@ def test_pipeline(client, project):
     assert all("id" not in row and "evidence" not in row for row in result)
     assert "event: done" in client.get(API + "/runs/" + run["id"] + "/events").text
     assert len(client.get(API + "/findings?q=jsoup").json()) == 1
-    assert client.get(API + "/runs/" + run["id"] + "/report?format=txt").status_code == 200
-    assert client.patch(API + "/projects/" + project["id"], json={"name":"Renamed"}).status_code == 200
+    assert (
+        client.get(API + "/runs/" + run["id"] + "/report?format=txt").status_code == 200
+    )
+    assert (
+        client.patch(
+            API + "/projects/" + project["id"], json={"name": "Renamed"}
+        ).status_code
+        == 200
+    )
     assert client.delete(API + "/projects/" + project["id"]).status_code == 200
     assert client.get(API + "/workflows").json() == []
     assert client.get(API + "/runs").json()[0]["project_name"] == "Workshop"
@@ -47,11 +60,17 @@ def test_pipeline(client, project):
 
 def test_branches_schedule_and_filters(client, project):
     graph = default_graph()
-    graph["nodes"][0].update(type="schedule_trigger", config={"enabled": True, "cron": "* * * * *", "timezone": "Europe/Moscow"})
+    graph["nodes"][0].update(
+        type="schedule_trigger",
+        config={"enabled": True, "cron": "* * * * *", "timezone": "Europe/Moscow"},
+    )
+
     def node(key, kind, **config):
         graph["nodes"].append({"id": key, "type": kind, "config": config})
-    def edge(a,b,branch=""):
-        graph["edges"].append({"source":a, "target":b,"branch":branch})
+
+    def edge(a, b, branch=""):
+        graph["edges"].append({"source": a, "target": b, "branch": branch})
+
     graph["edges"] = [e for e in graph["edges"] if e["target"] != "report_generator"]
     node("level", "severity_filter", levels=["HIGH"])
     node("choose", "if_else", operator=">", count=0)
@@ -59,13 +78,13 @@ def test_branches_schedule_and_filters(client, project):
     node("otherwise", "report_generator")
     for s in ["secrets_scanner", "sast_scanner", "sca_scanner"]:
         edge(s, "level")
-    edge("level","choose")
-    edge("choose","path","true")
-    edge("choose","otherwise","false")
-    edge("path","report_generator")
+    edge("level", "choose")
+    edge("choose", "path", "true")
+    edge("choose", "otherwise", "false")
+    edge("path", "report_generator")
     flow = create_flow(client, project, graph)
     with Session() as db:
-        db.get(Workflow, flow["id"]).next_due = time.time()-1
+        db.get(Workflow, flow["id"]).next_due = time.time() - 1
         db.commit()
     tick()
     tick()
@@ -75,11 +94,14 @@ def test_branches_schedule_and_filters(client, project):
     assert next(n for n in nodes if n["node_id"] == "otherwise")["status"] == "skipped"
 
 
-@pytest.mark.parametrize("bad", ["cycle","missing","type","start"])
+@pytest.mark.parametrize("bad", ["cycle", "missing", "type", "start"])
 def test_invalid_graph(bad):
     graph = default_graph()
     if bad == "cycle":
-        graph["edges"] += [{"source":"sast_scanner","target":"sca_scanner"},{"source":"sca_scanner","target":"sast_scanner"}]
+        graph["edges"] += [
+            {"source": "sast_scanner", "target": "sca_scanner"},
+            {"source": "sca_scanner", "target": "sast_scanner"},
+        ]
     elif bad == "missing":
         graph["edges"][0]["target"] = "unknown"
     elif bad == "type":
@@ -92,7 +114,7 @@ def test_invalid_graph(bad):
 
 def test_safe_sources():
     with pytest.raises(ValueError):
-        unpack(zip_bytes({"../unsuitable.kt":"", "build.gradle.kts":""}))
+        unpack(zip_bytes({"../unsuitable.kt": "", "build.gradle.kts": ""}))
     with pytest.raises(ValueError):
         fetch_repository("https://127.0.0.1/private")
     blob = io.BytesIO()
@@ -105,24 +127,28 @@ def test_safe_sources():
 
 
 def test_notification_error_and_delivery(client, project, monkeypatch):
-    graph=default_graph()
-    graph["nodes"].append({"id":"send","type":"notification","config":{}})
-    graph["edges"].append({"source":"report_generator","target":"send","branch":""})
-    flow=create_flow(client, project, graph)
-    url=API+"/workflows/"+flow["id"]+"/runs"
-    run=client.post(url).json()
+    graph = default_graph()
+    graph["nodes"].append({"id": "send", "type": "notification", "config": {}})
+    graph["edges"].append(
+        {"source": "report_generator", "target": "send", "branch": ""}
+    )
+    flow = create_flow(client, project, graph)
+    url = API + "/workflows/" + flow["id"] + "/runs"
+    run = client.post(url).json()
     tick()
-    detail=client.get(API+"/runs/"+run["id"]).json()
-    assert detail["status"]=="failed" and detail["count"]==2
-    token="123456:"+"x"*32
-    res=client.put(API+"/integrations/telegram",json={"token":token,"chat":"12345"})
-    assert res.status_code==200 and token not in res.text
+    detail = client.get(API + "/runs/" + run["id"]).json()
+    assert detail["status"] == "failed" and detail["count"] == 2
+    token = "123456:" + "x" * 32
+    res = client.put(
+        API + "/integrations/telegram", json={"token": token, "chat": "12345"}
+    )
+    assert res.status_code == 200 and token not in res.text
     with Session() as db:
-        assert token.encode() not in db.get(Credential,"telegram").encrypted
-    post=Mock(return_value=Mock(is_success=True,json=lambda:{"ok":True}))
-    monkeypatch.setattr("backend.notifications.httpx.post",post)
-    run=client.post(url).json()
+        assert token.encode() not in db.get(Credential, "telegram").encrypted
+    post = Mock(return_value=Mock(is_success=True, json=lambda: {"ok": True}))
+    monkeypatch.setattr("backend.notifications.httpx.post", post)
+    run = client.post(url).json()
     tick()
-    assert client.get(API+"/runs/"+run["id"]).json()["status"]=="success"
+    assert client.get(API + "/runs/" + run["id"]).json()["status"] == "success"
     assert post.call_args.kwargs["json"]["text"].endswith(run["id"])
-    assert token not in str(client.get(API+"/runs/"+run["id"]).json())
+    assert token not in str(client.get(API + "/runs/" + run["id"]).json())

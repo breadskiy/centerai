@@ -3,7 +3,13 @@ import json
 from pathlib import PurePosixPath
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -17,7 +23,12 @@ class Entry(BaseModel):
     @field_validator("path")
     @classmethod
     def relative_path(cls, value):
-        if PurePosixPath(value).is_absolute() or ":" in value or "\\" in value or ".." in value.split("/"):
+        if (
+            PurePosixPath(value).is_absolute()
+            or ":" in value
+            or "\\" in value
+            or ".." in value.split("/")
+        ):
             raise ValueError("Ожидается относительный путь проекта")
         return value
 
@@ -49,16 +60,41 @@ class SubmissionReportExporter:
         rows = []
         for finding in findings:
             schema = Dependency if finding["category"] == "SCA" else Located
-            rows.append(schema.model_validate(finding).model_dump(by_alias=True, exclude_none=True))
+            rows.append(
+                schema.model_validate(finding).model_dump(
+                    by_alias=True, exclude_none=True
+                )
+            )
         return {"findings": rows}
 
 
-def finding(category, path, kind, severity, title, description, remediation, evidence, **location):
-    row = {"category": category, "path": path, "class": kind, "severity": severity,
-           "title": title, "description": description, "remediation": remediation,
-           "evidence": evidence, "rule_id": f"{category}/{kind}", **location}
+def finding(
+    category,
+    path,
+    kind,
+    severity,
+    title,
+    description,
+    remediation,
+    evidence,
+    **location,
+):
+    row = {
+        "category": category,
+        "path": path,
+        "class": kind,
+        "severity": severity,
+        "title": title,
+        "description": description,
+        "remediation": remediation,
+        "evidence": evidence,
+        "rule_id": f"{category}/{kind}",
+        **location,
+    }
     identity = [category, path, kind, location]
-    row["id"] = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:24]
+    row["id"] = hashlib.sha256(
+        json.dumps(identity, sort_keys=True).encode()
+    ).hexdigest()[:24]
     return row
 
 

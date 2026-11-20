@@ -3,18 +3,34 @@ import time
 from pathlib import Path
 from uuid import uuid4
 from cryptography.fernet import Fernet
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, JSON, LargeBinary, String, UniqueConstraint, create_engine, event
+from sqlalchemy import (
+    Float,
+    ForeignKey,
+    Integer,
+    JSON,
+    LargeBinary,
+    String,
+    create_engine,
+    event,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 DATA = Path(os.getenv("CENTERAI_DATA", "data")).resolve()
 DATA.mkdir(parents=True, exist_ok=True)
 URL = os.getenv("DATABASE_URL", f"sqlite:///{(DATA / 'centerai.db').as_posix()}")
-engine = create_engine(URL, pool_pre_ping=True, **({"connect_args": {"timeout": 20}} if URL.startswith("sqlite") else {}))
+engine = create_engine(
+    URL,
+    pool_pre_ping=True,
+    **({"connect_args": {"timeout": 20}} if URL.startswith("sqlite") else {}),
+)
 if URL.startswith("sqlite"):
+
     @event.listens_for(engine, "connect")
     def configure_sqlite(connection, record):
         connection.execute("PRAGMA foreign_keys=ON")
         connection.execute("PRAGMA journal_mode=WAL")
+
+
 Session = sessionmaker(engine, expire_on_commit=False)
 
 
@@ -59,6 +75,7 @@ class Workflow(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
     name: Mapped[str]
+    description: Mapped[str] = mapped_column(default="")
     revision: Mapped[int] = mapped_column(default=1)
     graph: Mapped[dict] = mapped_column(JSON)
     archived: Mapped[bool] = mapped_column(default=False)
@@ -67,8 +84,11 @@ class Workflow(Base):
 
 class Version(Base):
     __tablename__ = "workflow_versions"
-    workflow_id: Mapped[str] = mapped_column(ForeignKey("workflows.id"), primary_key=True)
+    workflow_id: Mapped[str] = mapped_column(
+        ForeignKey("workflows.id"), primary_key=True
+    )
     revision: Mapped[int] = mapped_column(primary_key=True)
+    description: Mapped[str] = mapped_column(default="")
     name: Mapped[str]
     graph: Mapped[dict] = mapped_column(JSON)
     created: Mapped[float] = mapped_column(default=time.time)

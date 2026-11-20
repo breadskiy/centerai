@@ -1,0 +1,38 @@
+@startuml
+left to right direction
+actor "Разработчик" as User
+actor "Планировщик" as Timer
+actor "GitHub" as Git
+actor "Telegram" as Chat
+rectangle CenterAI {
+  usecase "Импортировать проект" as Import
+  usecase "Принять ZIP" as Zip
+  usecase "Загрузить снимок репозитория" as Repo
+  usecase "Настроить граф проверки" as Graph
+  usecase "Сохранить версию" as Version
+  usecase "Проверить граф" as Validate
+  usecase "Запустить сценарий" as Run
+  usecase "Выполнить статические проверки" as Analyze
+  usecase "Применить условия и фильтры" as Logic
+  usecase "Наблюдать выполнение" as Monitor
+  usecase "Получить отчёт" as Report
+  usecase "Отправить уведомление" as Notify
+  usecase "Просмотреть историю" as History
+}
+User --> Import
+Zip ..> Import : <<extend>>
+Repo ..> Import : <<extend>>
+Git --> Repo
+User --> Graph
+Graph ..> Version : <<include>>
+User --> Run
+Timer --> Run
+Run ..> Validate : <<include>>
+Run ..> Analyze : <<include>>
+Logic ..> Analyze : <<extend>>
+User --> Monitor
+User --> Report
+User --> History
+Notify ..> Report : <<extend>>
+Chat --> Notify
+@enduml
