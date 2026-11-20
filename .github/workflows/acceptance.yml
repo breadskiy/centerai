@@ -1,0 +1,35 @@
+name: Verify CenterAI
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Start isolated stack
+        run: |
+          echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+      - run: docker compose up --build --wait --wait-timeout 180
+      - name: Verify GitHub import, manual execution, cron, SSE and exports
+        run: |
+          python -m venv "$RUNNER_TEMP/centerai-test"
+          "$RUNNER_TEMP/centerai-test/bin/pip" install -q httpx==0.28.1
+          "$RUNNER_TEMP/centerai-test/bin/python" scripts/verify_stack.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: repair-desk-reports
+          path: .qa/stack-reports/
+          if-no-files-found: error
+      - if: failure()
+        run: docker compose logs --tail 80 api worker beat
+      - if: always()
+        run: docker compose down -v
