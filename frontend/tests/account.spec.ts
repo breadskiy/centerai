@@ -4,9 +4,13 @@ import { randomUUID } from "node:crypto";
 test("Язык регистрации переключается и сохраняется", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("combobox", { name: "Язык" }).selectOption("en");
-  await expect(page.getByRole("heading", { name: "Create an account" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Create an account" }),
+  ).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("combobox", { name: "Language" })).toHaveValue("en");
+  await expect(page.getByRole("combobox", { name: "Language" })).toHaveValue(
+    "en",
+  );
 });
 
 test("Регистрация, проверка пароля и сохранение профиля после входа", async ({
@@ -43,7 +47,9 @@ test("Регистрация, проверка пароля и сохранен�
     /Quartz/,
   );
   await page.getByRole("button", { name: "Выйти из аккаунта" }).click();
-    await page.getByRole("button", { name: "Вход в аккаунт", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Вход в аккаунт", exact: true })
+    .click();
   await page.getByLabel("Электронная почта").fill(email);
   await page.getByLabel("Пароль", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Войти", exact: true }).click();

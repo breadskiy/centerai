@@ -2,8 +2,8 @@
 
 import base64
 import hashlib
-import io
 import hmac
+import io
 import re
 import secrets
 import time
@@ -146,6 +146,7 @@ def profile_out(account):
         "guest": account.email is None,
         "email": account.email,
         "nickname": account.nickname,
+        "github_login": account.github_login,
         "avatar": (
             "data:image/jpeg;base64," + base64.b64encode(account.avatar).decode("ascii")
             if account.avatar

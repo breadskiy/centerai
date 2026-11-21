@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import {
-  Eye,
-  EyeOff,
-  LogOut,
-  UserRound,
-} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Eye, EyeOff, LogOut, UserRound } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api, cache } from "./api";
 import bankMark from "./centr-invest.svg";
@@ -17,6 +13,7 @@ export type Viewer = {
   email: string | null;
   nickname: string;
   avatar: string | null;
+  github_login: string | null;
   telegram_username: string;
 };
 export type SetViewer = (viewer: Viewer | null) => void;
@@ -302,8 +299,13 @@ function Access({ enter }: { enter: SetViewer }) {
         </div>
       </section>
       <footer className="access-language">
-        <select aria-label={t("Язык")} value={language}
-          onChange={(event) => setLanguage(event.target.value === "en" ? "en" : "ru")}>
+        <select
+          aria-label={t("Язык")}
+          value={language}
+          onChange={(event) =>
+            setLanguage(event.target.value === "en" ? "en" : "ru")
+          }
+        >
           <option value="ru">Русский</option>
           <option value="en">English</option>
         </select>
@@ -320,6 +322,13 @@ export function AccountPage({
   change: SetViewer;
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const github = useQuery({
+    queryKey: ["/auth/github/status"],
+    queryFn: () => api<{ available: boolean }>("/auth/github/status"),
+    enabled: !viewer.guest,
+  });
+  const githubResult = new URLSearchParams(location.search).get("github");
   const [nickname, setNickname] = useState(viewer.nickname);
   const [username, setUsername] = useState(viewer.telegram_username);
   const [pending, setPending] = useState(false);
@@ -363,29 +372,51 @@ export function AccountPage({
       <div className="account-layout">
         <aside className="panel account-summary">
           <span className="account-avatar">
-            {viewer.avatar ? <img src={viewer.avatar} alt="" /> : <UserRound size={24} />}
+            {viewer.avatar ? (
+              <img src={viewer.avatar} alt="" />
+            ) : (
+              <UserRound size={24} />
+            )}
           </span>
-          {!viewer.guest && <div className="account-actions">
-            <label className="avatar-picker">
-              {t("Выбрать фото")}
-              <input type="file" accept="image/jpeg,image/png,image/webp" disabled={pending}
-                onChange={(event) => {
-                  const file = event.currentTarget.files?.[0];
-                  event.currentTarget.value = "";
-                  if (!file) return;
-                  void run(async () => {
-                    if (file.size > 2 * 1024 * 1024)
-                      throw new Error(t("Фото должно занимать не больше 2 МБ"));
-                    const form = new FormData();
-                    form.set("file", file);
-                    change(await api<Viewer>("/auth/avatar", "PUT", form));
-                  });
-                }} />
-            </label>
-            {viewer.avatar && <button type="button" disabled={pending} onClick={() => void run(async () => {
-              change(await api<Viewer>("/auth/avatar", "DELETE"));
-            })}>{t("Удалить фото")}</button>}
-          </div>}
+          {!viewer.guest && (
+            <div className="account-actions">
+              <label className="avatar-picker">
+                {t("Выбрать фото")}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={pending}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = "";
+                    if (!file) return;
+                    void run(async () => {
+                      if (file.size > 2 * 1024 * 1024)
+                        throw new Error(
+                          t("Фото должно занимать не больше 2 МБ"),
+                        );
+                      const form = new FormData();
+                      form.set("file", file);
+                      change(await api<Viewer>("/auth/avatar", "PUT", form));
+                    });
+                  }}
+                />
+              </label>
+              {viewer.avatar && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() =>
+                    void run(async () => {
+                      change(await api<Viewer>("/auth/avatar", "DELETE"));
+                    })
+                  }
+                >
+                  {t("Удалить фото")}
+                </button>
+              )}
+            </div>
+          )}
           <div>
             <h2>
               {viewer.nickname || t(viewer.guest ? "Гость" : "Пользователь")}
@@ -466,6 +497,58 @@ export function AccountPage({
                     )}
                   </div>
                 </form>
+              </section>
+              <section className="panel account-card">
+                <h2>GitHub</h2>
+                {githubResult === "linked" && (
+                  <p role="status">{t("Аккаунт GitHub привязан")}</p>
+                )}
+                {githubResult === "failed" && (
+                  <p role="alert">{t("Не удалось подключиться к GitHub")}</p>
+                )}
+                {githubResult === "conflict" && (
+                  <p role="alert">
+                    {t(
+                      "Этот аккаунт GitHub уже привязан или сначала нужно отвязать текущий",
+                    )}
+                  </p>
+                )}
+                {viewer.github_login ? (
+                  <>
+                    <p>@{viewer.github_login}</p>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() =>
+                        void run(async () => {
+                          await api("/auth/github/link", "DELETE");
+                          navigate("/account", { replace: true });
+                          change({ ...viewer, github_login: null });
+                        })
+                      }
+                    >
+                      {t("Отвязать GitHub")}
+                    </button>
+                  </>
+                ) : github.data?.available ? (
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() =>
+                      void run(async () => {
+                        const result = await api<{ url: string }>(
+                          "/auth/github/link",
+                          "POST",
+                        );
+                        window.location.assign(result.url);
+                      })
+                    }
+                  >
+                    {t("Привязать GitHub")}
+                  </button>
+                ) : github.isPending ? null : (
+                  <p>{t("Подключение GitHub пока не настроено")}</p>
+                )}
               </section>
             </>
           )}

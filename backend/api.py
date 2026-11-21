@@ -43,6 +43,7 @@ from .db import (
     cipher,
     engine,
 )
+from .github_oauth import router as github_router
 from .graph import LEVELS, REGISTRY, Graph, default_graph, next_due, validate
 from .migrate import upgrade
 from .sources import MAX_UPLOAD, fetch_repository, unpack_archive
@@ -987,6 +988,7 @@ def telegram_remove(db: DB):
 
 
 app.include_router(auth_router)
+app.include_router(github_router)
 app.include_router(api)
 from pathlib import Path
 
