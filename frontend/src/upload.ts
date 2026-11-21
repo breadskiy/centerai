@@ -23,6 +23,8 @@ export function uploadForm<T>(
     xhr.onerror = () =>
       reject(new Error(t("Соединение прервано при загрузке проекта")));
     xhr.onload = () => {
+      if (xhr.status === 401)
+        window.dispatchEvent(new Event("centerai-session-check"));
       if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response as T);
       else
         reject(new Error(t(xhr.response?.detail || "Ошибка загрузки проекта")));

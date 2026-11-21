@@ -23,7 +23,7 @@ export default defineConfig({
   },
   webServer: {
     command: '"' + python + '" tests/serve.py',
-    url: "http://127.0.0.1:8765/api/v1/settings",
+    url: "http://127.0.0.1:8765/api/v1/auth/session",
     reuseExistingServer: false,
     timeout: 30000,
   },

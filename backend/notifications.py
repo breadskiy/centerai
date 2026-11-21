@@ -8,7 +8,8 @@ from email.message import EmailMessage
 from email.utils import make_msgid
 
 import httpx
-from .db import Credential, cipher
+
+from .db import Credential, Project, cipher
 
 
 class TelegramLogFilter(logging.Filter):
@@ -80,8 +81,20 @@ def send_email(session, run=None, count=0):
     return {"provider": "email", "accepted": True, "message_id": str(msg["Message-ID"])}
 
 
-def configure(session, token, chat):
-    previous = session.get(Credential, "telegram")
+def telegram_connected(session, owner_id):
+    return session.get(Credential, f"telegram:{owner_id}") is not None
+
+
+def disconnect_telegram(session, owner_id):
+    row = session.get(Credential, f"telegram:{owner_id}")
+    if row:
+        session.delete(row)
+        session.commit()
+
+
+def configure(session, token, chat, owner_id):
+    provider = f"telegram:{owner_id}"
+    previous = session.get(Credential, provider)
     if not token and previous:
         token = json.loads(cipher().decrypt(previous.encrypted))["token"]
     if not re.fullmatch(
@@ -90,7 +103,7 @@ def configure(session, token, chat):
         raise ValueError("Проверьте токен бота и идентификатор чата")
     session.merge(
         Credential(
-            provider="telegram",
+            provider=provider,
             encrypted=cipher().encrypt(
                 json.dumps({"token": token, "chat": chat}).encode()
             ),
@@ -99,10 +112,12 @@ def configure(session, token, chat):
     session.commit()
 
 
-def telegram(session, run=None, count=0):
-    row = session.get(Credential, "telegram")
+def telegram(session, run=None, count=0, *, owner_id=None):
+    if run:
+        owner_id = session.get(Project, run.project_id).owner_id
+    row = session.get(Credential, f"telegram:{owner_id}") if owner_id else None
     if not row:
-        raise ValueError("Настройте Telegram в разделе настроек")
+        raise ValueError("Настройте Telegram в личном кабинете")
     config = json.loads(cipher().decrypt(row.encrypted))
     text = "CenterAI · Проверка подключения"
     if run:

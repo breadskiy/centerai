@@ -143,8 +143,9 @@ def test_notification_error_and_delivery(client, project, monkeypatch):
         API + "/integrations/telegram", json={"token": token, "chat": "12345"}
     )
     assert res.status_code == 200 and token not in res.text
+    owner = client.get(API + "/auth/session").json()["id"]
     with Session() as db:
-        assert token.encode() not in db.get(Credential, "telegram").encrypted
+        assert token.encode() not in db.get(Credential, f"telegram:{owner}").encrypted
     post = Mock(return_value=Mock(is_success=True, json=lambda: {"ok": True}))
     monkeypatch.setattr("backend.notifications.httpx.post", post)
     run = client.post(url).json()

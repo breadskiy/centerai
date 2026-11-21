@@ -2,23 +2,43 @@
 
 import argparse
 import json
+import os
 import time
+from contextlib import nullcontext
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
 
 
-def scan(base, workflow, directory, archive=None, timeout=180, fail_on=None):
+def scan(
+    base, workflow, directory, archive=None, timeout=180, fail_on=None, *, client=None
+):
     use_proxy = urlsplit(base).hostname not in ("127.0.0.1", "localhost", "::1")
-    with httpx.Client(
-        base_url=base.rstrip("/") + "/api/v1/", timeout=35, trust_env=use_proxy
-    ) as client:
+    context = (
+        nullcontext(client)
+        if client is not None
+        else httpx.Client(
+            base_url=base.rstrip("/") + "/api/v1/", timeout=35, trust_env=use_proxy
+        )
+    )
+    with context as http:
+        if client is None:
+            email, password = (
+                os.getenv("CENTERAI_EMAIL"),
+                os.getenv("CENTERAI_PASSWORD"),
+            )
+            if not email or not password:
+                raise RuntimeError(
+                    "Set CENTERAI_EMAIL and CENTERAI_PASSWORD for the workflow owner"
+                )
+            auth = http.post("auth/login", json={"email": email, "password": password})
+            auth.raise_for_status()
         if archive:
-            original = client.get(f"workflows/{workflow}").raise_for_status().json()
+            original = http.get(f"workflows/{workflow}").raise_for_status().json()
             with archive.open("rb") as file:
                 project = (
-                    client.post(
+                    http.post(
                         "projects",
                         data={"name": archive.stem[:100]},
                         files={"archive": (archive.name, file, "application/zip")},
@@ -32,7 +52,7 @@ def scan(base, workflow, directory, archive=None, timeout=180, fail_on=None):
                 if node["type"] == "schedule_trigger":
                     node["config"]["enabled"] = False
             workflow = (
-                client.post(
+                http.post(
                     "workflows",
                     json={
                         "project_id": project["id"],
@@ -44,18 +64,18 @@ def scan(base, workflow, directory, archive=None, timeout=180, fail_on=None):
                 .raise_for_status()
                 .json()["id"]
             )
-        run = client.post(f"workflows/{workflow}/runs").raise_for_status().json()
+        run = http.post(f"workflows/{workflow}/runs").raise_for_status().json()
         path = "runs/" + run["id"]
         deadline = time.monotonic() + timeout
         while run["status"] in ("queued", "running"):
             if time.monotonic() >= deadline:
                 raise TimeoutError("Timed out waiting for " + path)
             time.sleep(0.5)
-            run = client.get(path).raise_for_status().json()
+            run = http.get(path).raise_for_status().json()
         directory.mkdir(exist_ok=True, parents=True)
         for fmt in ("json", "txt"):
             data = (
-                client.get(path + "/report", params={"format": fmt})
+                http.get(path + "/report", params={"format": fmt})
                 .raise_for_status()
                 .content
             )

@@ -154,6 +154,8 @@ export async function api<T>(
     body: form ? body : body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) {
+    if (response.status === 401 && !path.startsWith("/auth/"))
+      window.dispatchEvent(new Event("centerai-session-check"));
     let message = t("Сервер вернул ошибку") + " " + response.status;
     try {
       message = (await response.json()).detail || message;

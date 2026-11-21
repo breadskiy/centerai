@@ -2,12 +2,13 @@ import os
 import time
 from pathlib import Path
 from uuid import uuid4
+
 from cryptography.fernet import Fernet
 from sqlalchemy import (
+    JSON,
     Float,
     ForeignKey,
     Integer,
-    JSON,
     LargeBinary,
     String,
     create_engine,
@@ -57,9 +58,27 @@ class Base(DeclarativeBase):
     pass
 
 
+class Account(Base):
+    __tablename__ = "accounts"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    email: Mapped[str | None] = mapped_column(String(254), unique=True)
+    password_hash: Mapped[str | None]
+    nickname: Mapped[str] = mapped_column(String(60), default="")
+    telegram_username: Mapped[str] = mapped_column(String(32), default="")
+    guest_until: Mapped[float | None] = mapped_column(Float, index=True)
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+    digest: Mapped[str] = mapped_column(String(64), primary_key=True)
+    account_id: Mapped[str] = mapped_column(ForeignKey("accounts.id"), index=True)
+    expires_at: Mapped[float] = mapped_column(Float, index=True)
+
+
 class Project(Base):
     __tablename__ = "projects"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("accounts.id"), index=True)
     name: Mapped[str]
     description: Mapped[str]
     source: Mapped[str]

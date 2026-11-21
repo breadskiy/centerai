@@ -15,6 +15,7 @@ import {
   History,
   LayoutDashboard,
   Settings2,
+  UserRound,
   Workflow,
 } from "lucide-react";
 import "@fontsource/ibm-plex-sans/cyrillic-400.css";
@@ -25,6 +26,8 @@ import "@fontsource/ibm-plex-mono/latin-400.css";
 import bankMark from "./centr-invest.svg";
 import { cache } from "./api";
 import { Boundary, Toast } from "./ui";
+import { AccountGate, AccountPage } from "./account";
+import type { SetViewer, Viewer } from "./account";
 import {
   Dashboard,
   Projects,
@@ -54,7 +57,7 @@ const nav = [
   ["/runs", "Запуски", History],
   ["/settings", "Настройки", Settings2],
 ] as const;
-function Shell() {
+function Shell({ viewer, change }: { viewer: Viewer; change: SetViewer }) {
   const location = useLocation();
   const language = useLanguage((state) => state.language);
   return (
@@ -76,6 +79,20 @@ function Shell() {
             </NavLink>
           ))}
         </nav>
+        <NavLink
+          to="/account"
+          className="account-link"
+          aria-label={translateText("Личный кабинет")}
+          title={translateText("Личный кабинет")}
+        >
+          <UserRound size={19} />
+          <span>
+            <strong>{translateText("Личный кабинет")}</strong>
+            <small>
+              {viewer.nickname || viewer.email || translateText("Гость")}
+            </small>
+          </span>
+        </NavLink>
       </aside>
       <div className="content">
         <main>
@@ -99,6 +116,10 @@ function Shell() {
                 <Route path="/findings/:sessionId" element={<FindingsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route
+                  path="/account"
+                  element={<AccountPage viewer={viewer} change={change} />}
+                />
+                <Route
                   path="*"
                   element={<Link to="/">{translateText("На главную")}</Link>}
                 />
@@ -115,7 +136,9 @@ createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={cache}>
       <BrowserRouter>
-        <Shell />
+        <AccountGate>
+          {(viewer, change) => <Shell viewer={viewer} change={change} />}
+        </AccountGate>
       </BrowserRouter>
     </QueryClientProvider>
   </React.StrictMode>,

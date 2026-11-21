@@ -124,7 +124,7 @@ def run(port):
                 "--port",
                 str(port),
             ],
-            base + "/api/v1/settings",
+            base + "/api/v1/auth/session",
         )
     )
     LOGS.mkdir(parents=True, exist_ok=True)

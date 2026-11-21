@@ -4,7 +4,9 @@ import os
 import time
 from collections import Counter
 from contextlib import asynccontextmanager
-from threading import Event as Stop, Thread
+from threading import Event as Stop
+from threading import Thread
+from typing import Annotated
 from urllib.parse import urlsplit
 
 from fastapi import (
@@ -22,14 +24,14 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StringConstraints
-from typing import Annotated
 from sqlalchemy import case, func, select, update
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import notifications
 from .analyzers.common import SubmissionReportExporter
+from .auth import DB, member, session, token_digest, viewer
+from .auth import router as auth_router
 from .db import (
-    Credential,
     Event,
     Finding,
     NodeRun,
@@ -41,10 +43,10 @@ from .db import (
     cipher,
     engine,
 )
-from .graph import Graph, LEVELS, REGISTRY, default_graph, next_due, validate
+from .graph import LEVELS, REGISTRY, Graph, default_graph, next_due, validate
+from .migrate import upgrade
 from .sources import MAX_UPLOAD, fetch_repository, unpack_archive
 from .worker import enqueue, local_worker, request_cancellation
-from .migrate import upgrade
 from .workflow_draft import draft
 
 Name = Annotated[
@@ -104,7 +106,10 @@ async def request_guard(request: Request, call_next):
                 return JSONResponse({"detail": "Превышен лимит запроса"}, 413)
             data.extend(chunk)
         request._body = bytes(data)
-    return await call_next(request)
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.exception_handler(ValueError)
@@ -118,19 +123,33 @@ async def invalid_fields(request, exc):
     return JSONResponse({"detail": "Проверьте поля: " + fields}, 422)
 
 
-def session():
-    with Session() as db:
-        yield db
+api = APIRouter(prefix="/api/v1", dependencies=[Depends(session)])
 
 
-DB = Annotated[Session, Depends(session)]
-api = APIRouter(prefix="/api/v1")
+def owned_projects(db):
+    return select(Project.id).where(Project.owner_id == db.info["account"].id)
 
 
-def get(db, model, key):
+def owned_workflows(db):
+    return select(Workflow.id).where(Workflow.project_id.in_(owned_projects(db)))
+
+
+def owned_runs(db):
+    return select(Run.id).where(Run.project_id.in_(owned_projects(db)))
+
+
+def get(db, model, key, *, include_archived=False):
     row = db.get(model, key)
-    if not row or getattr(row, "archived", False):
+    if not row or (getattr(row, "archived", False) and not include_archived):
         raise HTTPException(404, "Запись не найдена")
+    if model is Version:
+        get(db, Workflow, row.workflow_id, include_archived=include_archived)
+    elif model is NodeRun:
+        get(db, Run, row.run_id)
+    else:
+        project = row if model is Project else db.get(Project, row.project_id)
+        if not project or project.owner_id != db.info["account"].id:
+            raise HTTPException(404, "Запись не найдена")
     return row
 
 
@@ -287,18 +306,31 @@ def dashboard(db: DB):
         return db.scalar(select(func.count()).select_from(model).where(*criteria))
 
     return {
-        "projects": count(Project, Project.archived.is_(False)),
-        "workflows": count(Workflow, Workflow.archived.is_(False)),
-        "runs": count(Run),
-        "findings": count(Finding),
+        "projects": count(
+            Project, Project.id.in_(owned_projects(db)), Project.archived.is_(False)
+        ),
+        "workflows": count(
+            Workflow,
+            Workflow.project_id.in_(owned_projects(db)),
+            Workflow.archived.is_(False),
+        ),
+        "runs": count(Run, Run.project_id.in_(owned_projects(db))),
+        "findings": count(Finding, Finding.run_id.in_(owned_runs(db))),
         "levels": dict(
             db.execute(
-                select(Finding.severity, func.count()).group_by(Finding.severity)
+                select(Finding.severity, func.count())
+                .where(Finding.run_id.in_(owned_runs(db)))
+                .group_by(Finding.severity)
             ).all()
         ),
         "recent": [
             {**run_out(r), "levels": run_levels(db, r.id)}
-            for r in db.scalars(select(Run).order_by(Run.created.desc()).limit(5))
+            for r in db.scalars(
+                select(Run)
+                .where(Run.project_id.in_(owned_projects(db)))
+                .order_by(Run.created.desc())
+                .limit(5)
+            )
         ],
     }
 
@@ -309,7 +341,7 @@ def projects(db: DB):
         project_out(db, p)
         for p in db.scalars(
             select(Project)
-            .where(Project.archived.is_(False))
+            .where(Project.id.in_(owned_projects(db)), Project.archived.is_(False))
             .order_by(Project.created.desc())
         )
     ]
@@ -343,6 +375,7 @@ def import_project(db, name, description, archive, repository, *, public=False):
     if not name.strip():
         raise ValueError("Укажите название проекта")
     row = Project(
+        owner_id=db.info["account"].id,
         name=name.strip(),
         description=description,
         source=(archive.filename or "project.zip") if archive else repository,
@@ -392,7 +425,7 @@ def quick_scan(
         parts = profile.split(":")
         if len(parts) != 2 or not parts[1].isascii() or not parts[1].isdigit():
             raise ValueError("Выберите профиль проверки")
-        snapshot = get(db, Version, (parts[0], int(parts[1])))
+        snapshot = get(db, Version, (parts[0], int(parts[1])), include_archived=True)
         if snapshot.published_at is None:
             raise HTTPException(404, "Шаблон не опубликован")
         title = snapshot.name
@@ -443,19 +476,22 @@ def delete_project(key: str, db: DB):
 
 @api.get("/workflows")
 def workflows(db: DB, project_id: str | None = None):
-    query = select(Workflow).where(Workflow.archived.is_(False))
+    query = select(Workflow).where(
+        Workflow.project_id.in_(owned_projects(db)), Workflow.archived.is_(False)
+    )
     if project_id:
         query = query.where(Workflow.project_id == project_id)
     return [flow_out(db, w) for w in db.scalars(query.order_by(Workflow.name))]
 
 
-def schedule(graph):
+def schedule(graph, db):
     if any(n["type"] not in REGISTRY for n in graph["nodes"]):
         raise ValueError("Неизвестный тип узла")
     if len({n["id"] for n in graph["nodes"]}) != len(graph["nodes"]):
         raise ValueError("Идентификаторы узлов должны быть уникальны")
     for node in graph["nodes"]:
         if node["type"] == "schedule_trigger" and node["config"].get("enabled"):
+            member(db)
             validate(graph)
             return next_due(node["config"], time.time())
     return None
@@ -482,7 +518,7 @@ def create_flow(body: FlowCreate, db: DB):
         description=body.description,
         project_id=body.project_id,
         graph=graph,
-        next_due=schedule(graph),
+        next_due=schedule(graph, db),
     )
     db.add(row)
     db.flush()
@@ -512,7 +548,7 @@ def edit_flow(key: str, body: FlowEdit, db: DB):
             description=body.description,
             revision=body.revision + 1,
             graph=graph,
-            next_due=schedule(graph),
+            next_due=schedule(graph, db),
         )
     )
     if not result.rowcount:
@@ -556,7 +592,10 @@ def templates(db: DB):
         )
         for v in db.scalars(
             select(Version)
-            .where(Version.published_at.is_not(None))
+            .where(
+                Version.published_at.is_not(None),
+                Version.workflow_id.in_(owned_workflows(db)),
+            )
             .order_by(Version.published_at.desc())
         )
     ]
@@ -569,7 +608,7 @@ class CopyTemplate(BaseModel):
 
 @api.post("/templates/{key}/{revision}/copies", status_code=201)
 def copy_template(key: str, revision: int, body: CopyTemplate, db: DB):
-    snapshot = get(db, Version, (key, revision))
+    snapshot = get(db, Version, (key, revision), include_archived=True)
     if snapshot.published_at is None:
         raise HTTPException(404, "Шаблон не опубликован")
     graph = Graph.model_validate(snapshot.graph)
@@ -584,6 +623,7 @@ def copy_template(key: str, revision: int, body: CopyTemplate, db: DB):
 
 @api.get("/workflows/{key}/versions")
 def versions(key: str, db: DB):
+    get(db, Workflow, key, include_archived=True)
     return [
         fields(v, "revision", "name", "description", "graph", "created")
         for v in db.scalars(
@@ -617,7 +657,7 @@ def runs(
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
 ):
-    q = select(Run)
+    q = select(Run).where(Run.project_id.in_(owned_projects(db)))
     for column, value in [
         (Run.project_id, project_id),
         (Run.workflow_id, workflow_id),
@@ -702,9 +742,10 @@ def event_out(e):
 
 
 @api.get("/runs/{key}/events")
-async def events(key: str, request: Request):
-    with Session() as db:
-        get(db, Run, key)
+async def events(key: str, request: Request, db: DB):
+    get(db, Run, key)
+    db.close()
+    digest = token_digest(request)
 
     try:
         after = max(0, int(request.headers.get("last-event-id", "0")))
@@ -714,11 +755,16 @@ async def events(key: str, request: Request):
     async def stream():
         cursor = after
         while not await request.is_disconnected():
-            with Session() as db:
-                status = db.get(Run, key).status
+            with Session() as stream_db:
+                if viewer(stream_db, digest) is None:
+                    break
+                row = stream_db.get(Run, key)
+                if row is None:
+                    break
+                status = row.status
                 batch = [
                     event_out(e)
-                    for e in db.scalars(
+                    for e in stream_db.scalars(
                         select(Event)
                         .where(Event.run_id == key, Event.id > cursor)
                         .order_by(Event.id)
@@ -751,6 +797,7 @@ def finding_sessions(
         select(Project.id, Project.name, func.count().label("count"))
         .join(Run, Run.project_id == Project.id)
         .join(Finding, Finding.run_id == Run.id)
+        .where(Project.id.in_(owned_projects(db)))
         .group_by(Project.id, Project.name)
         .order_by(func.max(Run.created).desc(), Project.id)
     )
@@ -763,9 +810,7 @@ def finding_sessions(
 
 @api.get("/findings/sessions/{key}")
 def finding_session(key: str, db: DB):
-    row = db.get(Project, key)
-    if row is None:
-        raise HTTPException(404, "Сессия не найдена")
+    row = get(db, Project, key, include_archived=True)
     return fields(row, "id", "name")
 
 
@@ -781,7 +826,11 @@ def findings(
     offset: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
 ):
-    query = select(Finding, Run.created).join(Run, Finding.run_id == Run.id)
+    query = (
+        select(Finding, Run.created)
+        .join(Run, Finding.run_id == Run.id)
+        .where(Run.project_id.in_(owned_projects(db)))
+    )
     for column, value in [
         (Finding.run_id, run_id),
         (Run.project_id, project_id),
@@ -892,10 +941,10 @@ def export(key: str, db: DB, format: str = Query("json", pattern="^(json|txt)$")
 @api.get("/integrations")
 def settings(db: DB):
     return {
-        "email_recipient": notifications.email_recipient(db),
+        "email_recipient": "",
         "smtp": bool(os.getenv("SMTP_HOST")),
         "demo_mailbox": os.getenv("CENTERAI_DEMO") == "1",
-        "telegram": bool(db.get(Credential, "telegram")),
+        "telegram": notifications.telegram_connected(db, db.info["account"].id),
         "repositories": os.getenv("ALLOWED_REPOSITORIES", "TBagirov/training").split(
             ","
         ),
@@ -919,18 +968,26 @@ def test_email(db: DB):
 
 @api.put("/integrations/telegram")
 def telegram_update(body: TelegramConfig, db: DB):
-    notifications.configure(db, body.token, body.chat)
+    notifications.configure(db, body.token, body.chat, member(db).id)
     return settings(db)
 
 
 @api.post("/integrations/telegram/test")
 def telegram_test(db: DB):
-    notifications.telegram(db)
+    notifications.telegram(db, owner_id=member(db).id)
     return {"delivered": True}
 
 
+@api.delete("/integrations/telegram")
+def telegram_remove(db: DB):
+    notifications.disconnect_telegram(db, member(db).id)
+    return {"ok": True}
+
+
+app.include_router(auth_router)
 app.include_router(api)
 from pathlib import Path
+
 from fastapi.responses import FileResponse
 
 dist = Path(__file__).resolve().parents[1] / "frontend/dist"

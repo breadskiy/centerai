@@ -2,10 +2,11 @@
 
 import json
 import os
-from pathlib import Path
 import time
-import httpx
+from pathlib import Path
+from uuid import uuid4
 
+import httpx
 from ci_scan import scan
 
 
@@ -13,6 +14,13 @@ def verify():
     base = os.getenv("CENTERAI_TEST_URL", "http://127.0.0.1:8000")
     output = Path(".qa/stack-reports")
     with httpx.Client(base_url=base + "/api/v1/", timeout=45) as client:
+        client.post(
+            "auth/register",
+            json={
+                "email": f"acceptance-{uuid4().hex}@example.com",
+                "password": f"Acceptance42!{uuid4().hex}",
+            },
+        ).raise_for_status()
         settings = client.get("settings").raise_for_status().json()
         assert settings["worker"] == "celery"
         project = (
@@ -35,7 +43,7 @@ def verify():
         flow = client.post("workflows", json=payload).raise_for_status().json()
         path = "workflows/" + flow["id"]
         try:
-            run = scan(base, flow["id"], output)
+            run = scan(base, flow["id"], output, client=client)
             rows = json.loads((output / "report.json").read_bytes())["findings"]
             assert len(rows) == run["count"] == 15
             for category in ("SECRET", "SCA", "SAST"):

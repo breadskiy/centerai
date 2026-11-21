@@ -15,7 +15,9 @@ os.environ["DATABASE_URL"] = (
 os.environ["WORKER_MODE"] = "test"
 
 from fastapi.testclient import TestClient
+
 from backend.api import app
+from backend.auth import attempts
 from backend.db import Base, engine
 
 
@@ -33,12 +35,26 @@ def zip_bytes(files):
 
 
 @pytest.fixture
-def client():
+def anonymous():
+    attempts.clear()
     with TestClient(app) as c:
         yield c
     with engine.begin() as conn:
         for table in reversed(Base.metadata.sorted_tables):
             conn.execute(table.delete())
+
+
+@pytest.fixture
+def client(anonymous):
+    response = anonymous.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "developer@example.com",
+            "password": "Tangerine-River42!",
+        },
+    )
+    assert response.status_code == 201, response.text
+    return anonymous
 
 
 @pytest.fixture

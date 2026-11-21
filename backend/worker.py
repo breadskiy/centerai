@@ -7,9 +7,20 @@ from collections import Counter
 from celery import Celery
 from sqlalchemy import select, update
 
-from .db import Event, Finding, NodeRun, Project, Run, Session, Workflow, cipher
 from .analyzers import SCANNERS
-from .graph import Context, Packet, REGISTRY, next_due, validate
+from .auth import cleanup_sessions
+from .db import (
+    Account,
+    Event,
+    Finding,
+    NodeRun,
+    Project,
+    Run,
+    Session,
+    Workflow,
+    cipher,
+)
+from .graph import REGISTRY, Context, Packet, next_due, validate
 
 log = logging.getLogger(__name__)
 celery = Celery("centerai", broker=os.getenv("REDIS_URL", "redis://redis:6379/0"))
@@ -220,8 +231,13 @@ def tick():
     now = time.time()
     with Session() as db:
         for flow in db.scalars(
-            select(Workflow).where(
-                Workflow.archived.is_(False), Workflow.next_due <= now
+            select(Workflow)
+            .join(Project, Workflow.project_id == Project.id)
+            .join(Account, Project.owner_id == Account.id)
+            .where(
+                Account.email.is_not(None),
+                Workflow.archived.is_(False),
+                Workflow.next_due <= now,
             )
         ):
             cfg = next(
@@ -261,8 +277,18 @@ def tick():
             )
             record(db, run, "failed", run.error)
         db.commit()
+        cleanup_sessions(db, now)
+        db.commit()
         queued = db.scalars(
-            select(Run.id).where(Run.status == "queued").order_by(Run.created).limit(4)
+            select(Run.id)
+            .join(Project, Run.project_id == Project.id)
+            .join(Account, Project.owner_id == Account.id)
+            .where(
+                Run.status == "queued",
+                (Account.guest_until.is_(None) | (Account.guest_until > now)),
+            )
+            .order_by(Run.created)
+            .limit(4)
         ).all()
     for run_id in queued:
         execute(run_id)

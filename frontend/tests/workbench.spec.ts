@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./session";
 import { resolve } from "node:path";
 
 test("Тема следует системе и сохраняет ручной выбор", async ({ page }) => {
