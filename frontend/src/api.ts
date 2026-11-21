@@ -51,6 +51,7 @@ export interface Flow {
   last_status: string | null;
 }
 export interface Run {
+  cancel_requested: boolean;
   id: string;
   project_id: string;
   project_name: string;

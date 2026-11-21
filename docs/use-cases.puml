@@ -4,6 +4,7 @@ actor "Разработчик" as User
 actor "Планировщик" as Timer
 actor "GitHub" as Git
 actor "Telegram" as Chat
+actor "CI runner" as CI
 rectangle CenterAI {
   usecase "Импортировать проект" as Import
   usecase "Принять ZIP" as Zip
@@ -17,6 +18,7 @@ rectangle CenterAI {
   usecase "Наблюдать выполнение" as Monitor
   usecase "Получить отчёт" as Report
   usecase "Отправить уведомление" as Notify
+  usecase "Опубликовать версию и создать копию" as Templates
   usecase "Просмотреть историю" as History
 }
 User --> Import
@@ -33,6 +35,9 @@ Logic ..> Analyze : <<extend>>
 User --> Monitor
 User --> Report
 User --> History
+User --> Templates
+CI --> Run
+CI --> Report
 Notify ..> Report : <<extend>>
 Chat --> Notify
 @enduml

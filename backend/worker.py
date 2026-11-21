@@ -47,6 +47,37 @@ def enqueue(session, workflow, trigger):
     return run
 
 
+def complete_cancellation(db, run):
+    run.status, run.finished = "cancelled", time.time()
+    db.execute(
+        update(NodeRun)
+        .where(NodeRun.run_id == run.id, NodeRun.status == "pending")
+        .values(status="cancelled", finished=run.finished)
+    )
+    record(db, run, "cancelled", "Проверка отменена оператором")
+    db.commit()
+
+
+def request_cancellation(db, run):
+    # Serialize cancellation with claiming a queued run. The worker checks the
+    # same flag between nodes, allowing an in-flight external call to finish.
+    queued = db.execute(
+        update(Run)
+        .where(Run.id == run.id, Run.status == "queued")
+        .values(cancel_requested=True, status="cancelled")
+    )
+    if queued.rowcount:
+        complete_cancellation(db, run)
+        return
+    db.execute(
+        update(Run)
+        .where(Run.id == run.id, Run.status == "running")
+        .values(cancel_requested=True)
+    )
+    db.commit()
+    db.refresh(run)
+
+
 def execute(run_id):
     now = time.time()
     with Session() as db:
@@ -69,6 +100,10 @@ def execute(run_id):
             ctx = Context(db, run, files)
             packets, reports = {}, {}
             for node_id in order:
+                db.refresh(run, attribute_names=["cancel_requested"])
+                if run.cancel_requested:
+                    complete_cancellation(db, run)
+                    return
                 node = nodes[node_id]
                 current = db.get(NodeRun, (run.id, node_id))
                 links = parents[node_id]
@@ -87,7 +122,10 @@ def execute(run_id):
                 run.heartbeat = time.time()
                 record(db, run, "running", REGISTRY[node.type].title, node_id)
                 db.commit()
-                data = Packet({k: v for p in active for k, v in p.findings.items()})
+                data = Packet(
+                    {k: v for p in active for k, v in p.findings.items()},
+                    files=next((p.files for p in active if p.files is not None), None),
+                )
                 output = REGISTRY[node.type].execute(ctx, node.config, data)
                 packets[node_id] = output
                 current.output = {
@@ -95,6 +133,8 @@ def execute(run_id):
                     "ids": list(output.findings),
                     "branch": output.branch,
                 }
+                if output.receipt:
+                    current.output["receipt"] = output.receipt
                 if node.type in SCANNERS:
                     current.output["findings"] = [
                         row
@@ -126,6 +166,10 @@ def execute(run_id):
                     node_id,
                 )
                 db.commit()
+            db.refresh(run, attribute_names=["cancel_requested"], with_for_update=True)
+            if run.cancel_requested:
+                complete_cancellation(db, run)
+                return
             run.status = "success"
             record(db, run, "success", "Проверка завершена")
         except Exception as exc:

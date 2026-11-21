@@ -2,12 +2,19 @@ import operator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from graphlib import CycleError, TopologicalSorter
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo
 
 import regex
 from croniter import croniter
 from pydantic import BaseModel, Field, ConfigDict
 
+from .node_config import (
+    EmptyConfig,
+    CompareConfig,
+    LevelsConfig,
+    PatternConfig,
+    ScheduleConfig,
+)
 from .analyzers import SCANNERS
 from .analyzers.common import SubmissionReportExporter
 from .notifications import telegram
@@ -55,12 +62,15 @@ class Kind:
     output: str
     execute: object
     defaults: dict = field(default_factory=dict)
+    config_schema: type[EmptyConfig] = EmptyConfig
 
 
 @dataclass
 class Packet:
     findings: dict = field(default_factory=dict)
     branch: str = ""
+    files: dict | None = None
+    receipt: dict | None = None
 
 
 @dataclass
@@ -74,10 +84,14 @@ def pass_through(ctx, cfg, data):
     return data
 
 
+def source(ctx, cfg, data):
+    return Packet(files=ctx.files)
+
+
 def scanner(key):
     def analyze(ctx, cfg, data):
-        found = {f["id"]: f for f in SCANNERS[key](ctx.files)}
-        return Packet({**data.findings, **found})
+        found = {f["id"]: f for f in SCANNERS[key](data.files)}
+        return Packet({**data.findings, **found}, files=data.files)
 
     return analyze
 
@@ -110,8 +124,8 @@ def report(ctx, cfg, data):
 
 
 def notify(ctx, cfg, data):
-    telegram(ctx.session, ctx.run, len(data.findings))
-    return data
+    receipt = telegram(ctx.session, ctx.run, len(data.findings))
+    return Packet(data.findings, receipt=receipt)
 
 
 REGISTRY = {
@@ -131,6 +145,7 @@ REGISTRY = {
         "start",
         pass_through,
         {"cron": "0 9 * * 1-5", "timezone": "Europe/Moscow", "enabled": False},
+        ScheduleConfig,
     ),
     "repository_source": Kind(
         "Исходники",
@@ -138,7 +153,7 @@ REGISTRY = {
         "Снимок файлов проекта.",
         "start",
         "files",
-        pass_through,
+        source,
     ),
     "secrets_scanner": Kind(
         "Secrets",
@@ -172,6 +187,7 @@ REGISTRY = {
         "findings",
         compare,
         {"operator": ">", "count": 0},
+        CompareConfig,
     ),
     "severity_filter": Kind(
         "Критичность",
@@ -181,6 +197,7 @@ REGISTRY = {
         "findings",
         severity,
         {"levels": ["CRITICAL", "HIGH"]},
+        LevelsConfig,
     ),
     "regex_filter": Kind(
         "Regex",
@@ -190,6 +207,7 @@ REGISTRY = {
         "findings",
         match_regex,
         {"pattern": ".*"},
+        PatternConfig,
     ),
     "report_generator": Kind(
         "Отчёт",
@@ -213,45 +231,11 @@ def next_due(cfg, now):
 
 
 def validate_config(node):
-    cfg = node.config
-
-    def require(condition):
-        if not condition:
-            raise ValueError("Недопустимое значение")
-
     try:
-        if node.type == "if_else":
-            require(
-                cfg["operator"] in OPS
-                and type(cfg["count"]) is int
-                and cfg["count"] >= 0
-            )
-        elif node.type == "severity_filter":
-            require(
-                isinstance(cfg["levels"], list)
-                and cfg["levels"]
-                and all(v in LEVELS for v in cfg["levels"])
-            )
-        elif node.type == "regex_filter":
-            require(isinstance(cfg["pattern"], str) and 0 < len(cfg["pattern"]) <= 200)
-            regex.compile(cfg["pattern"])
-        elif node.type == "schedule_trigger":
-            require(
-                type(cfg["enabled"]) is bool
-                and len(cfg["cron"].split()) == 5
-                and croniter.is_valid(cfg["cron"])
-            )
-            next_due(cfg, 1700000000)
-        return
-    except (
-        AssertionError,
-        KeyError,
-        TypeError,
-        ValueError,
-        AttributeError,
-        ZoneInfoNotFoundError,
-        regex.error,
-    ):
+        REGISTRY[node.type].config_schema.model_validate(node.config)
+        if node.type == "schedule_trigger":
+            next_due(node.config, 1700000000)
+    except ValueError:
         raise ValueError(f"Проверьте параметры узла {node.id}") from None
 
 

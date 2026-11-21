@@ -45,7 +45,9 @@ def declarations(source, catalog):
     }
     for m in re.finditer(rf"\b{configs}\s*\(\s*libs\.([\w.]+)\s*\)", source):
         item = aliases.get(m[1])
-        if isinstance(item, dict):
+        if isinstance(item, str) and item.count(":") == 2:
+            yield *item.split(":"), m.start()
+        elif isinstance(item, dict):
             module = (
                 item.get("module", "")
                 or f"{item.get('group', '')}:{item.get('name', '')}"

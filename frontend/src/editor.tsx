@@ -67,7 +67,7 @@ const marks = {
   notification: Send,
   if_else: GitBranch,
   severity_filter: Filter,
-  regex_filter: Filter,
+  regex_filter: Braces,
 };
 function TileView({ data, selected }: NodeProps<Tile>) {
   const I = marks[data.kind as keyof typeof marks] || Workflow;
@@ -109,8 +109,15 @@ function translate(
       position: n.position,
       data: {
         kind: n.type,
-        spec: registry.types[n.type],
-        config: n.config,
+        spec: registry.types[n.type] ?? {
+          title: n.type,
+          category: "Неизвестный узел",
+          description: "Замените неподдерживаемый тип узла.",
+          input: "?",
+          output: "?",
+          defaults: {},
+        },
+        config: { ...registry.types[n.type]?.defaults, ...n.config },
         status: statuses[n.id],
       },
     })),
@@ -403,6 +410,33 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
     })),
   };
   const serialized = JSON.stringify({ name, description, graph });
+  const topology = JSON.stringify({
+    nodes: graph.nodes.map(({ id, type, config }) => ({ id, type, config })),
+    edges: graph.edges,
+  });
+  const [validation, checked] = useState({ graph: "", error: "" });
+  useEffect(() => {
+    let current = true;
+    const timer = setTimeout(() => {
+      api(
+        "/workflows/" + flow.id + "/validate",
+        "POST",
+        JSON.parse(topology),
+      ).then(
+        () => {
+          if (current) checked({ graph: topology, error: "" });
+        },
+        (e) => {
+          if (current) checked({ graph: topology, error: e.message });
+        },
+      );
+    }, 220);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [flow.id, topology]);
+  const graphError = validation.graph === topology ? validation.error : "";
   const saved = useRef(serialized);
   const latest = useRef(serialized);
   latest.current = serialized;
@@ -558,7 +592,12 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
           </button>
           <button
             className="primary"
-            disabled={busy}
+            disabled={
+              busy ||
+              !name.trim() ||
+              validation.graph !== topology ||
+              !!graphError
+            }
             onClick={() =>
               void act(async () => {
                 await validate();
@@ -575,9 +614,9 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
           </button>
         </div>
       </div>
-      {error && (
+      {(error || graphError) && (
         <p role="alert" className="errorline">
-          {error}
+          {error || graphError}
         </p>
       )}
       <div className="editorframe">
@@ -693,6 +732,9 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
               <h2>{picked.data.spec.title}</h2>
               <p>{picked.data.spec.description}</p>
               <code>{picked.data.kind}</code>
+              {graphError.includes(picked.id) && (
+                <p className="errorline">{graphError}</p>
+              )}
               <dl>
                 <dt>Вход</dt>
                 <dd>{picked.data.spec.input}</dd>

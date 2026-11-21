@@ -3,8 +3,9 @@ from .kotlin import without_comments
 from .common import finding, line_at
 
 LITERAL = re.compile(r'^\s*"([^"$\n]+)"\s*$')
+ATOM = r'(?:"[^"$\n]*"|\w+)'
 BIND = re.compile(
-    r"\b(?:val|var)\s+(\w+)(?:\s*:\s*String)?\s*=\s*([^\n;]+(?:\n\s*\+[^\n;]+)*)"
+    rf'\b(?:val|var)\s+(\w+)(?:\s*:\s*String)?\s*=\s*({ATOM}(?:\s*\+\s*{ATOM})*)[ \t]*(?=[;}}\r\n]|$)'
 )
 SENSITIVE = re.compile(r"pass(?:word|wd)|api[-_]?key|secret|token|authorization", re.I)
 TITLES = {
@@ -107,10 +108,13 @@ def scan(files):
             or path == ".env"
         ):
             for match in re.finditer(
-                r'(?m)^\s*([\w.-]+)\s*[:=]\s*["\']?([^#\r\n"\']+)', source
+                r'(?m)^[ \t]*([\w.-]+)[ \t]*[:=][ \t]*["\']?([^#\r\n"\']+)', source
             ):
                 key, value = match.groups()
-                if SENSITIVE.search(key) and plausible(value):
+                fallback = re.fullmatch(r"\s*\$\{[\w.-]+:([^{}]+)\}\s*", value)
+                if SENSITIVE.search(key) and fallback and plausible(fallback[1]):
+                    add("secret-fallback", match.start(1), "LOW")
+                elif SENSITIVE.search(key) and plausible(value):
                     add(
                         "password" if "pass" in key.lower() else "configuration-token",
                         match.start(1),

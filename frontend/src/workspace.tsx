@@ -43,6 +43,8 @@ import {
   useData,
 } from "./api";
 import { Button } from "./components/button";
+import { ScheduleSettings } from "./schedules";
+import { TemplateLibrary } from "./templates";
 import { uploadProject } from "./upload";
 import {
   Empty,
@@ -663,6 +665,7 @@ export function Workflows() {
           </Empty>
         )}
       </section>
+      <TemplateLibrary flows={flows} projects={projects} project={project} />
       {open && (
         <NewFlow
           projects={projects}
@@ -748,16 +751,7 @@ export function SettingsPage() {
           <section className="panel padded">
             <CalendarClock />
             <h2>Расписание</h2>
-            {flows
-              .filter((f) => f.next_due)
-              .map((f) => (
-                <p key={f.id}>
-                  <Link to={"/workflows/" + f.id}>{f.name}</Link> ·{" "}
-                  {date(f.next_due)}
-                </p>
-              ))}
-            <p>Время и часовой пояс задаются в узле «Расписание».</p>
-            <Link to="/workflows">Открыть сценарии</Link>
+            <ScheduleSettings flows={flows} />
           </section>
           <section className="panel padded">
             <Archive />

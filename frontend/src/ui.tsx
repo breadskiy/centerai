@@ -1,4 +1,5 @@
 import { Component, ReactNode, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import {
   Activity,
@@ -33,13 +34,15 @@ export function Toast() {
     }
   }, [notice, clear]);
   return (
-    notice && (
+    notice &&
+    createPortal(
       <div role="status" className={"toast " + (notice.bad ? "bad" : "")}>
         <span>{notice.text}</span>
         <button aria-label="Закрыть сообщение" onClick={clear}>
           <X size={16} />
         </button>
-      </div>
+      </div>,
+      document.querySelector("dialog[open]") ?? document.body,
     )
   );
 }
@@ -117,6 +120,7 @@ export function Modal({
   return (
     <dialog
       ref={ref}
+      aria-label={title}
       onCancel={close}
       onClick={(e) => {
         if (e.target === ref.current) close();

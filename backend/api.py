@@ -42,7 +42,7 @@ from .db import (
 )
 from .graph import Graph, LEVELS, REGISTRY, default_graph, next_due, validate
 from .sources import MAX_UPLOAD, fetch_repository, unpack
-from .worker import enqueue, local_worker
+from .worker import enqueue, local_worker, request_cancellation
 from .migrate import upgrade
 
 Name = Annotated[
@@ -195,6 +195,7 @@ def run_out(row):
         "workflow_name",
         "revision",
         "trigger",
+        "cancel_requested",
         "status",
         "created",
         "started",
@@ -229,9 +230,12 @@ class TelegramConfig(BaseModel):
 def registry():
     return {
         "types": {
-            k: fields(
-                v, "title", "category", "description", "input", "output", "defaults"
-            )
+            k: {
+                **fields(
+                    v, "title", "category", "description", "input", "output", "defaults"
+                ),
+                "config_schema": v.config_schema.model_json_schema(),
+            }
             for k, v in REGISTRY.items()
         },
         "default_graph": default_graph(),
@@ -336,6 +340,10 @@ def workflows(db: DB, project_id: str | None = None):
 
 
 def schedule(graph):
+    if any(n["type"] not in REGISTRY for n in graph["nodes"]):
+        raise ValueError("Неизвестный тип узла")
+    if len({n["id"] for n in graph["nodes"]}) != len(graph["nodes"]):
+        raise ValueError("Идентификаторы узлов должны быть уникальны")
     for node in graph["nodes"]:
         if node["type"] == "schedule_trigger" and node["config"].get("enabled"):
             validate(graph)
@@ -415,6 +423,55 @@ def delete_flow(key: str, db: DB):
     return {"ok": True}
 
 
+@api.post("/workflows/{key}/versions/{revision}/publish")
+def publish(key: str, revision: int, db: DB):
+    get(db, Workflow, key)
+    snapshot = get(db, Version, (key, revision))
+    validate(snapshot.graph)
+    if snapshot.published_at is None:
+        snapshot.published_at = time.time()
+        db.commit()
+    return {
+        "workflow_id": key,
+        "revision": revision,
+        "published_at": snapshot.published_at,
+    }
+
+
+@api.get("/templates")
+def templates(db: DB):
+    return [
+        fields(
+            v, "workflow_id", "revision", "published_at", "name", "description", "graph"
+        )
+        for v in db.scalars(
+            select(Version)
+            .where(Version.published_at.is_not(None))
+            .order_by(Version.published_at.desc())
+        )
+    ]
+
+
+class CopyTemplate(BaseModel):
+    project_id: str
+    name: Name
+
+
+@api.post("/templates/{key}/{revision}/copies", status_code=201)
+def copy_template(key: str, revision: int, body: CopyTemplate, db: DB):
+    snapshot = get(db, Version, (key, revision))
+    if snapshot.published_at is None:
+        raise HTTPException(404, "Шаблон не опубликован")
+    graph = Graph.model_validate(snapshot.graph)
+    for node in graph.nodes:
+        if node.type == "schedule_trigger":
+            node.config = {**node.config, "enabled": False}
+    return create_flow(
+        FlowCreate(**body.model_dump(), graph=graph, description=snapshot.description),
+        db,
+    )
+
+
 @api.get("/workflows/{key}/versions")
 def versions(key: str, db: DB):
     return [
@@ -466,6 +523,13 @@ def runs(
     ]
 
 
+@api.post("/runs/{key}/cancel")
+def cancel(key: str, db: DB):
+    row = get(db, Run, key)
+    request_cancellation(db, row)
+    return run_out(row)
+
+
 @api.get("/runs/{key}")
 def run(key: str, db: DB):
     row = get(db, Run, key)
@@ -506,8 +570,13 @@ async def events(key: str, request: Request):
     with Session() as db:
         get(db, Run, key)
 
+    try:
+        after = max(0, int(request.headers.get("last-event-id", "0")))
+    except ValueError:
+        raise HTTPException(422, "Некорректный идентификатор события") from None
+
     async def stream():
-        cursor = int(request.headers.get("last-event-id", "0"))
+        cursor = after
         while not await request.is_disconnected():
             with Session() as db:
                 status = db.get(Run, key).status
@@ -584,10 +653,9 @@ def findings(
     ]
 
 
-@api.get("/runs/{key}/report")
-def export(key: str, db: DB, format: str = Query("json", pattern="^(json|txt)$")):
+def report_data(key, db):
     row = get(db, Run, key)
-    if row.status not in ("success", "failed"):
+    if row.status not in ("success", "failed", "cancelled"):
         raise HTTPException(409, "Дождитесь завершения проверки")
     rows = [
         r.detail
@@ -595,7 +663,29 @@ def export(key: str, db: DB, format: str = Query("json", pattern="^(json|txt)$")
             select(Finding).where(Finding.run_id == key).order_by(Finding.fingerprint)
         )
     ]
-    report = SubmissionReportExporter.export(rows)
+    return row, rows, SubmissionReportExporter.export(rows)
+
+
+@api.get("/runs/{key}/report/preview")
+def report_preview(key: str, db: DB):
+    run, rows, report = report_data(key, db)
+    ranked = sorted(
+        rows, key=lambda r: (LEVELS.index(r["severity"]), r["path"], r.get("line", 0))
+    )
+    return {
+        "valid": True,
+        "count": len(report["findings"]),
+        "partial": run.status != "success",
+        "levels": {
+            level: sum(r["severity"] == level for r in rows) for level in LEVELS
+        },
+        "priorities": [{**r, "run_id": key} for r in ranked[:5]],
+    }
+
+
+@api.get("/runs/{key}/report")
+def export(key: str, db: DB, format: str = Query("json", pattern="^(json|txt)$")):
+    row, rows, report = report_data(key, db)
     headers = {
         "Content-Disposition": f'attachment; filename="centerai-{key[:8]}.{format}"'
     }

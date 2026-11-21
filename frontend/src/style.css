@@ -22,6 +22,20 @@
 .inspector details {
   margin: 8px 0 15px;
 }
+.reportPreview {
+  margin: 16px 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.reportPreview ol {
+  padding-left: 20px;
+}
+.reportPreview li {
+  margin: 8px 0;
+}
+.panel form + .panel {
+  margin-top: 12px;
+}
 progress {
   width: 100%;
   accent-color: #12675e;

@@ -14,7 +14,11 @@ test("ZIP → editable workflow → live execution → report and settings", asy
     path: resolve("../.qa/dashboard.png"),
     fullPage: true,
   });
-  await page.getByRole("link", { name: "Добавить проект" }).click();
+  await page
+    .getByRole("navigation")
+    .getByRole("link", { name: "Проекты", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Новый проект", exact: true }).click();
   await page
     .getByLabel("Название", { exact: true })
     .fill("Проверка в браузере");

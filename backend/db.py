@@ -83,6 +83,7 @@ class Workflow(Base):
 
 
 class Version(Base):
+    published_at: Mapped[float | None] = mapped_column(Float)
     __tablename__ = "workflow_versions"
     workflow_id: Mapped[str] = mapped_column(
         ForeignKey("workflows.id"), primary_key=True
@@ -95,6 +96,7 @@ class Version(Base):
 
 
 class Run(Base):
+    cancel_requested: Mapped[bool] = mapped_column(default=False)
     __tablename__ = "runs"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
     workflow_id: Mapped[str] = mapped_column(ForeignKey("workflows.id"), index=True)

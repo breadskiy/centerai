@@ -1,9 +1,21 @@
 import json
+import logging
 import os
 import re
 
 import httpx
 from .db import Credential, cipher
+
+
+class TelegramLogFilter(logging.Filter):
+    def filter(self, record):
+        if "api.telegram.org/bot" in record.getMessage():
+            record.msg = "Telegram Bot API request"
+            record.args = ()
+        return True
+
+
+logging.getLogger("httpx").addFilter(TelegramLogFilter())
 
 
 def configure(session, token, chat):
@@ -40,8 +52,14 @@ def telegram(session, run=None, count=0):
             json={"chat_id": config["chat"], "text": text},
             timeout=10,
         )
-        if response.is_success and response.json().get("ok"):
-            return
+        if response.is_success:
+            body = response.json()
+            if isinstance(body, dict) and body.get("ok") is True:
+                return {
+                    "provider": "telegram",
+                    "delivered": True,
+                    "message_id": (body.get("result") or {}).get("message_id"),
+                }
     except (httpx.HTTPError, ValueError):
         pass
     raise ValueError(

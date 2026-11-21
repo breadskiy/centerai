@@ -9,6 +9,7 @@ import {
   Search,
 } from "lucide-react";
 import {
+  api,
   cache,
   date,
   duration,
@@ -20,7 +21,15 @@ import {
   RunDetails,
   useData,
 } from "./api";
-import { Empty, Heading, Modal, RunsTable, Severity, Status } from "./ui";
+import {
+  Empty,
+  Heading,
+  Modal,
+  RunsTable,
+  Severity,
+  Status,
+  useAction,
+} from "./ui";
 import { ReadonlyGraph } from "./editor";
 
 function Pages({
@@ -111,6 +120,7 @@ export function Monitor() {
   const r = useData<RunDetails>(key);
   const registry = useData<Registry>("/registry");
   const done = ["success", "failed", "cancelled"].includes(r.status);
+  const { busy, act } = useAction();
   const [stage, inspect] = useState("");
   const [connection, setConnection] = useState("Подключение к журналу…");
   useEffect(() => {
@@ -131,7 +141,7 @@ export function Monitor() {
     return () => sse.close();
   }, [key, done]);
   const complete = r.nodes.filter((n) =>
-    ["success", "failed", "skipped"].includes(n.status),
+    ["success", "failed", "skipped", "cancelled"].includes(n.status),
   ).length;
   return (
     <>
@@ -144,7 +154,23 @@ export function Monitor() {
         sub={
           r.project_name + " · версия " + r.revision + " · " + date(r.created)
         }
-        action={<Status value={r.status} />}
+        action={
+          <div className="toolbar">
+            <Status value={r.status} />
+            {!done && (
+              <button
+                disabled={busy || r.cancel_requested}
+                onClick={() =>
+                  void act(async () => {
+                    await api(key + "/cancel", "POST");
+                  })
+                }
+              >
+                {r.cancel_requested ? "Завершается этап…" : "Отменить запуск"}
+              </button>
+            )}
+          </div>
+        }
       />
       {r.error && (
         <p className="errorline" role="alert">
@@ -210,6 +236,7 @@ export function Monitor() {
               <Link className="button primary" to={"/findings?run_id=" + id}>
                 Открыть находки
               </Link>
+              <ReportPreview run={r.id} />
               <div className="downloads">
                 {["json", "txt"].map((f) => (
                   <a
@@ -246,6 +273,53 @@ export function Monitor() {
       </div>
       {stage && <Stage run={r.id} node={stage} close={() => inspect("")} />}
     </>
+  );
+}
+function ReportPreview({ run }: { run: string }) {
+  const data = useData<{
+    valid: boolean;
+    partial: boolean;
+    count: number;
+    levels: Record<string, number>;
+    priorities: Finding[];
+  }>("/runs/" + run + "/report/preview");
+  const [chosen, choose] = useState<Finding | null>(null);
+  return (
+    <div className="reportPreview">
+      <h3>Проверка перед экспортом</h3>
+      <p>
+        {data.valid && "Структура JSON проверена"} · {data.count} записей
+      </p>
+      {data.partial && (
+        <p>
+          Запуск завершился досрочно. В отчёт вошли результаты завершённых узлов
+          отчёта.
+        </p>
+      )}
+      <p>
+        Критические: {data.levels.CRITICAL} · Высокие: {data.levels.HIGH}
+      </p>
+      {data.priorities.length > 0 && (
+        <details>
+          <summary>Порядок исправлений</summary>
+          <ol>
+            {data.priorities.map((f) => (
+              <li key={f.id}>
+                <button className="textbtn" onClick={() => choose(f)}>
+                  {f.title}
+                </button>{" "}
+                <Severity value={f.severity} />
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+      <small>
+        Проверены поддерживаемые правила Kotlin и снимок базы Maven.
+        Динамическое поведение приложения требует отдельной проверки.
+      </small>
+      {chosen && <Detail f={chosen} close={() => choose(null)} />}
+    </div>
   );
 }
 function Stage({
