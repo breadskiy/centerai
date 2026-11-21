@@ -1,8 +1,19 @@
 [CmdletBinding()]
-param([int]$Port = 8000)
+param([ValidateRange(1,65535)][int]$Port = 8000, [switch]$OpenBrowser)
 
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
+$url = "http://127.0.0.1:$Port"
+try {
+    $running = Invoke-RestMethod "$url/openapi.json" -TimeoutSec 2
+} catch {
+    $running = $null
+}
+if ($running.info.title -eq 'CenterAI Security Workflow') {
+    Write-Host "CenterAI is already running at $url"
+    if ($OpenBrowser) { Start-Process $url }
+    exit 0
+}
 $pythonPath = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $pythonPath)) {
     python -m venv .venv
@@ -24,6 +35,26 @@ try {
 } finally {
     Pop-Location
 }
-Write-Host "CenterAI: http://127.0.0.1:$Port"
-& $pythonPath -m uvicorn backend.api:app --host 127.0.0.1 --port $Port
-exit $LASTEXITCODE
+Write-Host "CenterAI: $url (Ctrl+C to stop)"
+if ($OpenBrowser) {
+    $browserJob = Start-Job -ArgumentList $url -ScriptBlock {
+        param($address)
+        for ($attempt = 0; $attempt -lt 60; $attempt++) {
+            try {
+                $schema = Invoke-RestMethod "$address/openapi.json" -TimeoutSec 2
+                if ($schema.info.title -eq 'CenterAI Security Workflow') {
+                    Start-Process $address
+                    return
+                }
+            } catch {}
+            Start-Sleep -Milliseconds 500
+        }
+    }
+}
+try {
+    & $pythonPath -m uvicorn backend.api:app --host 127.0.0.1 --port $Port
+    $serverExit = $LASTEXITCODE
+} finally {
+    if ($browserJob) { Remove-Job $browserJob -Force }
+}
+exit $serverExit
