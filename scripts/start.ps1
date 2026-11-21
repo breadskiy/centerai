@@ -4,20 +4,30 @@ param([ValidateRange(1,65535)][int]$Port = 8000)
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath (Split-Path -Parent $PSScriptRoot)
 $url = "http://127.0.0.1:$Port"
+$pythonPath = Join-Path (Get-Location) '.venv\Scripts\python.exe'
+if (-not (Test-Path -LiteralPath $pythonPath)) {
+    python -m venv .venv
+    if ($LASTEXITCODE) { throw 'Python 3.13 is required to create the virtual environment.' }
+}
+$release = & $pythonPath scripts/start_stack.py --build-id
+if ($LASTEXITCODE -or -not $release) { throw 'Could not identify the local CenTRap build.' }
 try {
     $running = Invoke-RestMethod "$url/openapi.json" -TimeoutSec 2
 } catch {
     $running = $null
 }
 if ($running.info.title -in @('CenTRap Security Workflow', 'CenterAI Security Workflow')) {
-    Write-Host "CenTRap is already running at $url"
-    Start-Process $url
+    try {
+        $current = Invoke-RestMethod "$url/api/v1/build" -TimeoutSec 2
+    } catch {
+        $current = $null
+    }
+    if ($current.release -ne $release) {
+        throw "A different CenTRap build is listening at $url. Stop it with Ctrl+C in its launch window and run this file again."
+    }
+    Write-Host "CenTRap is already running the current build at $url"
+    Start-Process "$url/?build=$release"
     exit 0
-}
-$pythonPath = Join-Path (Get-Location) '.venv\Scripts\python.exe'
-if (-not (Test-Path -LiteralPath $pythonPath)) {
-    python -m venv .venv
-    if ($LASTEXITCODE) { throw 'Python 3.13 is required to create the virtual environment.' }
 }
 & $pythonPath -m pip --version 2>$null | Out-Null
 if ($LASTEXITCODE) {
@@ -35,5 +45,5 @@ try {
 } finally {
     Pop-Location
 }
-& $pythonPath scripts/start_stack.py --port $Port
+& $pythonPath scripts/start_stack.py --port $Port --release $release
 exit $LASTEXITCODE

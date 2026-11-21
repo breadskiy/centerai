@@ -2,7 +2,14 @@ import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 
 test("Язык регистрации переключается и сохраняется", async ({ page }) => {
-  await page.goto("/");
+  const response = await page.goto("/");
+  expect(response?.headers()["cache-control"]).toBe("no-store");
+  await expect(page).toHaveTitle("CenTRap");
+  await page.getByRole("combobox", { name: "Язык" }).focus();
+  const ring = await page
+    .getByRole("combobox", { name: "Язык" })
+    .evaluate((select) => getComputedStyle(select).outlineColor);
+  expect(ring).not.toBe("rgb(38, 181, 76)");
   await page.getByRole("combobox", { name: "Язык" }).selectOption("en");
   await expect(
     page.getByRole("heading", { name: "Create an account" }),
@@ -17,7 +24,7 @@ test("Регистрация, проверка пароля и сохранен�
   page,
 }) => {
   const email = `profile-${randomUUID()}@example.com`;
-  const password = "Sunrise*Quartz43";
+  const password = "birch amber frost";
   await page.goto("/");
   await expect(
     page.getByRole("heading", { name: "Создайте аккаунт" }),
@@ -31,14 +38,29 @@ test("Регистрация, проверка пароля и сохранен�
   await expect(page.getByRole("alert")).toHaveText(
     "Выберите более надёжный пароль",
   );
+  await page.getByLabel("Пароль", { exact: true }).fill("Password12345!");
+  await expect(page.getByText("Слабый", { exact: true })).toBeVisible();
   await page.getByLabel("Пароль", { exact: true }).fill(password);
+  await expect(page.getByText("Надёжный", { exact: true })).toBeVisible();
+  const registration = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/v1/auth/register") &&
+      response.request().method() === "POST",
+  );
   await page
     .getByRole("button", { name: "Создать аккаунт", exact: true })
     .click();
+  expect((await registration).status()).toBe(201);
   await expect(
     page.getByRole("heading", { name: "Главная", exact: true }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Личный кабинет" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Личный кабинет" }),
+  ).toBeVisible();
+  expect(
+    (await page.locator(".account-avatar").boundingBox())?.width,
+  ).toBeGreaterThan(150);
   await page.getByLabel("Никнейм").fill("Quartz");
   await page.getByLabel("Имя пользователя Telegram").fill("@quartz_owner");
   await page.getByRole("button", { name: "Сохранить профиль" }).click();

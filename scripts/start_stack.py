@@ -55,11 +55,36 @@ def prepare():
                 archive.extractall(CACHE / folder)
 
 
-def run(port):
+def build_id():
+    paths = [
+        ROOT / "frontend" / name
+        for name in (
+            "index.html",
+            "package.json",
+            "package-lock.json",
+            "vite.config.ts",
+            "tsconfig.json",
+        )
+    ]
+    paths += list((ROOT / "frontend" / "src").rglob("*"))
+    paths += list((ROOT / "frontend" / "public").rglob("*"))
+    paths += list((ROOT / "backend").rglob("*"))
+    digest = hashlib.sha256()
+    for path in sorted(paths):
+        if not path.is_file() or "__pycache__" in path.parts or "tests" in path.parts:
+            continue
+        digest.update(path.relative_to(ROOT).as_posix().encode())
+        digest.update(b"\0")
+        digest.update(bytes.fromhex(checksum(path)))
+    return digest.hexdigest()
+
+
+def run(port, release=None):
     base = f"http://127.0.0.1:{port}"
     env = os.environ | {
         "WORKER_MODE": "local",
         "PUBLIC_URL": os.getenv("PUBLIC_URL") or base,
+        "CENTERAI_BUILD_ID": release or build_id(),
     }
     commands = []
     configured = any(
@@ -156,7 +181,7 @@ def run(port):
             f"CenTRap: {base}   Ctrl+C to stop",
             flush=True,
         )
-        webbrowser.open(base)
+        webbrowser.open(f"{base}/?build={env['CENTERAI_BUILD_ID']}")
         while all(child.poll() is None for child in children):
             time.sleep(1)
         raise RuntimeError(f"A CenTRap service stopped. See {LOGS}")
@@ -170,8 +195,13 @@ def run(port):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--build-id", action="store_true")
+    parser.add_argument("--release")
     args = parser.parse_args()
+    if args.build_id:
+        print(build_id())
+        sys.exit()
     try:
-        run(args.port)
+        run(args.port, args.release)
     except KeyboardInterrupt:
         pass

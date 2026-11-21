@@ -990,6 +990,13 @@ def telegram_remove(db: DB):
 app.include_router(auth_router)
 app.include_router(github_router)
 app.include_router(api)
+
+
+@app.get("/api/v1/build", include_in_schema=False)
+def build():
+    return {"release": os.getenv("CENTERAI_BUILD_ID")}
+
+
 from pathlib import Path
 
 from fastapi.responses import FileResponse
@@ -1002,4 +1009,4 @@ if dist.is_dir():
     def frontend(route: str):
         if route.startswith("api/"):
             raise HTTPException(404, "Метод не найден")
-        return FileResponse(dist / "index.html")
+        return FileResponse(dist / "index.html", headers={"Cache-Control": "no-store"})
