@@ -82,20 +82,40 @@ test("ZIP → editable workflow → live execution → report and settings", asy
   await page.getByRole("button", { name: "Проверить", exact: true }).click();
   await expect(page.getByText("Граф прошёл проверку")).toBeVisible();
   await page.screenshot({ path: resolve("../.qa/editor.png"), fullPage: true });
+  const stageCounts = await page.evaluateHandle(() => {
+    const counts: number[] = [];
+    const observer = new MutationObserver(() => {
+      const count = document.querySelectorAll(
+        ".scan-stage[data-state=revealed]",
+      ).length;
+      if (count > (counts.at(-1) ?? 0)) counts.push(count);
+      if (count === 3) observer.disconnect();
+    });
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+    });
+    return counts;
+  });
   await page.getByRole("button", { name: "Запустить", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Выполнение графа" }),
   ).toBeVisible();
-  await expect(page.getByText("2 находок в итоговом отчёте.")).toBeVisible();
+  await expect(page.getByText("Обнаружено в итоговом отчёте: 2")).toBeVisible();
+  expect(await stageCounts.jsonValue()).toEqual([1, 2, 3]);
+  await expect(
+    page.getByRole("heading", { name: "Обнаружено по блокам" }),
+  ).toBeVisible();
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: "JSON", exact: true }).click();
   expect((await download).suggestedFilename()).toMatch(/\.json$/);
   await page.getByRole("link", { name: "Результаты сессии" }).click();
   await page.getByLabel("Категория", { exact: true }).selectOption("SECRET");
   await expect(
-    page.getByRole("button", { name: "Подробности находки" }),
+    page.getByRole("button", { name: "Подробности результата" }),
   ).toHaveCount(1);
-  await page.getByRole("button", { name: "Подробности находки" }).click();
+  await page.getByRole("button", { name: "Подробности результата" }).click();
   await expect(page.getByRole("dialog")).toContainText("Значение скрыто");
   await page.getByRole("button", { name: "Закрыть", exact: true }).click();
   await page.getByRole("link", { name: "Настройки", exact: true }).click();
@@ -135,13 +155,22 @@ test("Главная принимает архив перетаскивание�
   await expect(page.getByRole("dialog")).toContainText("drag.zip");
   await page.getByRole("radio", { name: /Только зависимости/ }).check();
   await page.getByRole("button", { name: "Запустить проверку" }).click();
-  await expect(page.getByText("1 находок в итоговом отчёте.")).toBeVisible({
+  await expect(page.getByText("Обнаружено в итоговом отчёте: 1")).toBeVisible({
     timeout: 20000,
   });
   await expect(page.locator(".risk-badges").first()).toBeVisible();
   await expect(
     page.locator(".react-flow__node").filter({ hasText: "Завершён" }),
   ).toHaveCount(0);
+  await page.getByRole("link", { name: "Главная", exact: true }).click();
+  const clear = page.getByRole("button", { name: "Очистить историю сессий" });
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await clear.click();
+  await expect(clear).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await clear.click();
+  await expect(page.getByText("История запусков пуста")).toBeVisible();
+  await expect(clear).toHaveCount(0);
 });
 
 test("Главная сохраняет выбранный профиль после ошибки ссылки", async ({
@@ -164,7 +193,7 @@ test("Главная сохраняет выбранный профиль пос
     .getByLabel("Выбрать архив")
     .setInputFiles(resolve("../.qa/e2e-fixture.zip"));
   await page.getByRole("button", { name: "Запустить проверку" }).click();
-  await expect(page.getByText("1 находок в итоговом отчёте.")).toBeVisible({
+  await expect(page.getByText("Обнаружено в итоговом отчёте: 1")).toBeVisible({
     timeout: 20000,
   });
 });
@@ -208,10 +237,14 @@ test("Сессия показывает один запуск, монитор о
   await expect(
     page.getByRole("navigation").getByRole("link", { name: "Находки" }),
   ).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Находки" })).toBeVisible();
-  const search = page.getByRole("textbox", { name: "Поиск находок" });
+  await expect(
+    page.getByRole("heading", { name: "Результаты проверки" }),
+  ).toBeVisible();
+  const search = page.getByRole("textbox", { name: "Поиск по результатам" });
   await search.pressSequentially("missing");
-  await expect(page.getByText("Находок нет", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Ничего не обнаружено", { exact: true }),
+  ).toBeVisible();
   await expect(search).toBeFocused();
   await expect(search).toHaveValue("missing");
   await search.fill("");

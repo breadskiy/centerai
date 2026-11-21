@@ -39,11 +39,26 @@ def test_pipeline(client, project):
     detail = client.get(API + "/runs/" + run["id"]).json()
     assert detail["status"] == "success" and detail["count"] == 2
     assert all(n["status"] == "success" for n in detail["nodes"])
+    stages = [event for event in detail["events"] if event["stage"] is not None]
+    assert [event["node_id"] for event in stages] == detail["stage_order"][2:5]
+    assert [event["stage"]["count"] for event in stages] == [1, 1, 0]
+    assert stages[0]["stage"]["preview"][0].keys() == {
+        "id",
+        "title",
+        "severity",
+        "path",
+        "line",
+    }
     result = client.get(API + "/runs/" + run["id"] + "/report").json()["findings"]
     assert {r["category"] for r in result} == {"SECRET", "SCA"}
     assert all("id" not in row and "evidence" not in row for row in result)
-    assert "event: done" in client.get(API + "/runs/" + run["id"] + "/events").text
-    assert len(client.get(API + "/findings?q=jsoup").json()) == 1
+    replay = client.get(
+        API + "/runs/" + run["id"] + "/events",
+        headers={"Last-Event-ID": str(stages[0]["id"])},
+    ).text
+    assert "event: done" in replay and '"stage": {"count": 1' in replay
+    assert f"id: {stages[0]['id']}\n" not in replay
+    assert len(client.get(API + "/results?q=jsoup").json()) == 1
     assert (
         client.get(API + "/runs/" + run["id"] + "/report?format=txt").status_code == 200
     )
@@ -55,7 +70,8 @@ def test_pipeline(client, project):
     )
     assert client.delete(API + "/projects/" + project["id"]).status_code == 200
     assert client.get(API + "/workflows").json() == []
-    assert client.get(API + "/runs").json()[0]["project_name"] == "Workshop"
+    assert client.get(API + "/runs").json() == []
+    assert client.get(API + "/runs/" + run["id"] + "/report").status_code == 404
 
 
 def test_branches_schedule_and_filters(client, project):

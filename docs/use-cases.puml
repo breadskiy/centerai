@@ -15,7 +15,7 @@ rectangle CenterAI {
   usecase "Проверить граф" as Validate
   usecase "Запустить сценарий" as Run
   usecase "Выполнить статические проверки" as Analyze
-  usecase "Объяснить находки и проверить ответ AI" as Explain
+  usecase "Объяснить результаты и проверить ответ AI" as Explain
   usecase "Применить условия и фильтры" as Logic
   usecase "Наблюдать выполнение" as Monitor
   usecase "Получить отчёт" as Report

@@ -41,7 +41,9 @@ from .db import (
     Version,
     Workflow,
     cipher,
+    delete_project_records,
     engine,
+    lock_project,
 )
 from .github_oauth import router as github_router
 from .graph import LEVELS, REGISTRY, Graph, default_graph, next_due, validate
@@ -467,14 +469,33 @@ def edit_project(key: str, body: ProjectEdit, db: DB):
 
 @api.delete("/projects/{key}")
 def delete_project(key: str, db: DB):
-    get(db, Project, key).archived = True
-    db.execute(
-        update(Workflow)
-        .where(Workflow.project_id == key)
-        .values(archived=True, next_due=None)
-    )
+    return remove_projects(db, key)
+
+
+@api.delete("/projects")
+def clear_projects(db: DB):
+    return remove_projects(db)
+
+
+def remove_projects(db, key=None):
+    query = update(Project).where(Project.owner_id == db.info["account"].id)
+    if key is not None:
+        query = query.where(Project.id == key)
+    ids = db.scalars(query.values(archived=True).returning(Project.id)).all()
+    if not ids and key is not None:
+        raise HTTPException(404, "Сессия не найдена")
+    if ids and db.scalar(
+        select(Run.id)
+        .where(Run.project_id.in_(ids), Run.status.in_(("queued", "running")))
+        .limit(1)
+    ):
+        raise HTTPException(
+            409, "Завершите или отмените активные проверки перед удалением."
+        )
+    if ids:
+        delete_project_records(db, ids)
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "deleted": len(ids)}
 
 
 @api.get("/workflows")
@@ -515,6 +536,8 @@ def version(db, row):
 @api.post("/workflows", status_code=201)
 def create_flow(body: FlowCreate, db: DB):
     get(db, Project, body.project_id)
+    if not lock_project(db, body.project_id):
+        raise HTTPException(404, "Сессия не найдена")
     graph = body.graph.model_dump()
     row = Workflow(
         name=body.name,
@@ -646,7 +669,10 @@ def validate_flow(key: str, db: DB, graph: Graph | None = None):
 
 @api.post("/workflows/{key}/runs", status_code=202)
 def start(key: str, db: DB):
-    row = enqueue(db, get(db, Workflow, key), "manual")
+    flow = get(db, Workflow, key)
+    if not lock_project(db, flow.project_id):
+        raise HTTPException(404, "Сессия не найдена")
+    row = enqueue(db, flow, "manual")
     db.commit()
     return run_out(row)
 
@@ -698,6 +724,10 @@ def run(key: str, db: DB):
             (f["id"], f["severity"]) for f in node.output.get("findings", [])
         )
     kinds = {n["id"]: n["type"] for n in row.graph["nodes"]}
+    try:
+        stage_order = validate(row.graph)[2]
+    except ValueError:
+        stage_order = list(kinds)
     outputs = []
     for node in nodes:
         output = {k: v for k, v in node.output.items() if k not in ("ids", "findings")}
@@ -724,6 +754,7 @@ def run(key: str, db: DB):
         **run_out(row),
         "project_archived": db.get(Project, row.project_id).archived,
         "graph": row.graph,
+        "stage_order": stage_order,
         "nodes": outputs,
         "events": [
             event_out(e)
@@ -741,7 +772,14 @@ def node_result(key: str, node_id: str, db: DB):
 
 
 def event_out(e):
-    return fields(e, "id", "status", "message", "node_id", "created")
+    data = fields(e, "id", "status", "message", "node_id", "created", "stage")
+    if (
+        e.stage is None
+        and e.status == "success"
+        and e.message.startswith("Завершено · ")
+    ):
+        data["message"] = "Этап завершён"
+    return data
 
 
 @api.get("/runs/{key}/events")
@@ -789,7 +827,7 @@ async def events(key: str, request: Request, db: DB):
     )
 
 
-@api.get("/findings/sessions")
+@api.get("/findings/sessions", include_in_schema=False)
 def finding_sessions(
     db: DB,
     severity: str | None = None,
@@ -811,13 +849,14 @@ def finding_sessions(
     ]
 
 
-@api.get("/findings/sessions/{key}")
+@api.get("/findings/sessions/{key}", include_in_schema=False)
 def finding_session(key: str, db: DB):
     row = get(db, Project, key, include_archived=True)
     return fields(row, "id", "name")
 
 
-@api.get("/findings")
+@api.get("/results")
+@api.get("/findings", include_in_schema=False)
 def findings(
     db: DB,
     run_id: str | None = None,
@@ -915,7 +954,7 @@ def export(key: str, db: DB, format: str = Query("json", pattern="^(json|txt)$")
         row.project_name,
         row.workflow_name,
         f"Статус: {row.status}",
-        f"Находки: {len(rows)}",
+        f"Обнаружено: {len(rows)}",
     ]
     for f in rows:
         lines.extend(

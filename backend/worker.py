@@ -19,6 +19,7 @@ from .db import (
     Session,
     Workflow,
     cipher,
+    lock_project,
 )
 from .graph import REGISTRY, Context, Packet, next_due, validate
 
@@ -31,8 +32,10 @@ celery.conf.update(
 )
 
 
-def record(session, run, status, message, node=None):
-    session.add(Event(run_id=run.id, status=status, message=message, node_id=node))
+def record(session, run, status, message, node=None, stage=None):
+    session.add(
+        Event(run_id=run.id, status=status, message=message, node_id=node, stage=stage)
+    )
 
 
 def enqueue(session, workflow, trigger):
@@ -145,6 +148,7 @@ def execute(run_id):
                 )
                 output = REGISTRY[node.type].execute(ctx, node.config, data)
                 packets[node_id] = output
+                stage = None
                 current.output = {
                     "count": len(output.findings),
                     "ids": list(output.findings),
@@ -155,11 +159,23 @@ def execute(run_id):
                 if node.type == "ai_analysis":
                     current.output["ai"] = output.ai
                 if node.type in SCANNERS:
-                    current.output["findings"] = [
+                    detected = [
                         row
                         for key, row in output.findings.items()
                         if key not in data.findings
                     ]
+                    current.output["findings"] = detected
+                    stage = {
+                        "count": len(detected),
+                        "levels": dict(Counter(row["severity"] for row in detected)),
+                        "preview": [
+                            {
+                                key: row[key]
+                                for key in ("id", "title", "severity", "path", "line")
+                            }
+                            for row in detected[:3]
+                        ],
+                    }
                 if node.type in SCANNERS or node.type == "report_generator":
                     rows = current.output.get("findings", output.findings.values())
                     current.output["levels"] = dict(
@@ -196,8 +212,11 @@ def execute(run_id):
                     db,
                     run,
                     "success",
-                    f"Завершено · находок {len(output.findings)}",
+                    "Этап завершён"
+                    if stage is None
+                    else "Результаты анализатора готовы",
                     node_id,
+                    stage=stage,
                 )
                 db.commit()
             db.refresh(run, attribute_names=["cancel_requested"], with_for_update=True)
@@ -236,10 +255,13 @@ def tick():
             .join(Account, Project.owner_id == Account.id)
             .where(
                 Account.email.is_not(None),
+                Project.archived.is_(False),
                 Workflow.archived.is_(False),
                 Workflow.next_due <= now,
             )
-        ):
+        ).all():
+            if not lock_project(db, flow.project_id):
+                continue
             cfg = next(
                 n["config"]
                 for n in flow.graph["nodes"]
@@ -256,6 +278,7 @@ def tick():
             )
             if claimed.rowcount:
                 enqueue(db, flow, "schedule")
+            db.commit()
         # A lost worker must not replay external notification side effects.
         for run in db.scalars(
             select(Run).where(Run.status == "running", Run.heartbeat < now - 900)

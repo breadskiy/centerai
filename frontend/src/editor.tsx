@@ -95,7 +95,7 @@ function TileView({ data, selected }: NodeProps<Tile>) {
               ) : null,
             )
           ) : (
-            <small>{translateText("Нет находок")}</small>
+            <small>{translateText("Ничего не обнаружено")}</small>
           )}
         </div>
       ) : (
@@ -292,7 +292,7 @@ function Config({
       {node.data.kind === "if_else" && (
         <>
           <label>
-            {translateText("Сравнить число находок")}
+            {translateText("Сравнить число обнаружений")}
             <select
               value={String(c.operator)}
               onChange={(e) => set("operator", e.target.value)}
@@ -655,7 +655,7 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
                   "/workflows/" + flow.id + "/runs",
                   "POST",
                 );
-                nav("/runs/" + r.id);
+                nav("/runs/" + r.id, { state: { presentStages: true } });
               })
             }
           >
@@ -679,12 +679,12 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
           </li>
           <li>
             {translateText(
-              "Добавьте анализатор. Стрелка передаёт результат следующему блоку. Фильтр помогает выбрать нужные находки.",
+              "Добавьте анализатор. Стрелка передаёт результат следующему блоку. Фильтр помогает выбрать нужные результаты.",
             )}
           </li>
           <li>
             {translateText(
-              "Подключите находки к Отчёту. Чтобы получить объяснения, вставьте AI-анализ между анализатором и Отчётом.",
+              "Подключите результаты к Отчёту. Чтобы получить объяснения, вставьте AI-анализ между анализатором и Отчётом.",
             )}
           </li>
           <li>

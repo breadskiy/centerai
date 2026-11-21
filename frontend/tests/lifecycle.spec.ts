@@ -33,7 +33,7 @@ test("Генератор сохраняет описание при ошибке
   ).toBeVisible();
 });
 
-test("Готовый AI-граф сохраняет находки при недоступной модели", async ({
+test("Готовый AI-граф сохраняет результаты при недоступной модели", async ({
   page,
   request,
 }) => {
@@ -64,7 +64,7 @@ test("Готовый AI-граф сохраняет находки при нед
       exact: false,
     }),
   ).toBeVisible({ timeout: 20000 });
-  await expect(page.getByText("2 находок в итоговом отчёте.")).toBeVisible();
+  await expect(page.getByText("Обнаружено в итоговом отчёте: 2")).toBeVisible();
 });
 
 test("Ошибки импорта, поиск, история версий, публикация и отдельная копия", async ({
@@ -155,9 +155,10 @@ test("Ошибки импорта, поиск, история версий, пу
   await page.getByLabel("Поиск проектов").fill("Проект для шаблонов");
   await expect(page.locator(".projectrow")).toHaveCount(1);
   await page.locator(".projectrow").click();
-  await page.getByText("Источник и сценарии", { exact: true }).click();
   page.once("dialog", (d) => d.accept());
-  await page.getByRole("button", { name: "Удалить", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Удалить сессию", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Сессии", exact: true }),
   ).toBeVisible();

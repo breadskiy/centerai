@@ -1,14 +1,13 @@
 import { t as translateText } from "./locale";
 import { useDeferredValue, useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import {
   Activity,
   ChevronLeft,
   ChevronRight,
   Download,
   FileText,
-  Folder,
   Search,
 } from "lucide-react";
 import {
@@ -22,6 +21,8 @@ import {
   Registry,
   Run,
   RunDetails,
+  RunEvent,
+  StageSummary,
   useData,
 } from "./api";
 import {
@@ -125,10 +126,18 @@ export function Monitor() {
   const { id } = useParams();
   const key = "/runs/" + id;
   const r = useData<RunDetails>(key);
+  const location = useLocation();
   const registry = useData<Registry>("/registry");
   const done = ["success", "failed", "cancelled"].includes(r.status);
   const { busy, act } = useAction();
   const [stage, inspect] = useState("");
+  const [sequenced] = useState(
+    () =>
+      (!done || !!location.state?.presentStages) &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+  const [streamedStages, setStreamedStages] = useState<RunEvent[]>([]);
+  const [revealed, reveal] = useState(0);
   const [connection, setConnection] = useState(
     translateText("Подключение к журналу…"),
   );
@@ -137,7 +146,16 @@ export function Monitor() {
     const sse = new EventSource("/api/v1" + key + "/events");
     const refresh = () => void cache.invalidateQueries({ queryKey: [key] });
     sse.onopen = () => setConnection(translateText("Журнал подключён"));
-    sse.onmessage = refresh;
+    sse.onmessage = (message) => {
+      const event: RunEvent = JSON.parse(message.data);
+      if (event.stage)
+        setStreamedStages((previous) =>
+          previous.some((item) => item.id === event.id)
+            ? previous
+            : [...previous, event],
+        );
+      refresh();
+    };
     sse.addEventListener("done", () => {
       sse.close();
       refresh();
@@ -149,6 +167,46 @@ export function Monitor() {
     };
     return () => sse.close();
   }, [key, done]);
+  const stageEvents = [
+    ...new Map(
+      [...r.events, ...streamedStages]
+        .filter((event) => event.stage)
+        .map((event) => [event.id, event]),
+    ).values(),
+  ].sort((left, right) => left.id - right.id);
+  const canReveal = sequenced && revealed < stageEvents.length;
+  useEffect(() => {
+    if (!canReveal) return;
+    const timer = window.setTimeout(() => reveal((count) => count + 1), 320);
+    return () => window.clearTimeout(timer);
+  }, [canReveal, revealed]);
+  const hidden = new Set(
+    sequenced ? stageEvents.slice(revealed).map((event) => event.node_id) : [],
+  );
+  const stageById = new Map(
+    stageEvents.map((event) => [event.node_id, event.stage]),
+  );
+  const revealingId = sequenced ? stageEvents[revealed]?.node_id : undefined;
+  const waitingForStages = hidden.size > 0;
+  const nodesById = new Map(r.nodes.map((node) => [node.node_id, node]));
+  const stageStatus = Object.fromEntries(
+    r.nodes.map((node) => [
+      node.node_id,
+      hidden.has(node.node_id)
+        ? node.node_id === revealingId
+          ? "running"
+          : "pending"
+        : node.status,
+    ]),
+  );
+  const graphById = new Map(r.graph.nodes.map((node) => [node.id, node]));
+  const analyzerIds = (
+    r.stage_order || r.graph.nodes.map((node) => node.id)
+  ).filter((nodeId) =>
+    ["secrets_scanner", "sca_scanner", "sast_scanner"].includes(
+      graphById.get(nodeId)?.type || "",
+    ),
+  );
   const complete = r.nodes.filter((n) =>
     ["success", "failed", "skipped", "cancelled"].includes(n.status),
   ).length;
@@ -205,14 +263,100 @@ export function Monitor() {
           graph={r.graph}
           risks={Object.fromEntries(
             r.nodes.flatMap((n) =>
-              n.output.levels ? [[n.node_id, n.output.levels]] : [],
+              n.output.levels &&
+              !hidden.has(n.node_id) &&
+              !(
+                waitingForStages &&
+                graphById.get(n.node_id)?.type === "report_generator"
+              )
+                ? [[n.node_id, n.output.levels]]
+                : [],
             ),
           )}
-          statuses={Object.fromEntries(
-            r.nodes.map((n) => [n.node_id, n.status]),
-          )}
+          statuses={stageStatus}
         />
       </section>
+      {analyzerIds.length > 0 && (
+        <section className="panel">
+          <div className="sectionHead">
+            <h2>{translateText("Обнаружено по блокам")}</h2>
+          </div>
+          <ol className="scan-stages" aria-live="polite">
+            {analyzerIds.map((nodeId) => {
+              const node = nodesById.get(nodeId);
+              const kind = graphById.get(nodeId)?.type || "";
+              const counts = node?.output.levels || {};
+              const stored = stageById.get(nodeId);
+              const result: StageSummary | null = hidden.has(nodeId)
+                ? null
+                : stored ||
+                  (node?.status === "success"
+                    ? {
+                        count: Object.values(counts).reduce(
+                          (total, count) => total + count,
+                          0,
+                        ),
+                        levels: counts,
+                        preview: [],
+                      }
+                    : null);
+              return (
+                <li
+                  key={nodeId}
+                  className="scan-stage"
+                  data-state={result ? "revealed" : "waiting"}
+                >
+                  <div className="scan-stage-head">
+                    <h3>
+                      {translateText(registry.types[kind]?.title || nodeId)}
+                    </h3>
+                    {result ? (
+                      <strong>
+                        {translateText("Обнаружено")}: {result.count}
+                      </strong>
+                    ) : (
+                      <Status value={stageStatus[nodeId] || "pending"} />
+                    )}
+                  </div>
+                  {result && (
+                    <div className="scan-stage-result">
+                      <div className="run-risk">
+                        {levels
+                          .filter((level) => result.levels[level])
+                          .map((level) => (
+                            <span key={level}>
+                              <Severity value={level} /> {result.levels[level]}
+                            </span>
+                          ))}
+                      </div>
+                      {result.preview.length > 0 && (
+                        <ul>
+                          {result.preview.map((entry) => (
+                            <li key={entry.id}>
+                              <b>{translateText(entry.title)}</b>
+                              <code>
+                                {entry.path}:{entry.line}
+                              </code>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {result.count > 0 && (
+                        <button
+                          className="textbtn"
+                          onClick={() => inspect(nodeId)}
+                        >
+                          {translateText("Данные этапа")}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      )}
       <div className="monitorgrid">
         <section className="panel">
           <div className="sectionHead">
@@ -250,11 +394,11 @@ export function Monitor() {
           <h2>{translateText("Результат проверки")}</h2>
           <small className="mono">run / {r.id.slice(0, 12)}</small>
           <p>
-            {done
-              ? r.count + translateText(" находок в итоговом отчёте.")
+            {done && !waitingForStages
+              ? translateText("Обнаружено в итоговом отчёте:") + " " + r.count
               : translateText("Данные появятся после выполнения графа.")}
           </p>
-          {done && (
+          {done && !waitingForStages && (
             <>
               {r.nodes
                 .filter((n) => n.output.ai)
@@ -262,8 +406,12 @@ export function Monitor() {
                   const ai = n.output.ai!;
                   const labels: Record<string, string> = {
                     ok: translateText("Объяснения готовы"),
-                    partial: `Объяснения получены для ${ai.explained} из ${ai.total} находок`,
-                    no_findings: translateText("Нет находок для объяснения"),
+                    partial:
+                      translateText("Пояснено результатов:") +
+                      ` ${ai.explained} / ${ai.total}`,
+                    no_findings: translateText(
+                      "Нет результатов для объяснения",
+                    ),
                     ai_unavailable: translateText(
                       "Модель недоступна или ответ не прошёл проверку",
                     ),
@@ -282,22 +430,23 @@ export function Monitor() {
                       {ai.summary && (
                         <>
                           <br />
-                          {ai.summary}
+                          {ai.summary.replace(
+                            /^Пояснено [^:]+:/,
+                            translateText("Пояснено результатов:"),
+                          )}
                         </>
                       )}
                     </p>
                   );
                 })}
-              <Link
-                className="button primary"
-                to={
-                  r.project_archived
-                    ? "/findings?run_id=" + r.id
-                    : "/projects/" + r.project_id + "?run_id=" + r.id
-                }
-              >
-                {translateText("Результаты сессии")}
-              </Link>
+              {!r.project_archived && (
+                <Link
+                  className="button primary"
+                  to={"/projects/" + r.project_id + "?run_id=" + r.id}
+                >
+                  {translateText("Результаты сессии")}
+                </Link>
+              )}
               <ReportPreview run={r.id} />
               <div className="downloads">
                 {["json", "txt"].map((f) => (
@@ -324,7 +473,7 @@ export function Monitor() {
                   {n.output.files !== undefined
                     ? n.output.files + translateText(" файлов")
                     : n.output.count !== undefined
-                      ? n.output.count + translateText(" находок")
+                      ? n.output.count + translateText(" обнаружений")
                       : "—"}{" "}
                   {n.output.branch}
                 </small>
@@ -461,83 +610,6 @@ function Detail({ f, close }: { f: Finding; close: () => void }) {
     </Modal>
   );
 }
-export function FindingsPage() {
-  const { sessionId } = useParams();
-  const [params] = useSearchParams();
-  if (sessionId) return <SessionFindings sessionId={sessionId} />;
-  if (params.has("run_id")) return <FindingTable />;
-  return <FindingSessions key={params.get("severity") || ""} />;
-}
-
-function FindingSessions() {
-  const [params, setParams] = useSearchParams();
-  const level = params.get("severity") || "";
-  const [offset, setOffset] = useState(0);
-  const args = new URLSearchParams({ offset: String(offset), limit: "50" });
-  if (level) args.set("severity", level);
-  const sessions = useData<{ id: string; name: string; count: number }[]>(
-    "/findings/sessions?" + args,
-  );
-  return (
-    <>
-      <Heading
-        title={translateText("Находки")}
-        sub={translateText("Выберите сессию, чтобы открыть её находки.")}
-      />
-      <div className="filters">
-        <select
-          aria-label={translateText("Критичность")}
-          value={level}
-          onChange={(e) => {
-            const value = e.target.value;
-            setParams(value ? { severity: value } : {});
-          }}
-        >
-          <option value="">{translateText("Все уровни")}</option>
-          {levels.map((l) => (
-            <option key={l}>{l}</option>
-          ))}
-        </select>
-      </div>
-      <section className="panel">
-        {sessions.length ? (
-          sessions.map((session) => (
-            <Link
-              className="finding-session"
-              key={session.id}
-              to={
-                "/findings/" + session.id + (level ? "?severity=" + level : "")
-              }
-            >
-              <Folder size={20} aria-hidden />
-              <strong>{session.name}</strong>
-              <small>
-                {session.count} {translateText("· находки")}
-              </small>
-              <ChevronRight size={16} aria-hidden />
-            </Link>
-          ))
-        ) : (
-          <Empty title={translateText("Нет сессий с находками")}>
-            {translateText("Проверьте фильтр или запустите проверку.")}
-          </Empty>
-        )}
-      </section>
-      <Pages
-        offset={offset}
-        set={setOffset}
-        length={sessions.length}
-        size={50}
-      />
-    </>
-  );
-}
-
-function SessionFindings({ sessionId }: { sessionId: string }) {
-  const session = useData<{ name: string }>("/findings/sessions/" + sessionId);
-  return <FindingTable sessionId={sessionId} title={session.name} />;
-}
-
 export function SessionResults({
   sessionId,
   runId,
@@ -579,21 +651,16 @@ function RunFindings({
 
 function FindingTable({
   sessionId,
-  title,
   runId,
   summary,
   partial,
 }: {
-  sessionId?: string;
-  title?: string;
-  runId?: string;
-  summary?: Record<string, number>;
-  partial?: boolean;
+  sessionId: string;
+  runId: string;
+  summary: Record<string, number>;
+  partial: boolean;
 }) {
-  const [params] = useSearchParams();
-  const [selectedLevels, setSelectedLevels] = useState(() =>
-    levels.filter((level) => params.getAll("severity").includes(level)),
-  );
+  const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
   const [kind, setKind] = useState("");
   const [q, search] = useState("");
   const query = useDeferredValue(q);
@@ -611,10 +678,9 @@ function FindingTable({
     if (selectedLevels.includes(level)) args.append("severity", level);
   }
   if (kind) args.set("category", kind);
-  const selectedRun = runId || params.get("run_id");
-  if (selectedRun) args.set("run_id", selectedRun);
-  if (sessionId) args.set("project_id", sessionId);
-  const path = "/findings?" + args;
+  args.set("run_id", runId);
+  args.set("project_id", sessionId);
+  const path = "/results?" + args;
   const {
     data: rows = [],
     isFetching,
@@ -629,30 +695,14 @@ function FindingTable({
     : [""];
   return (
     <>
-      {!runId && (
-        <>
-          <Link className="back" to="/findings">
-            <ChevronLeft size={14} />
-            {translateText("Все сессии с находками")}
-          </Link>
-          <Heading
-            title={title || translateText("Находки")}
-            sub={
-              params.has("run_id")
-                ? translateText("Результаты выбранного запуска.")
-                : translateText("Находки сессии по всем её запускам.")
-            }
-          />
-        </>
-      )}
-      {(!summary || levels.some((level) => summary[level])) && (
+      {levels.some((level) => summary[level]) && (
         <div
           className="session-severity"
           role="group"
-          aria-label={translateText("Критичность находок")}
+          aria-label={translateText("Критичность результатов")}
         >
           {levels
-            .filter((l) => !summary || summary[l])
+            .filter((l) => summary[l])
             .map((l) => (
               <button
                 key={l}
@@ -667,7 +717,7 @@ function FindingTable({
                   set(0);
                 }}
               >
-                <Severity value={l} /> {summary?.[l]}
+                <Severity value={l} /> {summary[l]}
               </button>
             ))}
         </div>
@@ -683,7 +733,7 @@ function FindingTable({
         <label className="search">
           <Search />
           <input
-            aria-label={translateText("Поиск находок")}
+            aria-label={translateText("Поиск по результатам")}
             placeholder={translateText("Путь, класс или advisory")}
             value={q}
             onChange={(e) => {
@@ -729,7 +779,7 @@ function FindingTable({
       </div>
       {isError ? (
         <p className="errorline" role="alert">
-          {translateText("Не удалось загрузить находки.")}
+          {translateText("Не удалось загрузить результаты.")}
         </p>
       ) : rows.length ? (
         groups.map((g) => (
@@ -744,8 +794,7 @@ function FindingTable({
                 <thead>
                   <tr>
                     <th>{translateText("Критичность")}</th>
-                    <th>{translateText("Находка и расположение")}</th>
-                    {!runId && <th>{translateText("Анализатор")}</th>}
+                    <th>{translateText("Результат и расположение")}</th>
                     <th aria-label={translateText("Детали")} />
                   </tr>
                 </thead>
@@ -765,15 +814,10 @@ function FindingTable({
                             {f.path}:{f.line}
                           </small>
                         </td>
-                        {!runId && (
-                          <td>
-                            <code>{f.category}</code>
-                          </td>
-                        )}
                         <td>
                           <button
                             className="icon"
-                            aria-label={translateText("Подробности находки")}
+                            aria-label={translateText("Подробности результата")}
                             onClick={() => select(f)}
                           >
                             <ChevronRight />
@@ -791,8 +835,8 @@ function FindingTable({
           <Empty
             title={
               isFetching
-                ? translateText("Загружаем находки…")
-                : translateText("Находок нет")
+                ? translateText("Загружаем результаты…")
+                : translateText("Ничего не обнаружено")
             }
           >
             {!isFetching &&

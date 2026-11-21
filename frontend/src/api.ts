@@ -77,6 +77,7 @@ export interface Run {
 export interface RunDetails extends Run {
   project_archived?: boolean;
   graph: Graph;
+  stage_order: string[];
   nodes: {
     node_id: string;
     status: string;
@@ -94,13 +95,20 @@ export interface RunDetails extends Run {
       };
     };
   }[];
-  events: {
-    id: number;
-    node_id: string | null;
-    status: string;
-    message: string;
-    created: number;
-  }[];
+  events: RunEvent[];
+}
+export interface StageSummary {
+  count: number;
+  levels: Record<string, number>;
+  preview: Pick<Finding, "id" | "title" | "severity" | "path" | "line">[];
+}
+export interface RunEvent {
+  id: number;
+  node_id: string | null;
+  status: string;
+  message: string;
+  created: number;
+  stage: StageSummary | null;
 }
 export interface Finding {
   id: string;

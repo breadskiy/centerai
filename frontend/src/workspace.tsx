@@ -82,13 +82,43 @@ function Pipeline() {
     </div>
   );
 }
+
+function DeleteSessionButton({
+  id,
+  onDelete,
+}: {
+  id?: string;
+  onDelete?: () => void;
+}) {
+  const { act, busy } = useAction();
+  const show = useNotice((state) => state.show);
+  return (
+    <button
+      type="button"
+      className="danger"
+      disabled={busy}
+      onClick={() => {
+        const prompt = id
+          ? "Удалить сессию вместе с исходниками, сценариями и отчётами? Это действие нельзя отменить."
+          : "Очистить историю сессий? Будут удалены все ваши сессии, исходники, сценарии и отчёты. Это действие нельзя отменить.";
+        if (!window.confirm(translateText(prompt))) return;
+        void act(async () => {
+          await api(id ? "/projects/" + id : "/projects", "DELETE");
+          onDelete?.();
+          show(translateText(id ? "Сессия удалена" : "История сессий очищена"));
+        });
+      }}
+    >
+      <Trash2 size={16} />
+      {translateText(id ? "Удалить сессию" : "Очистить историю сессий")}
+    </button>
+  );
+}
+
 export function Dashboard() {
   const data = useData<{
     projects: number;
-    workflows: number;
     runs: number;
-    findings: number;
-    levels: Record<string, number>;
     recent: Run[];
   }>("/dashboard");
   const [dialog, setDialog] = useState(false);
@@ -248,7 +278,7 @@ export function Dashboard() {
                     values,
                     setProgress,
                   );
-                  nav("/runs/" + run.id);
+                  nav("/runs/" + run.id, { state: { presentStages: true } });
                 } catch (error) {
                   setImportError(
                     error instanceof Error
@@ -375,11 +405,14 @@ export function Dashboard() {
         </Link>
       </div>
       <section className="panel">
-        <div className="sectionHead">
+        <div className="sectionHead session-history-head">
           <h2>{translateText("Последние запуски")}</h2>
-          <Link to="/runs">
-            {translateText("Вся история")} <ChevronRight size={14} />
-          </Link>
+          <div className="toolbar">
+            {(data.projects > 0 || data.runs > 0) && <DeleteSessionButton />}
+            <Link to="/runs">
+              {translateText("Вся история")} <ChevronRight size={14} />
+            </Link>
+          </div>
         </div>
         <RunsTable rows={data.recent} compact />
       </section>
@@ -561,7 +594,7 @@ export function Projects() {
             <div className="session-list-labels" aria-hidden="true">
               <span>{translateText("Сессия")}</span>
               <span>{translateText("Последняя проверка")}</span>
-              <span>{translateText("Серьёзные находки")}</span>
+              <span>{translateText("Критические и высокие")}</span>
             </div>
             {rows.map((p) => (
               <Link
@@ -621,7 +654,6 @@ export function ProjectDetail() {
   const runId =
     params.get("run_id") || p.latest_completed?.id || completed[0]?.id;
   const [edit, setEdit] = useState(false);
-  const { act } = useAction();
   const nav = useNavigate();
   return (
     <>
@@ -629,18 +661,24 @@ export function ProjectDetail() {
         title={p.name}
         sub={p.description || "Проект статического анализа"}
         action={
-          <button onClick={() => setEdit(true)}>
-            <Settings2 />
-            {translateText("Изменить")}
-          </button>
+          <div className="toolbar">
+            <button onClick={() => setEdit(true)}>
+              <Settings2 />
+              {translateText("Изменить")}
+            </button>
+            <DeleteSessionButton
+              id={p.id}
+              onDelete={() => nav("/projects", { replace: true })}
+            />
+          </div>
         }
       />
       <section
         className="session-results"
-        aria-label={translateText("Находки сессии")}
+        aria-label={translateText("Результаты сессии")}
       >
         <div className="session-results-head">
-          <h2>{translateText("Находки")}</h2>
+          <h2>{translateText("Результаты проверки")}</h2>
           {runId && (
             <div className="session-run-controls">
               <label>
@@ -672,7 +710,7 @@ export function ProjectDetail() {
         {runId ? (
           <Suspense
             fallback={
-              <p role="status">{translateText("Загружаем находки…")}</p>
+              <p role="status">{translateText("Загружаем результаты…")}</p>
             }
           >
             <SessionResults key={runId} sessionId={p.id} runId={runId} />
@@ -724,25 +762,6 @@ export function ProjectDetail() {
           <Link className="button" to={"/workflows?project=" + id}>
             {translateText("Сценарии сессии")}
           </Link>
-          <button
-            className="danger"
-            onClick={() => {
-              if (
-                confirm(
-                  translateText(
-                    "Удалить проект и его сценарии? История проверок сохранится.",
-                  ),
-                )
-              )
-                void act(async () => {
-                  await api("/projects/" + id, "DELETE");
-                  nav("/projects");
-                });
-            }}
-          >
-            <Trash2 />
-            {translateText("Удалить")}
-          </button>
         </div>
       </details>
       {edit && <ProjectForm project={p} close={() => setEdit(false)} />}
@@ -844,7 +863,7 @@ function NewFlow({
               minLength={3}
               maxLength={2000}
               placeholder={translateText(
-                "По будням в 9 утра проверяй зависимости и присылай критические находки в Telegram",
+                "По будням в 9 утра проверяй зависимости и присылай критические результаты в Telegram",
               )}
             />
             <small>
@@ -963,7 +982,7 @@ export function Workflows() {
                       "/workflows/" + f.id + "/runs",
                       "POST",
                     );
-                    nav("/runs/" + r.id);
+                    nav("/runs/" + r.id, { state: { presentStages: true } });
                   })
                 }
               >

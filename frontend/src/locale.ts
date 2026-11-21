@@ -90,9 +90,26 @@ const english: Record<string, string> = {
   "Все источники": "All sources",
   Сессия: "Session",
   "Последняя проверка": "Last scan",
-  "Серьёзные находки": "High and critical findings",
-  "Нет завершённых проверок": "No completed scans",
   "Критические и высокие": "Critical and high",
+  "Результаты сессии": "Session results",
+  Обнаружено: "Detected",
+  "Пояснено результатов:": "Results explained:",
+  "Обнаружено по блокам": "Detections by stage",
+  "Обнаружено в итоговом отчёте:": "Detected in the final report:",
+  "Этап завершён": "Stage complete",
+  "Результаты анализатора готовы": "Analyzer results ready",
+  "Данные этапа": "Stage details",
+  "Удалить сессию": "Delete session",
+  "Очистить историю сессий": "Clear session history",
+  "Сессия удалена": "Session deleted",
+  "История сессий очищена": "Session history cleared",
+  "Удалить сессию вместе с исходниками, сценариями и отчётами? Это действие нельзя отменить.":
+    "Delete the session, its source files, workflows and reports? This cannot be undone.",
+  "Очистить историю сессий? Будут удалены все ваши сессии, исходники, сценарии и отчёты. Это действие нельзя отменить.":
+    "Clear session history? This deletes all your sessions, source files, workflows and reports. This cannot be undone.",
+  "Завершите или отмените активные проверки перед удалением.":
+    "Finish or cancel active scans before deleting.",
+  "Нет завершённых проверок": "No completed scans",
   "· серьёзные": "· high or critical",
   "Сессии не найдены": "No matching sessions",
   "Добавьте первую сессию": "Create your first session",
@@ -100,12 +117,10 @@ const english: Record<string, string> = {
     "Upload a ZIP or connect a GitHub training repository.",
   "Проект статического анализа": "Static analysis project",
   Изменить: "Edit",
-  "Находки сессии": "Session findings",
-  Находки: "Findings",
   Запуск: "Run",
   "Выбранный запуск": "Selected run",
   "Граф и журнал": "Graph and log",
-  "Загружаем находки…": "Loading findings…",
+  "Загружаем результаты…": "Loading results…",
   "Если проверка уже запущена, её ход виден в истории.":
     "Open the history to follow a scan in progress.",
   "Создать сценарий": "Create workflow",
@@ -127,8 +142,8 @@ const english: Record<string, string> = {
   "Только триггер": "Trigger only",
   "По описанию с AI": "Generate from a description",
   "Что проверить": "What to scan",
-  "По будням в 9 утра проверяй зависимости и присылай критические находки по почте":
-    "Scan dependencies on weekdays at 9 AM and email critical findings",
+  "По будням в 9 утра проверяй зависимости и присылай критические результаты по почте":
+    "Scan dependencies on weekdays at 9 AM and email critical results",
   "Модель получит текст задания. Проверьте черновик в редакторе. Расписание включается вручную.":
     "The model uses your description to draft a workflow. Review it in the editor and enable the schedule when ready.",
   "Сначала добавьте проект": "Add a project first",
@@ -179,19 +194,18 @@ const english: Record<string, string> = {
   "узлов ·": "nodes ·",
   "Журнал событий": "Event log",
   "Результат проверки": "Scan result",
-  "находок в итоговом отчёте.": "findings in the final report.",
+  "Результаты проверки": "Scan results",
   "Данные появятся после выполнения графа.":
     "Results appear after the workflow runs.",
   "Объяснения готовы": "Explanations ready",
-  "Нет находок для объяснения": "No findings to explain",
+  "Нет результатов для объяснения": "No results to explain",
   "Модель недоступна или ответ не прошёл проверку":
     "The model is unavailable or its response failed validation",
   "Не удалось подтвердить исходные данные": "Could not verify the source data",
   "Проверьте настройки провайдера": "Check the provider settings",
-  "Результаты сессии": "Session results",
   "Данные этапов": "Step outputs",
   файлов: "files",
-  находок: "findings",
+  обнаружений: "detections",
   "Проверка перед экспортом": "Export validation",
   "Структура JSON проверена": "JSON structure verified",
   записей: "records",
@@ -211,22 +225,15 @@ const english: Record<string, string> = {
   "Шаги исправления": "Remediation steps",
   "Оценка модели": "Model assessment",
   "Открыть запуск": "Open run",
-  "Выберите сессию, чтобы открыть её находки.":
-    "Choose a session to see its findings.",
   Критичность: "Severity",
   "Все уровни": "All severities",
-  "· находки": "· findings",
-  "Нет сессий с находками": "No sessions with findings",
   "Проверьте фильтр или запустите проверку.": "Check the filter or run a scan.",
   "Результаты запуска пока недоступны": "Run results are not available yet",
-  "Все сессии с находками": "All sessions with findings",
   "Результаты выбранного запуска.": "Results from the selected run.",
-  "Находки сессии по всем её запускам.":
-    "Findings from all runs in this session.",
-  "Критичность находок": "Finding severity",
+  "Критичность результатов": "Result severity",
   "Показаны результаты, сохранённые до завершения запуска.":
     "Showing results saved before the run ended.",
-  "Поиск находок": "Search findings",
+  "Поиск по результатам": "Search results",
   "Путь, класс или advisory": "Path, class, or advisory",
   Категория: "Category",
   "Все анализаторы": "All analyzers",
@@ -234,12 +241,11 @@ const english: Record<string, string> = {
   "По критичности": "By severity",
   "По пути": "By path",
   Группировать: "Group results",
-  "Не удалось загрузить находки.": "Could not load findings.",
-  "Находка и расположение": "Finding and location",
+  "Не удалось загрузить результаты.": "Could not load results.",
+  "Результат и расположение": "Result and location",
   Анализатор: "Analyzer",
   Детали: "Details",
-  "Подробности находки": "Finding details",
-  "Находок нет": "No findings",
+  "Подробности результата": "Result details",
   "Проверьте фильтры или запустите сценарий для проекта.":
     "Check the filters or run a workflow for this project.",
   "Закрыть сообщение": "Dismiss message",
@@ -257,7 +263,7 @@ const english: Record<string, string> = {
     "The first scan’s steps and results will appear here.",
   "Не удалось открыть раздел": "Could not open this page",
   "Повторить загрузку": "Try again",
-  "Нет находок": "No findings",
+  "Ничего не обнаружено": "Nothing detected",
   Нет: "No",
   Да: "Yes",
   "Неизвестный узел": "Unknown node",
@@ -268,7 +274,7 @@ const english: Record<string, string> = {
   "Выберите узел": "Choose a node",
   Ветвь: "Branch",
   Соединить: "Connect",
-  "Сравнить число находок": "Compare finding count",
+  "Сравнить число обнаружений": "Compare detection count",
   Порог: "Threshold",
   "Включить уровни": "Include severities",
   Модель: "Model",
@@ -333,13 +339,13 @@ const english: Record<string, string> = {
   "Календарный запуск в заданной зоне.":
     "Run on a schedule in the selected time zone.",
   "Снимок файлов проекта.": "Snapshot of the project files.",
-  "Сравнение числа находок с порогом.":
-    "Compare the finding count with a threshold.",
+  "Сравнение числа обнаружений с порогом.":
+    "Compare the detection count with a threshold.",
   "Отбор по уровням риска.": "Filter by severity.",
   "Отбор по пути к файлу.": "Filter by file path.",
-  "Объяснения и шаги исправления по находкам анализаторов.":
-    "Explain findings and suggest fixes.",
-  "Валидация и объединение находок.": "Validate and combine findings.",
+  "Объяснения и шаги исправления по результатам анализаторов.":
+    "Explain results and suggest fixes.",
+  "Валидация и объединение результатов.": "Validate and combine results.",
   "Отправка краткого отчёта.": "Send a report summary.",
   "Отправка сводки по электронной почте.": "Email the report summary.",
   "Запуск поставлен в очередь": "Run queued",
@@ -347,7 +353,6 @@ const english: Record<string, string> = {
   "Проверка началась": "Scan started",
   "Условие ветви не выполнено": "Branch condition was not met",
   "Проверка завершена": "Scan completed",
-  "Завершено · находок": "Completed · findings",
   "Ошибка обработки данных на этапе проверки":
     "Could not process data during the scan",
   "Пароль в исходниках": "Hardcoded password",
@@ -425,35 +430,35 @@ const english: Record<string, string> = {
   "Как собрать проверку": "How to build a scan",
   "Ручной запуск и Исходники задают, когда начать и какой проект проверить.":
     "Manual trigger and Source files define when the scan starts and which project it checks.",
-  "Добавьте анализатор. Стрелка передаёт результат следующему блоку. Фильтр помогает выбрать нужные находки.":
-    "Add an analyzer. Arrows pass results to the next node. Add a filter to select the findings you need.",
-  "Подключите находки к Отчёту. Чтобы получить объяснения, вставьте AI-анализ между анализатором и Отчётом.":
-    "Connect findings to Report. Add AI analysis between the analyzer and Report to get explanations.",
+  "Добавьте анализатор. Стрелка передаёт результат следующему блоку. Фильтр помогает выбрать нужные результаты.":
+    "Add an analyzer. Arrows pass results to the next node. Add a filter to select the results you need.",
+  "Подключите результаты к Отчёту. Чтобы получить объяснения, вставьте AI-анализ между анализатором и Отчётом.":
+    "Connect results to Report. Add AI analysis between the analyzer and Report to get explanations.",
   "Нажмите «Проверить», затем «Запустить». Для уведомления подключите Telegram после Отчёта.":
     "Select Validate, then Run. Connect Telegram after Report to get a notification.",
-  "По будням в 9 утра проверяй зависимости и присылай критические находки в Telegram":
-    "Scan dependencies on weekdays at 9 AM and send critical findings to Telegram",
+  "По будням в 9 утра проверяй зависимости и присылай критические результаты в Telegram":
+    "Scan dependencies on weekdays at 9 AM and send critical results to Telegram",
   "AI соберёт черновик сценария из текста. Проверьте блоки и стрелки в редакторе. Расписание включается вручную.":
     "AI drafts a workflow from your description. Check the nodes and connections in the editor and enable the schedule when ready.",
   "Email временно отключён. Замените узел на Telegram.":
     "Email is temporarily disabled. Replace the node with Telegram.",
   "Личный кабинет": "My account",
-  "Гость": "Guest",
-  "Пользователь": "Member",
-  "Регистрация": "Sign up",
+  Гость: "Guest",
+  Пользователь: "Member",
+  Регистрация: "Sign up",
   "Вход в аккаунт": "Sign in",
   "Создайте аккаунт": "Create an account",
   "Войдите в аккаунт": "Sign in to your account",
   "Создать аккаунт": "Create account",
-  "Войти": "Sign in",
+  Войти: "Sign in",
   "Электронная почта": "Email address",
-  "Пароль": "Password",
+  Пароль: "Password",
   "Показать пароль": "Show password",
   "Скрыть пароль": "Hide password",
   "Введите пароль": "Enter a password",
-  "Слабый": "Weak",
-  "Средний": "Fair",
-  "Надёжный": "Strong",
+  Слабый: "Weak",
+  Средний: "Fair",
+  Надёжный: "Strong",
   "Очень надёжный": "Very strong",
   "Минимум 12 символов. Подойдёт длинная фраза из нескольких несвязанных слов.":
     "Use at least 12 characters. A long phrase of unrelated words works well.",
@@ -464,37 +469,45 @@ const english: Record<string, string> = {
   "История гостя удаляется при выходе или окончании гостевой сессии.":
     "Guest history is deleted when you sign out or your guest session expires.",
   "Не удалось проверить вход": "Could not check your sign-in status",
-  "Повторить": "Try again",
+  Повторить: "Try again",
   "Войдите, чтобы продолжить": "Sign in to continue",
   "Введите корректный адрес электронной почты": "Enter a valid email address",
   "Выберите более надёжный пароль": "Choose a stronger password",
-  "Для этого адреса уже есть аккаунт": "An account already exists for this email address",
+  "Для этого адреса уже есть аккаунт":
+    "An account already exists for this email address",
   "Неверная почта или пароль": "Incorrect email address or password",
-  "Слишком много попыток. Попробуйте позже.": "Too many attempts. Try again later.",
+  "Слишком много попыток. Попробуйте позже.":
+    "Too many attempts. Try again later.",
   "Эта функция доступна после регистрации": "This feature requires an account",
   "Гостевая сессия завершилась": "Your guest session has ended",
-  "Введите имя пользователя Telegram в формате @username": "Enter a Telegram username in @username format",
-  "Завершить гостевую сессию и удалить её данные?": "End this guest session and delete its data?",
+  "Введите имя пользователя Telegram в формате @username":
+    "Enter a Telegram username in @username format",
+  "Завершить гостевую сессию и удалить её данные?":
+    "End this guest session and delete its data?",
   "Завершить гостевую сессию": "End guest session",
   "Выйти из аккаунта": "Sign out",
   "Гостевой режим": "Guest mode",
   "Можно запускать проверки вручную. История и исходники удаляются при выходе или через 30 минут вне активной вкладки. Чтобы сохранять проверки, завершите гостевую сессию и зарегистрируйтесь.":
     "You can run scans manually. History and source files are deleted when you sign out or after 30 minutes away from the active tab. To keep your scans, end this guest session and create an account.",
-  "Профиль": "Profile",
-  "Никнейм": "Nickname",
+  Профиль: "Profile",
+  Никнейм: "Nickname",
   "Аккаунт GitHub привязан": "GitHub account linked",
   "Не удалось подключиться к GitHub": "Could not connect to GitHub",
-  "Этот аккаунт GitHub уже привязан или сначала нужно отвязать текущий": "This GitHub account is already linked, or you need to unlink your current one first",
+  "Этот аккаунт GitHub уже привязан или сначала нужно отвязать текущий":
+    "This GitHub account is already linked, or you need to unlink your current one first",
   "Отвязать GitHub": "Unlink GitHub",
   "Привязать GitHub": "Link GitHub",
   "Войти через GitHub": "Sign in with GitHub",
   "Не удалось войти через GitHub": "Could not sign in with GitHub",
-  "Сначала войдите с почтой и привяжите GitHub в личном кабинете": "Sign in with your email first and link GitHub in My account",
+  "Сначала войдите с почтой и привяжите GitHub в личном кабинете":
+    "Sign in with your email first and link GitHub in My account",
   "Подключение GitHub пока не настроено": "GitHub is not configured yet",
   "Выбрать фото": "Choose photo",
   "Удалить фото": "Remove photo",
-  "Фото должно занимать не больше 2 МБ": "Choose a photo that is 2 MB or smaller",
-  "Выберите изображение JPEG, PNG или WebP до 16 Мп": "Choose a JPEG, PNG or WebP image up to 16 megapixels",
+  "Фото должно занимать не больше 2 МБ":
+    "Choose a photo that is 2 MB or smaller",
+  "Выберите изображение JPEG, PNG или WebP до 16 Мп":
+    "Choose a JPEG, PNG or WebP image up to 16 megapixels",
   "Имя пользователя Telegram": "Telegram username",
   "Сохранить профиль": "Save profile",
   "Профиль сохранён": "Profile saved",
@@ -503,7 +516,6 @@ const english: Record<string, string> = {
 
 const dynamicPrefixes = [
   "Сверьте совместимость с исправленными версиями:",
-  "Завершено · находок",
   "Проверьте параметры узла",
   "Подключите вход узла",
   "Несовместимые порты:",

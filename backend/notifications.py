@@ -58,7 +58,7 @@ def send_email(session, run=None, count=0):
     text = "Почтовый канал CenTRap работает."
     if run:
         base = os.getenv("PUBLIC_URL", "http://localhost:8000").rstrip("/")
-        text = f"{run.project_name} · {run.workflow_name}\nНаходок: {count}\n{base}/runs/{run.id}"
+        text = f"{run.project_name} · {run.workflow_name}\nОбнаружено: {count}\n{base}/runs/{run.id}"
     msg.set_content(text)
     try:
         port = int(os.getenv("SMTP_PORT") or (465 if mode == "ssl" else 587))
@@ -122,7 +122,7 @@ def telegram(session, run=None, count=0, *, owner_id=None):
     text = "CenTRap · Проверка подключения"
     if run:
         base = os.getenv("PUBLIC_URL", "http://localhost:8000").rstrip("/")
-        text = f"{run.project_name} · {run.workflow_name}\nНаходок в отчёте: {count}\n{base}/runs/{run.id}"
+        text = f"{run.project_name} · {run.workflow_name}\nОбнаружено в отчёте: {count}\n{base}/runs/{run.id}"
     try:
         response = httpx.post(
             f"https://api.telegram.org/bot{config['token']}/sendMessage",

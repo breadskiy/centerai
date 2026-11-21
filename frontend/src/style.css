@@ -1646,6 +1646,31 @@ button:focus-visible > svg.lucide-chevron-left {
 }
 .theme-toggle.icon svg { width: 20px; height: 20px; }
 .theme-toggle.icon:hover, .theme-toggle.icon:focus-visible { color: var(--teal); }
+.scan-stages {
+  display: grid;
+  gap: 0;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.session-history-head { flex-wrap: wrap; }
+.session-history-head .toolbar { flex-wrap: wrap; }
+.scan-stage { padding: 14px clamp(14px, 2vw, 24px); border-top: 1px solid var(--line); min-width: 0; }
+.scan-stage:first-child { border-top: 0; }
+.scan-stage-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.scan-stage-head h3 { font-size: 1rem; }
+.scan-stage-result { display: grid; gap: 10px; margin-top: 8px; }
+.scan-stage-result ul { margin: 0; list-style: none; padding: 0; }
+.scan-stage-result li { display: flex; gap: 4px 12px; flex-wrap: wrap; align-items: baseline; }
+.scan-stage-result li code { color: var(--muted); overflow-wrap: anywhere; }
+.scan-stage-result .textbtn { justify-self: start; }
+@media (prefers-reduced-motion: no-preference) {
+  .scan-stage[data-state="revealed"] .scan-stage-result { animation: scan-stage-reveal .28s ease-out; }
+  @keyframes scan-stage-reveal {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
 :root.theme-revealing::view-transition-old(root),
 :root.theme-revealing::view-transition-new(root) {
   animation: none;

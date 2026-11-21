@@ -191,7 +191,7 @@ export function RunsTable({
             <th>
               {compact
                 ? translateText("Критичность")
-                : translateText("Находки")}
+                : translateText("Обнаружено")}
             </th>
             {!compact && <th />}
           </tr>

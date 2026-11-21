@@ -12,7 +12,10 @@ from sqlalchemy import (
     LargeBinary,
     String,
     create_engine,
+    delete,
     event,
+    select,
+    update,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
@@ -154,6 +157,7 @@ class Event(Base):
     status: Mapped[str]
     node_id: Mapped[str | None]
     message: Mapped[str]
+    stage: Mapped[dict | None] = mapped_column(JSON)
     created: Mapped[float] = mapped_column(default=time.time)
 
 
@@ -170,3 +174,22 @@ class Credential(Base):
     __tablename__ = "credentials"
     provider: Mapped[str] = mapped_column(primary_key=True)
     encrypted: Mapped[bytes] = mapped_column(LargeBinary)
+
+
+def lock_project(db, key):
+    return db.execute(
+        update(Project)
+        .where(Project.id == key, Project.archived.is_(False))
+        .values(archived=False)
+    ).rowcount
+
+
+def delete_project_records(db, projects):
+    runs = select(Run.id).where(Run.project_id.in_(projects))
+    for table in (Finding, Event, NodeRun):
+        db.execute(delete(table).where(table.run_id.in_(runs)))
+    db.execute(delete(Run).where(Run.project_id.in_(projects)))
+    workflows = select(Workflow.id).where(Workflow.project_id.in_(projects))
+    db.execute(delete(Version).where(Version.workflow_id.in_(workflows)))
+    db.execute(delete(Workflow).where(Workflow.project_id.in_(projects)))
+    db.execute(delete(Project).where(Project.id.in_(projects)))

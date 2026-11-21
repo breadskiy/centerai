@@ -41,9 +41,6 @@ const HistoryPage = React.lazy(() =>
 const Monitor = React.lazy(() =>
   import("./results").then((m) => ({ default: m.Monitor })),
 );
-const FindingsPage = React.lazy(() =>
-  import("./results").then((m) => ({ default: m.FindingsPage })),
-);
 const EditorPage = React.lazy(() =>
   import("./editor").then((m) => ({ default: m.EditorPage })),
 );
@@ -112,8 +109,6 @@ function Shell({ viewer, change }: { viewer: Viewer; change: SetViewer }) {
                 <Route path="/workflows/:id" element={<EditorPage />} />
                 <Route path="/runs" element={<HistoryPage />} />
                 <Route path="/runs/:id" element={<Monitor />} />
-                <Route path="/findings" element={<FindingsPage />} />
-                <Route path="/findings/:sessionId" element={<FindingsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route
                   path="/account"

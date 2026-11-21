@@ -21,14 +21,10 @@ from .db import (
     Account,
     AuthSession,
     Credential,
-    Event,
-    Finding,
-    NodeRun,
     Project,
     Run,
     Session,
-    Version,
-    Workflow,
+    delete_project_records,
 )
 
 COOKIE = "centerai_session"
@@ -383,7 +379,12 @@ def logout(request: Request, response: Response):
 
 
 def purge_guest(db, account_id):
-    projects = select(Project.id).where(Project.owner_id == account_id)
+    projects = db.scalars(
+        update(Project)
+        .where(Project.owner_id == account_id)
+        .values(archived=True)
+        .returning(Project.id)
+    ).all()
     runs = select(Run.id).where(Run.project_id.in_(projects))
     # Cancelling queued rows also serializes cleanup with the worker's claim.
     db.execute(
@@ -398,13 +399,7 @@ def purge_guest(db, account_id):
     )
     if running.rowcount:
         return
-    for table in (Finding, Event, NodeRun):
-        db.execute(delete(table).where(table.run_id.in_(runs)))
-    db.execute(delete(Run).where(Run.project_id.in_(projects)))
-    workflows = select(Workflow.id).where(Workflow.project_id.in_(projects))
-    db.execute(delete(Version).where(Version.workflow_id.in_(workflows)))
-    db.execute(delete(Workflow).where(Workflow.project_id.in_(projects)))
-    db.execute(delete(Project).where(Project.owner_id == account_id))
+    delete_project_records(db, projects)
     db.execute(delete(AuthSession).where(AuthSession.account_id == account_id))
     db.execute(delete(Account).where(Account.id == account_id))
 
