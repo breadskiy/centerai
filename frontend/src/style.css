@@ -1566,30 +1566,23 @@ button:focus-visible > svg.lucide-chevron-left {
 .access-intro {
   grid-row: span 2;
   display: grid;
-  grid-template-rows: auto 1fr;
-  padding: clamp(28px, 5vw, 76px);
+  place-items: center;
+  padding: 32px;
   background: light-dark(#e8efe9, #171a1e);
   border-inline-end: 1px solid var(--line);
 }
-.access-intro .brand { padding: 0; font-size: 26px; justify-content: flex-start; }
-.access-copy { align-self: center; max-width: 490px; padding: 48px 0; }
-.access-copy h1 { font-size: clamp(34px, 4.6vw, 70px); line-height: 1.03; }
-.access-copy p, .access-guest p, .account-card p, .account-summary p {
+.access-intro .brand {
+  padding: 0;
+  font-size: clamp(38px, 5.5vw, 84px);
+  gap: clamp(14px, 2vw, 28px);
+  letter-spacing: -0.06em;
+}
+.access-intro .brandMark { width: 1em; height: 1em; }
+.access-guest p, .account-card p, .account-summary p {
   margin: 12px 0 0;
   color: var(--muted);
   line-height: 1.55;
 }
-.access-flow { display: flex; align-items: center; margin-top: 28px; color: var(--teal); }
-.access-flow span {
-  width: 42px;
-  height: 42px;
-  border: 1px solid var(--control-border);
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  background: var(--paper);
-}
-.access-flow i { width: min(26vw, 160px); height: 1px; background: var(--control-border); }
 .access-form {
   width: min(100%, 476px);
   margin: auto;
@@ -1674,11 +1667,7 @@ button:focus-visible > svg.lucide-chevron-left {
 }
 @media (max-width: 650px) {
   .access { display: block; }
-  .access-intro { display: block; border-inline-end: 0; border-bottom: 1px solid var(--line); padding: 18px 22px; }
-  .access-copy { padding: 18px 0 0; }
-  .access-copy h1 { font-size: 28px; }
-  .access-copy p { margin-top: 6px; font-size: 14px; }
-  .access-flow { display: none; }
+  .access-intro { border-inline-end: 0; border-bottom: 1px solid var(--line); padding: 26px 22px; }
   .account-link { padding: 7px 16px; }
   .account-link small { display: none; }
 }

@@ -3,8 +3,6 @@ import type { ReactNode } from "react";
 import {
   Eye,
   EyeOff,
-  FolderGit2,
-  History,
   LogOut,
   UserRound,
 } from "lucide-react";
@@ -179,23 +177,6 @@ function Access({ enter }: { enter: SetViewer }) {
         <div className="brand" id="access-brand">
           <img className="brandMark" src={bankMark} alt="" />
           CenterAI
-        </div>
-        <div className="access-copy">
-          <h1>{t("Проверка Kotlin-репозиториев")}</h1>
-          <p>
-            {t(
-              "Загружайте исходники, запускайте проверки и возвращайтесь к результатам в своём кабинете.",
-            )}
-          </p>
-          <div className="access-flow" aria-hidden="true">
-            <span>
-              <FolderGit2 size={20} />
-            </span>
-            <i />
-            <span>
-              <History size={20} />
-            </span>
-          </div>
         </div>
       </section>
       <section className="access-form" aria-labelledby="access-title">
