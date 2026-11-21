@@ -95,22 +95,22 @@ def scan(files):
                 if not any(affected(version, bound) for bound in advisory["ranges"]):
                     continue
                 fixed = ", ".join(advisory["fixedVersions"])
-                result.append(
-                    finding(
-                        "SCA",
-                        path,
-                        "known-vulnerable-dependency",
-                        advisory["severity"],
-                        f"{artifact} · {version}",
-                        "Версия входит в диапазон учебного справочника уязвимостей.",
-                        f"Сверьте совместимость с исправленными версиями: {fixed}.",
-                        f"{group}:{artifact}:{version}",
-                        group=group,
-                        artifact=artifact,
-                        version=version,
-                        advisoryId=advisory["id"],
-                        aliases=advisory["aliases"],
-                        line=line_at(source, offset),
-                    )
+                row = finding(
+                    "SCA",
+                    path,
+                    "known-vulnerable-dependency",
+                    advisory["severity"],
+                    f"{artifact} · {version}",
+                    "Версия входит в диапазон учебного справочника уязвимостей.",
+                    f"Сверьте совместимость с исправленными версиями: {fixed}.",
+                    f"{group}:{artifact}:{version}",
+                    group=group,
+                    artifact=artifact,
+                    version=version,
+                    advisoryId=advisory["id"],
+                    aliases=advisory["aliases"],
+                    line=line_at(source, offset),
                 )
+                row["fixedVersions"] = advisory["fixedVersions"]
+                result.append(row)
     return result

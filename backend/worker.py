@@ -122,8 +122,13 @@ def execute(run_id):
                 run.heartbeat = time.time()
                 record(db, run, "running", REGISTRY[node.type].title, node_id)
                 db.commit()
+                merged = {}
+                for packet in active:
+                    for key, finding in packet.findings.items():
+                        if key not in merged or "ai" in finding:
+                            merged[key] = finding
                 data = Packet(
-                    {k: v for p in active for k, v in p.findings.items()},
+                    merged,
                     files=next((p.files for p in active if p.files is not None), None),
                 )
                 output = REGISTRY[node.type].execute(ctx, node.config, data)
@@ -135,6 +140,8 @@ def execute(run_id):
                 }
                 if output.receipt:
                     current.output["receipt"] = output.receipt
+                if node.type == "ai_analysis":
+                    current.output["ai"] = output.ai
                 if node.type in SCANNERS:
                     current.output["findings"] = [
                         row
@@ -155,7 +162,17 @@ def execute(run_id):
                                     detail=row,
                                 )
                             )
-                    reports.update(output.findings)
+                        elif "ai" in row and "ai" not in reports[key]:
+                            db.execute(
+                                update(Finding)
+                                .where(
+                                    Finding.run_id == run.id, Finding.fingerprint == key
+                                )
+                                .values(detail=row)
+                            )
+                        elif "ai" in reports[key]:
+                            continue
+                        reports[key] = row
                     run.count = len(reports)
                 current.status, current.finished = "success", time.time()
                 record(

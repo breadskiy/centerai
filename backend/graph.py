@@ -9,6 +9,7 @@ from croniter import croniter
 from pydantic import BaseModel, Field, ConfigDict
 
 from .node_config import (
+    AIConfig,
     EmptyConfig,
     CompareConfig,
     LevelsConfig,
@@ -18,6 +19,7 @@ from .node_config import (
 from .analyzers import SCANNERS
 from .analyzers.common import SubmissionReportExporter
 from .notifications import telegram
+from .ai_report import explain
 
 LEVELS = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
 OPS = {
@@ -71,6 +73,7 @@ class Packet:
     branch: str = ""
     files: dict | None = None
     receipt: dict | None = None
+    ai: dict | None = None
 
 
 @dataclass
@@ -121,6 +124,11 @@ def match_regex(ctx, cfg, data):
 def report(ctx, cfg, data):
     SubmissionReportExporter.export(data.findings.values())
     return data
+
+
+def ai_analysis(ctx, cfg, data):
+    rows, meta = explain(data.findings, ctx.files, cfg)
+    return Packet(rows, ai=meta)
 
 
 def notify(ctx, cfg, data):
@@ -209,6 +217,16 @@ REGISTRY = {
         {"pattern": ".*"},
         PatternConfig,
     ),
+    "ai_analysis": Kind(
+        "AI-анализ",
+        "AI",
+        "Объяснения и шаги исправления по находкам анализаторов.",
+        "findings",
+        "findings",
+        ai_analysis,
+        {"model": ""},
+        AIConfig,
+    ),
     "report_generator": Kind(
         "Отчёт",
         "Вывод",
@@ -280,7 +298,7 @@ def validate(raw):
     return nodes, parents, order
 
 
-def default_graph():
+def default_graph(with_ai=False):
     layout = [
         ("manual_trigger", 0, 125),
         ("repository_source", 220, 125),
@@ -290,6 +308,10 @@ def default_graph():
         ("report_generator", 680, 125),
     ]
     pairs = [(0, 1), (1, 2), (1, 3), (1, 4), (2, 5), (3, 5), (4, 5)]
+    if with_ai:
+        layout[-1] = ("ai_analysis", 680, 125)
+        layout.append(("report_generator", 920, 125))
+        pairs.append((5, 6))
     return {
         "nodes": [
             {"id": k, "type": k, "config": {}, "position": {"x": x, "y": y}}

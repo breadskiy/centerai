@@ -16,6 +16,8 @@ if __name__ == "__main__":
         os.environ["CENTERAI_DATA"] = workspace
         os.environ.pop("DATABASE_URL", None)
         os.environ["WORKER_MODE"] = "local"
+        os.environ["AI_PROVIDER"] = "ollama"
+        os.environ["AI_BASE_URL"] = "http://127.0.0.1:1"
         qa = ROOT / ".qa"
         qa.mkdir(exist_ok=True)
         with zipfile.ZipFile(qa / "e2e-fixture.zip", "w") as archive:

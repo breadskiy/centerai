@@ -233,6 +233,32 @@ export function Monitor() {
           </p>
           {done && (
             <>
+              {r.nodes
+                .filter((n) => n.output.ai)
+                .map((n) => {
+                  const ai = n.output.ai!;
+                  const labels: Record<string, string> = {
+                    ok: "Объяснения готовы",
+                    no_findings: "Нет находок для объяснения",
+                    ai_unavailable:
+                      "Модель недоступна или ответ не прошёл проверку",
+                    invalid_input: "Не удалось подтвердить исходные данные",
+                    invalid_configuration: "Проверьте настройки провайдера",
+                  };
+                  return (
+                    <p key={n.node_id}>
+                      <strong>AI · {ai.model}</strong>
+                      <br />
+                      {labels[ai.status] || ai.status}
+                      {ai.summary && (
+                        <>
+                          <br />
+                          {ai.summary}
+                        </>
+                      )}
+                    </p>
+                  );
+                })}
               <Link className="button primary" to={"/findings?run_id=" + id}>
                 Открыть находки
               </Link>
@@ -362,6 +388,26 @@ function Detail({ f, close }: { f: Finding; close: () => void }) {
       )}
       <h3>Исправление</h3>
       <p>{f.remediation}</p>
+      {f.ai && (
+        <section>
+          <h3>Объяснение AI · {f.ai.model}</h3>
+          <p>{f.ai.explanation}</p>
+          <p>{f.ai.technical_details}</p>
+          <p>
+            <strong>Возможные последствия</strong> {f.ai.business_impact}
+          </p>
+          <h4>Шаги исправления</h4>
+          <ol>
+            {f.ai.remediation_steps.map((s, i) => (
+              <li key={i}>{s}</li>
+            ))}
+          </ol>
+          <p>
+            <strong>Оценка модели</strong> {f.ai.evidence_status}
+          </p>
+          <p>{f.ai.false_positive_notes}</p>
+        </section>
+      )}
       <small>{f.rule_id}</small>
       <Link className="button" to={"/runs/" + f.run_id}>
         Открыть запуск

@@ -5,6 +5,7 @@ actor "Планировщик" as Timer
 actor "GitHub" as Git
 actor "Telegram" as Chat
 actor "CI runner" as CI
+actor "LLM Provider" as LLM
 rectangle CenterAI {
   usecase "Импортировать проект" as Import
   usecase "Принять ZIP" as Zip
@@ -14,6 +15,7 @@ rectangle CenterAI {
   usecase "Проверить граф" as Validate
   usecase "Запустить сценарий" as Run
   usecase "Выполнить статические проверки" as Analyze
+  usecase "Объяснить находки и проверить ответ AI" as Explain
   usecase "Применить условия и фильтры" as Logic
   usecase "Наблюдать выполнение" as Monitor
   usecase "Получить отчёт" as Report
@@ -32,6 +34,8 @@ Timer --> Run
 Run ..> Validate : <<include>>
 Run ..> Analyze : <<include>>
 Logic ..> Analyze : <<extend>>
+Explain ..> Analyze : <<extend>>
+LLM --> Explain
 User --> Monitor
 User --> Report
 User --> History

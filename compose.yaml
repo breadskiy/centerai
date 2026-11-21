@@ -4,6 +4,10 @@ x-runtime: &runtime
     DATABASE_URL: postgresql+psycopg2://centerai:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/centerai
     REDIS_URL: redis://redis:6379/0
     WORKER_MODE: celery
+    AI_PROVIDER: ${AI_PROVIDER:-ollama}
+    AI_MODEL: ${AI_MODEL:-qwen3:4b}
+    AI_BASE_URL: ${AI_BASE_URL:-}
+    AI_API_KEY: ${AI_API_KEY:-}
     ALLOWED_REPOSITORIES: ${ALLOWED_REPOSITORIES:-TBagirov/training}
     PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8000}
   volumes:

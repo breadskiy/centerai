@@ -239,6 +239,7 @@ def registry():
             for k, v in REGISTRY.items()
         },
         "default_graph": default_graph(),
+        "ai_graph": default_graph(with_ai=True),
     }
 
 
@@ -709,6 +710,14 @@ def export(key: str, db: DB, format: str = Query("json", pattern="^(json|txt)$")
                 f["remediation"],
             ]
         )
+        if note := f.get("ai"):
+            lines.extend(
+                [
+                    f"AI · {note['model']} · {note['evidence_status']}",
+                    note["explanation"],
+                    *note["remediation_steps"],
+                ]
+            )
     return PlainTextResponse("\n".join(lines), headers=headers)
 
 

@@ -26,6 +26,7 @@ export interface Kind {
 export interface Registry {
   types: Record<string, Kind>;
   default_graph: Graph;
+  ai_graph?: Graph;
 }
 export interface Project {
   id: string;
@@ -71,7 +72,12 @@ export interface RunDetails extends Run {
   nodes: {
     node_id: string;
     status: string;
-    output: { count?: number; files?: number; branch?: string };
+    output: {
+      count?: number;
+      files?: number;
+      branch?: string;
+      ai?: { status: string; model: string; summary?: string };
+    };
   }[];
   events: {
     id: number;
@@ -93,6 +99,15 @@ export interface Finding {
   description: string;
   remediation: string;
   evidence: string;
+  ai?: {
+    model: string;
+    explanation: string;
+    technical_details: string;
+    business_impact: string;
+    remediation_steps: string[];
+    false_positive_notes: string;
+    evidence_status: string;
+  };
   advisoryId?: string;
   aliases?: string[];
   rule_id: string;

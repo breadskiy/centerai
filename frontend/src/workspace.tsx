@@ -498,10 +498,11 @@ function NewFlow({
           e.preventDefault();
           const v = new FormData(e.currentTarget);
           void act(async () => {
-            const graph: Graph =
-              v.get("start") === "base"
-                ? registry.default_graph
-                : { nodes: [registry.default_graph.nodes[0]], edges: [] };
+            let graph: Graph = registry.default_graph;
+            if (v.get("start") === "blank")
+              graph = { nodes: [graph.nodes[0]], edges: [] };
+            if (v.get("start") === "ai" && registry.ai_graph)
+              graph = registry.ai_graph;
             const f = await api<Flow>("/workflows", "POST", {
               name: v.get("name"),
               description: v.get("description"),
@@ -544,6 +545,9 @@ function NewFlow({
           Начальный граф
           <select name="start">
             <option value="base">Три анализатора и отчёт</option>
+            {registry.ai_graph && (
+              <option value="ai">Три анализатора, AI и отчёт</option>
+            )}
             <option value="blank">Только триггер</option>
           </select>
         </label>

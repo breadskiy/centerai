@@ -12,6 +12,10 @@ class EmptyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
 
+class AIConfig(EmptyConfig):
+    model: str = Field(default="", max_length=160)
+
+
 class CompareConfig(EmptyConfig):
     operator: Literal[">", ">=", "==", "<", "<="]
     count: int = Field(ge=0)

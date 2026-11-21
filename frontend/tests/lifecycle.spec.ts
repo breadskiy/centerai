@@ -2,6 +2,40 @@ import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+test("Готовый AI-граф сохраняет находки при недоступной модели", async ({
+  page,
+  request,
+}) => {
+  const project = await request.post("/api/v1/projects", {
+    multipart: {
+      name: "AI проверка",
+      archive: {
+        name: "input.zip",
+        mimeType: "application/zip",
+        buffer: readFileSync(resolve("../.qa/e2e-fixture.zip")),
+      },
+    },
+  });
+  expect(project.ok()).toBeTruthy();
+  await page.goto("/workflows?new=1&project=" + (await project.json()).id);
+  await page.getByLabel("Начальный граф").selectOption("ai");
+  await page.getByRole("button", { name: "Открыть редактор" }).click();
+  await expect(page.locator(".react-flow__node")).toHaveCount(7);
+  await page
+    .locator(".react-flow__node")
+    .filter({ hasText: "AI-анализ" })
+    .click();
+  await page.getByLabel("Модель", { exact: true }).fill("offline-fixture");
+  await page.getByRole("button", { name: "Проверить", exact: true }).click();
+  await page.getByRole("button", { name: "Запустить", exact: true }).click();
+  await expect(
+    page.getByText("Модель недоступна или ответ не прошёл проверку", {
+      exact: false,
+    }),
+  ).toBeVisible({ timeout: 20000 });
+  await expect(page.getByText("2 находок в итоговом отчёте.")).toBeVisible();
+});
+
 test("Ошибки импорта, поиск, история версий, публикация и отдельная копия", async ({
   page,
 }) => {
@@ -11,13 +45,11 @@ test("Ошибки импорта, поиск, история версий, пу
   await page
     .getByLabel("Название", { exact: true })
     .fill("Проект для шаблонов");
-  await page
-    .locator("input[type=file]")
-    .setInputFiles({
-      name: "wrong.zip",
-      mimeType: "application/zip",
-      buffer: Buffer.from("invalid"),
-    });
+  await page.locator("input[type=file]").setInputFiles({
+    name: "wrong.zip",
+    mimeType: "application/zip",
+    buffer: Buffer.from("invalid"),
+  });
   await page
     .getByRole("button", { name: "Создать проект", exact: true })
     .click();

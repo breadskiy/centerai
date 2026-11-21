@@ -300,6 +300,17 @@ function Config({
           ))}
         </fieldset>
       )}
+      {node.data.kind === "ai_analysis" && (
+        <label>
+          Модель
+          <input
+            value={String(c.model || "")}
+            maxLength={160}
+            placeholder="По умолчанию на сервере"
+            onChange={(e) => set("model", e.target.value)}
+          />
+        </label>
+      )}
       {node.data.kind === "regex_filter" && (
         <label>
           Выражение для пути
