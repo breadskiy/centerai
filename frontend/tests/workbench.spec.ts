@@ -90,7 +90,9 @@ test("ZIP → editable workflow → live execution → report and settings", asy
   await expect(page.getByRole("dialog")).toContainText("Значение скрыто");
   await page.getByRole("button", { name: "Закрыть", exact: true }).click();
   await page.getByRole("link", { name: "Настройки", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Telegram" })).toBeVisible();
+  await expect(
+    page.locator("summary").filter({ hasText: "Telegram" }),
+  ).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("link", { name: "Главная", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Главная" })).toBeVisible();

@@ -32,13 +32,23 @@ test("Генератор сохраняет описание при ошибке
   ).toBeVisible();
   const flow = page.url().split("/").pop()!;
   await page.goto("/settings");
+  await page
+    .locator("summary")
+    .filter({ hasText: "Электронная почта" })
+    .click();
   await page.getByLabel("Адрес получателя").fill("qa@example.test");
   await page.getByRole("button", { name: "Сохранить адрес" }).click();
   await expect(page.getByRole("status")).toContainText("Получатель сохранён");
+  await page.locator("summary").filter({ hasText: "CI/CD" }).click();
   await page.getByLabel("Сценарий для CI").selectOption(flow);
   await page.getByLabel("Завершать CI с ошибкой").selectOption("HIGH");
   await page.getByLabel("Ожидание, секунд").fill("360");
   await page.reload();
+  await page
+    .locator("summary")
+    .filter({ hasText: "Электронная почта" })
+    .click();
+  await page.locator("summary").filter({ hasText: "CI/CD" }).click();
   await expect(page.getByLabel("Адрес получателя")).toHaveValue(
     "qa@example.test",
   );
@@ -210,16 +220,25 @@ test("Настройки cron, часовой пояс, выключение р�
   });
   expect(response.ok()).toBeTruthy();
   await page.goto("/settings");
+  await page
+    .locator("summary")
+    .filter({ hasText: /^Расписание$/ })
+    .click();
   await page.getByLabel("Cron", { exact: true }).fill("0 3 * * *");
   await page.getByLabel("Часовой пояс").fill("Europe/Moscow");
   await page.getByLabel("Включено").check();
   await page.getByRole("button", { name: "Сохранить расписание" }).click();
   await expect(page.getByText("Следующий запуск · —")).toHaveCount(0);
   await page.reload();
+  await page
+    .locator("summary")
+    .filter({ hasText: /^Расписание$/ })
+    .click();
   await expect(page.getByLabel("Включено")).toBeChecked();
   await page.getByLabel("Включено").uncheck();
   await page.getByRole("button", { name: "Сохранить расписание" }).click();
   await expect(page.getByText("Следующий запуск · —")).toBeVisible();
+  await page.locator("summary").filter({ hasText: "Telegram" }).click();
   await page.getByLabel("Токен бота").fill("invalid");
   await page.getByLabel("Идентификатор чата").fill("1234");
   await page.getByRole("button", { name: "Сохранить", exact: true }).click();

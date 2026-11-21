@@ -8,7 +8,6 @@ import {
 import {
   Archive,
   Braces,
-  CalendarClock,
   ChevronRight,
   Copy,
   FileOutput,
@@ -19,7 +18,6 @@ import {
   Play,
   Plus,
   Search,
-  Send,
   Settings2,
   Trash2,
   Upload,
@@ -530,30 +528,40 @@ export function Projects() {
           <option>GitHub</option>
         </select>
       </div>
-      <section className="panel">
+      <section className="panel session-list">
         {rows.length ? (
-          rows.map((p) => (
-            <Link
-              className="projectrow session-row"
-              key={p.id}
-              to={"/projects/" + p.id}
-            >
-              <b>{p.name}</b>
-              <small>
-                {p.latest_completed?.finished
-                  ? date(p.latest_completed.finished)
-                  : "Нет завершённых проверок"}
-              </small>
-              {p.latest_completed && (
-                <span className="session-list-risk">
-                  {(p.latest_completed.levels.CRITICAL || 0) +
-                    (p.latest_completed.levels.HIGH || 0)}{" "}
-                  · серьёзные
+          <>
+            <div className="session-list-labels" aria-hidden="true">
+              <span>Сессия</span>
+              <span>Последняя проверка</span>
+              <span>Серьёзные находки</span>
+            </div>
+            {rows.map((p) => (
+              <Link
+                className="projectrow session-row"
+                key={p.id}
+                to={"/projects/" + p.id}
+              >
+                <b>{p.name}</b>
+                <small>
+                  {p.latest_completed?.finished
+                    ? date(p.latest_completed.finished)
+                    : "Нет завершённых проверок"}
+                </small>
+                <span
+                  className="session-list-risk"
+                  aria-label="Критические и высокие"
+                >
+                  {p.latest_completed
+                    ? (p.latest_completed.levels.CRITICAL || 0) +
+                      (p.latest_completed.levels.HIGH || 0)
+                    : "—"}
+                  <span className="session-risk-label"> · серьёзные</span>
                 </span>
-              )}
-              <ChevronRight />
-            </Link>
-          ))
+                <ChevronRight aria-hidden />
+              </Link>
+            ))}
+          </>
         ) : (
           <Empty
             title={list.length ? "Сессии не найдены" : "Добавьте первую сессию"}
@@ -591,13 +599,13 @@ export function ProjectDetail() {
           </button>
         }
       />
-      <section className="session-results">
+      <section className="session-results" aria-label="Находки сессии">
         <div className="session-results-head">
           <h2>Находки</h2>
           {runId && (
-            <div className="toolbar">
+            <div className="session-run-controls">
               <label>
-                Запуск{" "}
+                <span>Запуск</span>
                 <select
                   aria-label="Запуск"
                   value={runId}
@@ -642,7 +650,7 @@ export function ProjectDetail() {
       </details>
       <details className="panel session-details">
         <summary>Источник и сценарии</summary>
-        <section className="panel detailgrid">
+        <section className="detailgrid">
           <div>
             <small>Источник</small>
             <b>{p.source_type}</b>
@@ -935,8 +943,7 @@ function CISettings({ flows }: { flows: Flow[] }) {
     flow &&
     `python scripts/ci_scan.py --workflow ${flow.id} --url ${location.origin} --timeout ${timeout}${gate ? " --fail-on " + gate : ""}`;
   return (
-    <section className="panel padded">
-      <h2>CI/CD</h2>
+    <div className="settings-fields">
       {flow ? (
         <>
           <label>
@@ -1014,7 +1021,7 @@ function CISettings({ flows }: { flows: Flow[] }) {
       ) : (
         <p>Создайте сценарий, чтобы подготовить команду запуска.</p>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -1056,143 +1063,149 @@ export function SettingsPage() {
   const show = useNotice((n) => n.show);
   return (
     <>
-      <Heading
-        title="Настройки"
-        sub="Доставка отчётов и параметры рабочего пространства."
-      />
-      <ThemeSettings />
-      <div className="settingsgrid">
-        <section className="panel padded">
-          <Send />
-          <h2>Telegram</h2>
-          <p>
-            {s.telegram
-              ? "Параметры бота сохранены."
-              : "Подключите бота для отправки отчётов из сценариев."}
-          </p>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const form = e.currentTarget;
-              const v = new FormData(form);
-              void act(async () => {
-                await api(
-                  "/integrations/telegram",
-                  "PUT",
-                  Object.fromEntries(v),
-                );
-                form.reset();
-                show("Настройки сохранены");
-              });
-            }}
-          >
-            <label>
-              Токен бота
-              <input
-                name="token"
-                type="password"
-                autoComplete="new-password"
-                required={!s.telegram}
-                placeholder={
-                  s.telegram ? "•••••••• (сохранён)" : "Токен BotFather"
-                }
-              />
-            </label>
-            <label>
-              Идентификатор чата
-              <input required name="chat" placeholder="Например, -100…" />
-            </label>
-            <div className="toolbar">
-              <button className="primary" disabled={busy}>
-                Сохранить
-              </button>
-              <button
-                type="button"
-                disabled={busy || !s.telegram}
-                onClick={() =>
+      <Heading title="Настройки" />
+      <div className="settings-stack">
+        <ThemeSettings />
+        <section className="panel settings-group">
+          <h2>Уведомления</h2>
+          <details>
+            <summary>
+              Telegram{" "}
+              <small>{s.telegram ? "Подключён" : "Требует настройки"}</small>
+            </summary>
+            <div className="settings-fields">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const v = new FormData(form);
                   void act(async () => {
-                    await api("/integrations/telegram/test", "POST");
-                    show("Telegram подтвердил доставку");
-                  })
-                }
+                    await api(
+                      "/integrations/telegram",
+                      "PUT",
+                      Object.fromEntries(v),
+                    );
+                    form.reset();
+                    show("Настройки сохранены");
+                  });
+                }}
               >
-                Тест доставки
-              </button>
+                <label>
+                  Токен бота
+                  <input
+                    name="token"
+                    type="password"
+                    autoComplete="new-password"
+                    required={!s.telegram}
+                    placeholder={
+                      s.telegram ? "•••••••• (сохранён)" : "Токен BotFather"
+                    }
+                  />
+                </label>
+                <label>
+                  Идентификатор чата
+                  <input required name="chat" placeholder="Например, -100…" />
+                </label>
+                <div className="toolbar">
+                  <button className="primary" disabled={busy}>
+                    Сохранить
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || !s.telegram}
+                    onClick={() =>
+                      void act(async () => {
+                        await api("/integrations/telegram/test", "POST");
+                        show("Telegram подтвердил доставку");
+                      })
+                    }
+                  >
+                    Тест доставки
+                  </button>
+                </div>
+              </form>
             </div>
-          </form>
-        </section>
-        <div>
-          <section className="panel padded">
-            <h2>Электронная почта</h2>
-            {s.demo_mailbox && (
+          </details>
+          <details>
+            <summary>
+              Электронная почта{" "}
+              <small>
+                {s.smtp && s.email_recipient
+                  ? "Настроена"
+                  : "Требует настройки"}
+              </small>
+            </summary>
+            <div className="settings-fields">
+              {s.demo_mailbox && (
+                <p>
+                  <a
+                    href="http://127.0.0.1:8025"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Открыть тестовый почтовый ящик
+                  </a>
+                  . В этом режиме все письма остаются на компьютере.
+                </p>
+              )}
               <p>
-                <a
-                  href="http://127.0.0.1:8025"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Открыть тестовый почтовый ящик
-                </a>
-                . В этом режиме все письма остаются на компьютере.
+                {s.smtp
+                  ? "SMTP задан на сервере."
+                  : "Для отправки задайте SMTP_HOST и параметры почтового сервера."}
               </p>
-            )}
-            <p>
-              {s.smtp
-                ? "SMTP задан на сервере."
-                : "Для отправки задайте SMTP_HOST и параметры почтового сервера."}
-            </p>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const recipient = new FormData(e.currentTarget).get(
-                  "recipient",
-                );
-                void act(async () => {
-                  await api("/integrations/email", "PUT", { recipient });
-                  show("Получатель сохранён");
-                });
-              }}
-            >
-              <label>
-                Адрес получателя
-                <input
-                  name="recipient"
-                  required
-                  type="email"
-                  defaultValue={s.email_recipient}
-                />
-              </label>
-              <div className="toolbar">
-                <button disabled={busy}>Сохранить адрес</button>
-                <button
-                  type="button"
-                  disabled={busy || !s.smtp || !s.email_recipient}
-                  onClick={() =>
-                    void act(async () => {
-                      await api("/integrations/email/test", "POST");
-                      show("SMTP-сервер принял письмо");
-                    })
-                  }
-                >
-                  Тестовое письмо
-                </button>
-              </div>
-            </form>
-          </section>
-          <CISettings flows={flows} />
-          <section className="panel padded">
-            <CalendarClock />
-            <h2>Расписание</h2>
-            <ScheduleSettings flows={flows} />
-          </section>
-          <section className="panel padded">
-            <Archive />
-            <h2>Источники GitHub</h2>
-            {s.repositories.map((r) => (
-              <code key={r}>{r}</code>
-            ))}
-          </section>
-        </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const recipient = new FormData(e.currentTarget).get(
+                    "recipient",
+                  );
+                  void act(async () => {
+                    await api("/integrations/email", "PUT", { recipient });
+                    show("Получатель сохранён");
+                  });
+                }}
+              >
+                <label>
+                  Адрес получателя
+                  <input
+                    name="recipient"
+                    required
+                    type="email"
+                    defaultValue={s.email_recipient}
+                  />
+                </label>
+                <div className="toolbar">
+                  <button disabled={busy}>Сохранить адрес</button>
+                  <button
+                    type="button"
+                    disabled={busy || !s.smtp || !s.email_recipient}
+                    onClick={() =>
+                      void act(async () => {
+                        await api("/integrations/email/test", "POST");
+                        show("SMTP-сервер принял письмо");
+                      })
+                    }
+                  >
+                    Тестовое письмо
+                  </button>
+                </div>
+              </form>
+            </div>
+          </details>
+        </section>
+        <section className="panel settings-group">
+          <h2>Автоматизация</h2>
+          <details>
+            <summary>Расписание</summary>
+            <div className="settings-fields">
+              <ScheduleSettings flows={flows} />
+            </div>
+          </details>
+          <details>
+            <summary>CI/CD</summary>
+            <CISettings flows={flows} />
+          </details>
+        </section>
       </div>
     </>
   );
