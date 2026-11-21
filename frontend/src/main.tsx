@@ -11,9 +11,7 @@ import {
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
   Blocks,
-  ChevronRight,
   Folder,
-  GalleryVerticalEnd,
   History,
   LayoutDashboard,
   ScanLine,
@@ -59,8 +57,6 @@ const nav = [
 ] as const;
 function Shell() {
   const location = useLocation();
-  const path = "/" + location.pathname.split("/")[1];
-  const current = nav.find((n) => n[0] === path);
   return (
     <div className="shell">
       <aside className="side">
@@ -70,15 +66,7 @@ function Shell() {
           </span>
           CenterAI
         </Link>
-        <div className="workspaceId">
-          <span className="workspaceIcon">
-            <GalleryVerticalEnd size={17} />
-          </span>
-          <div>
-            Cyber Garden<small>Рабочее пространство</small>
-          </div>
-        </div>
-        <nav aria-label="Рабочее пространство">
+        <nav aria-label="Основная навигация">
           {nav.map(([url, text, Icon]) => (
             <NavLink key={url} end={url === "/"} to={url}>
               <Icon size={18} />
@@ -86,24 +74,14 @@ function Shell() {
             </NavLink>
           ))}
         </nav>
-        <div className="sidefoot">
-          <span className="localDot" />
-          Локальная среда
-        </div>
       </aside>
       <div className="content">
-        <div className="topbar">
-          <span>Workspace</span>
-          <ChevronRight size={14} />
-          <strong>{current?.[1] || "Раздел"}</strong>
-          <span className="topright">Security Workbench</span>
-        </div>
         <main>
           <Boundary key={location.pathname}>
             <Suspense
               fallback={
                 <div className="loading" role="status">
-                  Загружаем рабочее пространство…
+                  Загрузка…
                 </div>
               }
             >
@@ -117,10 +95,7 @@ function Shell() {
                 <Route path="/runs/:id" element={<Monitor />} />
                 <Route path="/findings" element={<FindingsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
-                <Route
-                  path="*"
-                  element={<Link to="/">Вернуться к обзору</Link>}
-                />
+                <Route path="*" element={<Link to="/">На главную</Link>} />
               </Routes>
             </Suspense>
           </Boundary>

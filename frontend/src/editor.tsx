@@ -747,7 +747,7 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
               <Background
                 variant={BackgroundVariant.Dots}
                 gap={17}
-                color="#a9b9b8"
+                color="var(--graph-dot)"
               />
               <Controls />
             </ReactFlow>

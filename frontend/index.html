@@ -3,8 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="theme-color" content="#114b46" />
-    <title>CenterAI · Security Workbench</title>
+    <meta name="theme-color" content="#26b54c" />
+    <script>
+      try {
+        const theme = localStorage.getItem("centerai-theme");
+        if (theme === "light" || theme === "dark")
+          document.documentElement.dataset.theme = theme;
+      } catch {}
+    </script>
+    <title>CenterAI</title>
   </head>
   <body>
     <div id="root"></div>

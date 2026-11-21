@@ -1,6 +1,36 @@
 import { expect, test } from "@playwright/test";
 import { resolve } from "node:path";
 
+test("Тема следует системе и сохраняет ручной выбор", async ({ page }) => {
+  const root = page.locator("html");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  await expect(root).toHaveCSS("background-color", "rgb(16, 23, 19)");
+  await expect(page.getByText("Workspace", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Cyber Garden", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Локальная среда", { exact: true })).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByRole("button", { name: "Загрузить репозиторий" }),
+  ).toHaveCSS("background-color", "rgb(38, 181, 76)");
+
+  await page.getByRole("link", { name: "Настройки", exact: true }).click();
+  const theme = page.getByRole("combobox", { name: "Тема", exact: true });
+  await expect(theme).toHaveValue("system");
+  await theme.selectOption({ label: "Светлая" });
+  await expect(root).toHaveCSS("background-color", "rgb(243, 247, 244)");
+  await page.reload();
+  await expect(theme).toHaveValue("light");
+  await theme.selectOption({ label: "Тёмная" });
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(root).toHaveCSS("background-color", "rgb(16, 23, 19)");
+  await theme.selectOption({ label: "Как в системе" });
+  await expect(root).toHaveCSS("background-color", "rgb(243, 247, 244)");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(root).toHaveCSS("background-color", "rgb(16, 23, 19)");
+});
+
 test("ZIP → editable workflow → live execution → report and settings", async ({
   page,
 }) => {
