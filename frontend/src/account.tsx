@@ -18,6 +18,7 @@ export type Viewer = {
   guest: boolean;
   email: string | null;
   nickname: string;
+  avatar: string | null;
   telegram_username: string;
   telegram_connected: boolean;
 };
@@ -394,8 +395,29 @@ export function AccountPage({
       <div className="account-layout">
         <aside className="panel account-summary">
           <span className="account-avatar">
-            <UserRound size={24} />
+            {viewer.avatar ? <img src={viewer.avatar} alt="" /> : <UserRound size={24} />}
           </span>
+          {!viewer.guest && <div className="account-actions">
+            <label className="avatar-picker">
+              {t("Выбрать фото")}
+              <input type="file" accept="image/jpeg,image/png,image/webp" disabled={pending}
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = "";
+                  if (!file) return;
+                  void run(async () => {
+                    if (file.size > 2 * 1024 * 1024)
+                      throw new Error(t("Фото должно занимать не больше 2 МБ"));
+                    const form = new FormData();
+                    form.set("file", file);
+                    change(await api<Viewer>("/auth/avatar", "PUT", form));
+                  });
+                }} />
+            </label>
+            {viewer.avatar && <button type="button" disabled={pending} onClick={() => void run(async () => {
+              change(await api<Viewer>("/auth/avatar", "DELETE"));
+            })}>{t("Удалить фото")}</button>}
+          </div>}
           <div>
             <h2>
               {viewer.nickname || t(viewer.guest ? "Гость" : "Пользователь")}

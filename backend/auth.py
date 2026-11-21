@@ -1,6 +1,8 @@
 """Browser sessions, password verification and temporary workspace leases."""
 
+import base64
 import hashlib
+import io
 import hmac
 import re
 import secrets
@@ -10,7 +12,8 @@ from typing import Annotated
 
 import regex
 from email_validator import EmailNotValidError, validate_email
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
+from PIL import Image, ImageOps
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
@@ -30,6 +33,7 @@ from .db import (
 )
 
 COOKIE = "centerai_session"
+MAX_AVATAR = 2 * 1024 * 1024
 GUEST_IDLE = 30 * 60
 MEMBER_TTL = 30 * 24 * 60 * 60
 router = APIRouter(prefix="/api/v1/auth", tags=["account"])
@@ -142,6 +146,11 @@ def profile_out(account):
         "guest": account.email is None,
         "email": account.email,
         "nickname": account.nickname,
+        "avatar": (
+            "data:image/jpeg;base64," + base64.b64encode(account.avatar).decode("ascii")
+            if account.avatar
+            else None
+        ),
         "telegram_username": account.telegram_username,
         "telegram_connected": False,
     }
@@ -280,6 +289,38 @@ def edit_profile(body: Profile, db: DB):
         )
     account.nickname = body.nickname.strip()
     account.telegram_username = username
+    db.commit()
+    return account_out(db, account)
+
+
+@router.put("/avatar")
+def upload_avatar(file: UploadFile, db: DB):
+    account = member(db)
+    raw = file.file.read(MAX_AVATAR + 1)
+    if len(raw) > MAX_AVATAR:
+        raise HTTPException(413, "Фото должно занимать не больше 2 МБ")
+    try:
+        with Image.open(io.BytesIO(raw), formats=("JPEG", "PNG", "WEBP")) as source:
+            if source.width * source.height > 16_000_000:
+                raise ValueError
+            photo = ImageOps.fit(
+                ImageOps.exif_transpose(source).convert("RGB"), (256, 256)
+            )
+            output = io.BytesIO()
+            photo.save(output, format="JPEG", quality=85)
+    except (OSError, ValueError, Image.DecompressionBombError):
+        raise HTTPException(
+            422, "Выберите изображение JPEG, PNG или WebP до 16 Мп"
+        ) from None
+    account.avatar = output.getvalue()
+    db.commit()
+    return account_out(db, account)
+
+
+@router.delete("/avatar")
+def remove_avatar(db: DB):
+    account = member(db)
+    account.avatar = None
     db.commit()
     return account_out(db, account)
 

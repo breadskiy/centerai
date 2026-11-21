@@ -29,7 +29,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import notifications
 from .analyzers.common import SubmissionReportExporter
-from .auth import DB, member, session, token_digest, viewer
+from .auth import DB, MAX_AVATAR, member, session, token_digest, viewer
 from .auth import router as auth_router
 from .db import (
     Event,
@@ -95,6 +95,8 @@ async def request_guard(request: Request, call_next):
         limit = (
             MAX_UPLOAD + 65536
             if request.url.path.endswith(("/projects", "/quick-scan"))
+            else MAX_AVATAR + 65536
+            if request.url.path == "/api/v1/auth/avatar"
             else 256 * 1024
         )
         if int(request.headers.get("content-length", 0)) > limit:

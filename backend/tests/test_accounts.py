@@ -231,3 +231,25 @@ def test_guest_logout_while_worker_is_running(anonymous, monkeypatch):
     with Session() as db:
         assert db.get(Run, run["id"]) is None
         assert db.get(Project, run["project_id"]) is None
+
+
+def test_avatar_upload_persists_until_removed(client):
+    from io import BytesIO
+    from PIL import Image
+
+    source = BytesIO()
+    Image.new("RGB", (80, 120), "green").save(source, format="PNG")
+    response = client.put(
+        API + "/auth/avatar", files={"file": ("photo.png", source.getvalue())}
+    )
+    assert response.status_code == 200
+    avatar = response.json()["avatar"]
+    assert avatar.startswith("data:image/jpeg;base64,")
+    assert client.get(API + "/auth/session").json()["avatar"] == avatar
+    assert (
+        client.put(
+            API + "/auth/avatar", files={"file": ("wrong.png", b"text")}
+        ).status_code
+        == 422
+    )
+    assert client.delete(API + "/auth/avatar").json()["avatar"] is None

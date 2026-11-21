@@ -65,6 +65,7 @@ class Account(Base):
     password_hash: Mapped[str | None]
     nickname: Mapped[str] = mapped_column(String(60), default="")
     telegram_username: Mapped[str] = mapped_column(String(32), default="")
+    avatar: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
     guest_until: Mapped[float | None] = mapped_column(Float, index=True)
 
 

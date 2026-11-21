@@ -85,7 +85,7 @@ function Shell({ viewer, change }: { viewer: Viewer; change: SetViewer }) {
           aria-label={translateText("Личный кабинет")}
           title={translateText("Личный кабинет")}
         >
-          <UserRound size={19} />
+          {viewer.avatar ? <img src={viewer.avatar} alt="" /> : <UserRound size={19} />}
           <span>
             <strong>{translateText("Личный кабинет")}</strong>
             <small>
