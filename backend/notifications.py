@@ -117,7 +117,7 @@ def telegram(session, run=None, count=0, *, owner_id=None):
         owner_id = session.get(Project, run.project_id).owner_id
     row = session.get(Credential, f"telegram:{owner_id}") if owner_id else None
     if not row:
-        raise ValueError("Настройте Telegram в личном кабинете")
+        raise ValueError("Настройте Telegram через API")
     config = json.loads(cipher().decrypt(row.encrypted))
     text = "CenterAI · Проверка подключения"
     if run:

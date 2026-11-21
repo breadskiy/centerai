@@ -486,21 +486,7 @@ const english: Record<string, string> = {
   "Имя пользователя Telegram": "Telegram username",
   "Сохранить профиль": "Save profile",
   "Профиль сохранён": "Profile saved",
-  "Уведомления в Telegram": "Telegram notifications",
-  "Бот подключён. Он отправляет отчёты из сценариев с узлом Telegram.":
-    "Your bot sends reports from workflows that include a Telegram node.",
-  "Подключите бота для сценариев, которые отправляют отчёты в Telegram.":
-    "Connect a bot to send reports from workflows with Telegram notifications.",
-  "Токен бота": "Bot token",
-  "Сохранённый токен": "Saved token",
-  "ID чата": "Chat ID",
-  "Сохранить подключение": "Save connection",
-  "Отправить тест": "Send a test message",
-  "Отключить": "Disconnect",
-  "Telegram отключён": "Telegram disconnected",
-  "Настройки Telegram сохранены": "Telegram settings saved",
-  "Проверочное сообщение отправлено": "Test message sent",
-  "Настройте Telegram в личном кабинете": "Set up Telegram in your account",
+  "Настройте Telegram через API": "Set up Telegram through the API",
 };
 
 const dynamicPrefixes = [

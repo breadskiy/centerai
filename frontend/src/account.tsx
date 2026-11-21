@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   Eye,
   EyeOff,
@@ -20,7 +20,6 @@ export type Viewer = {
   nickname: string;
   avatar: string | null;
   telegram_username: string;
-  telegram_connected: boolean;
 };
 export type SetViewer = (viewer: Viewer | null) => void;
 const sessionSignal = "centerai-auth-change";
@@ -334,8 +333,6 @@ export function AccountPage({
   const navigate = useNavigate();
   const [nickname, setNickname] = useState(viewer.nickname);
   const [username, setUsername] = useState(viewer.telegram_username);
-  const [token, setToken] = useState("");
-  const [chat, setChat] = useState("");
   const [pending, setPending] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [notice, setNotice] = useState<{ text: string; error: boolean }>();
@@ -356,24 +353,6 @@ export function AccountPage({
     } finally {
       setPending(false);
     }
-  };
-  const disconnect = async () => {
-    await api("/integrations/telegram", "DELETE");
-    change({ ...viewer, telegram_connected: false });
-    setNotice({ text: t("Telegram отключён"), error: false });
-  };
-  const saveTelegram = async (event: FormEvent) => {
-    event.preventDefault();
-    await run(async () => {
-      await api("/integrations/telegram", "PUT", {
-        token: token.trim(),
-        chat: chat.trim(),
-      });
-      change({ ...viewer, telegram_connected: true });
-      setToken("");
-      setChat("");
-      setNotice({ text: t("Настройки Telegram сохранены"), error: false });
-    });
   };
   const logOut = (confirm: boolean) => {
     if (
@@ -495,74 +474,6 @@ export function AccountPage({
                     </button>
                     {profileSaved && (
                       <span role="status">{t("Профиль сохранён")}</span>
-                    )}
-                  </div>
-                </form>
-              </section>
-              <section className="panel account-card">
-                <h2>{t("Уведомления в Telegram")}</h2>
-                <p>
-                  {t(
-                    viewer.telegram_connected
-                      ? "Бот подключён. Он отправляет отчёты из сценариев с узлом Telegram."
-                      : "Подключите бота для сценариев, которые отправляют отчёты в Telegram.",
-                  )}
-                </p>
-                <form onSubmit={saveTelegram}>
-                  <label>
-                    {t("Токен бота")}
-                    <input
-                      type="password"
-                      autoComplete="off"
-                      required={!viewer.telegram_connected}
-                      maxLength={128}
-                      value={token}
-                      onChange={(e) => setToken(e.target.value)}
-                      placeholder={
-                        viewer.telegram_connected
-                          ? t("Сохранённый токен")
-                          : undefined
-                      }
-                    />
-                  </label>
-                  <label>
-                    {t("ID чата")}
-                    <input
-                      required
-                      maxLength={34}
-                      value={chat}
-                      onChange={(e) => setChat(e.target.value)}
-                    />
-                  </label>
-                  <div className="account-actions">
-                    <button type="submit" disabled={pending}>
-                      {t("Сохранить подключение")}
-                    </button>
-                    {viewer.telegram_connected && (
-                      <>
-                        <button
-                          type="button"
-                          disabled={pending}
-                          onClick={() =>
-                            void run(async () => {
-                              await api("/integrations/telegram/test", "POST");
-                              setNotice({
-                                text: t("Проверочное сообщение отправлено"),
-                                error: false,
-                              });
-                            })
-                          }
-                        >
-                          {t("Отправить тест")}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={pending}
-                          onClick={() => void run(disconnect)}
-                        >
-                          {t("Отключить")}
-                        </button>
-                      </>
                     )}
                   </div>
                 </form>
