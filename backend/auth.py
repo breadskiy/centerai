@@ -8,6 +8,7 @@ import time
 from threading import BoundedSemaphore, Lock
 from typing import Annotated
 
+import regex
 from email_validator import EmailNotValidError, validate_email
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
@@ -56,30 +57,12 @@ def normalize_email(email):
         raise HTTPException(422, "Введите корректный адрес электронной почты") from None
 
 
-def password_strength(password, email):
-    value = password.lower()
-    local = email.strip().lower().split("@")[0]
-    if (
-        password != password.strip()
-        or len(password) < 12
-        or len(set(password)) < 5
-        or (len(local) >= 4 and local in value)
-        or re.search(r"password|qwerty|123456|abcdef|iloveyou|пароль|йцукен", value)
-    ):
+def password_strength(password):
+    if len(password) < 8 or not password.strip():
         return 1
-    variety = sum(
-        (
-            any(c.islower() for c in password),
-            any(c.isupper() for c in password),
-            bool(re.search(r"[0-9]", password)),
-            bool(re.search(r"[^\w\s]", password)),
-        )
-    )
-    if len(password) >= 16 and (variety >= 3 or len(password.split()) >= 4):
-        return 4
-    if variety >= 3 or (len(password) >= 16 and variety >= 2):
-        return 3
-    return 2
+    if not regex.search(r"\p{L}", password) or not re.search(r"[0-9]", password):
+        return 2
+    return 4 if regex.search(r"[\p{P}\p{S}]", password) else 3
 
 
 def derive(password, salt):
@@ -224,7 +207,7 @@ def current(request: Request):
 def register(body: Credentials, request: Request, response: Response):
     throttle(request, "register", 30)
     email = normalize_email(body.email)
-    if password_strength(body.password, email) < 3:
+    if password_strength(body.password) < 3:
         raise HTTPException(422, "Выберите более надёжный пароль")
     encoded = password_hash(body.password)
     with Session() as db:

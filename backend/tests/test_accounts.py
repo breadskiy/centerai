@@ -24,7 +24,7 @@ from backend.worker import execute, tick
 from .conftest import zip_bytes
 
 API = "/api/v1"
-CREDS = {"email": "owner@example.com", "password": "Sunrise*Quartz43"}
+CREDS = {"email": "owner@example.com", "password": "Quartz43"}
 
 
 def test_registration_password_and_profile(anonymous):
@@ -37,7 +37,7 @@ def test_registration_password_and_profile(anonymous):
     )
     assert (
         anonymous.post(
-            API + "/auth/register", json={**CREDS, "password": "Password123456!"}
+            API + "/auth/register", json={**CREDS, "password": "abcdefg"}
         ).status_code
         == 422
     )

@@ -119,23 +119,10 @@ export function AccountGate({
   );
 }
 
-function passwordStrength(password: string, email: string) {
-  const local = email.trim().toLowerCase().split("@")[0];
-  const count = [...password].length;
-  if (
-    password !== password.trim() ||
-    count < 12 ||
-    new Set(password).size < 5 ||
-    (local.length >= 4 && password.toLowerCase().includes(local)) ||
-    /password|qwerty|123456|abcdef|iloveyou|пароль|йцукен/i.test(password)
-  )
-    return 1;
-  const variety = [/\p{Ll}/u, /\p{Lu}/u, /[0-9]/, /[^\p{L}\p{N}_\s]/u].filter(
-    (rule) => rule.test(password),
-  ).length;
-  if (count >= 16 && (variety >= 3 || password.split(/\s+/).length >= 4))
-    return 4;
-  return variety >= 3 || (count >= 16 && variety >= 2) ? 3 : 2;
+function passwordStrength(password: string) {
+  if ([...password].length < 8 || !password.trim()) return 1;
+  if (!/\p{L}/u.test(password) || !/[0-9]/.test(password)) return 2;
+  return /[\p{P}\p{S}]/u.test(password) ? 4 : 3;
 }
 
 function Access({ enter }: { enter: SetViewer }) {
@@ -148,7 +135,7 @@ function Access({ enter }: { enter: SetViewer }) {
   const navigate = useNavigate();
   const location = useLocation();
   const registering = mode === "register";
-  const strength = password ? passwordStrength(password, email) : 0;
+  const strength = password ? passwordStrength(password) : 0;
   const levels = [
     "Введите пароль",
     "Слабый",
@@ -303,7 +290,7 @@ function Access({ enter }: { enter: SetViewer }) {
               <strong aria-live="polite">{t(levels[strength])}</strong>
               <small>
                 {t(
-                  "Минимум 12 символов. Сочетайте разные регистры, цифры и знаки. Можно использовать фразу из четырёх слов.",
+                  "Минимум 8 символов, включая буквы и цифры. Спецсимволы повышают надёжность.",
                 )}
               </small>
             </div>

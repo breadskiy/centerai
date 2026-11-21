@@ -452,8 +452,8 @@ const english: Record<string, string> = {
   "Средний": "Fair",
   "Надёжный": "Strong",
   "Очень надёжный": "Very strong",
-  "Минимум 12 символов. Сочетайте разные регистры, цифры и знаки. Можно использовать фразу из четырёх слов.":
-    "Use at least 12 characters. Mix letter cases, numbers and symbols, or use a passphrase of four words.",
+  "Минимум 8 символов, включая буквы и цифры. Спецсимволы повышают надёжность.":
+    "Use at least 8 characters, including letters and numbers. Special characters make it stronger.",
   "Проверка Kotlin-репозиториев": "Scan Kotlin repositories",
   "Загружайте исходники, запускайте проверки и возвращайтесь к результатам в своём кабинете.":
     "Upload source code, run scans and revisit your results in your account.",
