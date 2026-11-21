@@ -14,6 +14,7 @@ export type Viewer = {
   nickname: string;
   avatar: string | null;
   github_login: string | null;
+  github_can_unlink: boolean;
   telegram_username: string;
 };
 export type SetViewer = (viewer: Viewer | null) => void;
@@ -123,13 +124,14 @@ function passwordStrength(password: string) {
 function Access({ enter }: { enter: SetViewer }) {
   const { language, setLanguage } = useLanguage();
   const location = useLocation();
-  const githubResult = new URLSearchParams(location.search).get("github");
+  const params = new URLSearchParams(location.search);
+  const githubResult = params.get("github");
   const github = useQuery({
     queryKey: ["/auth/github/status"],
     queryFn: () => api<{ available: boolean }>("/auth/github/status"),
   });
   const [mode, setMode] = useState<"register" | "login">(
-    githubResult ? "login" : "register",
+    githubResult && params.get("mode") !== "register" ? "login" : "register",
   );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -298,35 +300,50 @@ function Access({ enter }: { enter: SetViewer }) {
               )}
             </p>
           )}
-          {githubResult === "failed" && (
-            <p role="alert">{t("Не удалось войти через GitHub")}</p>
+          {githubResult === "existing-email" && (
+            <p role="alert">
+              {t("Для этой почты уже есть аккаунт CenterAI. Войдите с почтой и привяжите GitHub в личном кабинете.")}
+            </p>
           )}
-          {github.data?.available && (
-            <button
-              type="button"
-              className="access-github"
-              disabled={pending}
-              onClick={async () => {
-                setPending(true);
-                setError("");
-                try {
-                  const result = await api<{ url: string }>(
-                    "/auth/github/login",
-                    "POST",
-                  );
-                  window.location.assign(result.url);
-                } catch (failure) {
-                  setError(
-                    failure instanceof Error
-                      ? failure.message
-                      : t("Не удалось войти через GitHub"),
-                  );
-                  setPending(false);
-                }
-              }}
-            >
-              {t("Войти через GitHub")}
-            </button>
+          {githubResult === "email-unavailable" && (
+            <p role="alert">
+              {t("Для регистрации подтвердите основной email в GitHub.")}
+            </p>
+          )}
+          {(githubResult === "failed" || githubResult === "conflict") && (
+            <p role="alert">{t("Не удалось продолжить через GitHub")}</p>
+          )}
+          <button
+            type="button"
+            className="access-github"
+            disabled={pending || github.isPending}
+            onClick={async () => {
+              if (!github.data?.available) {
+                setError(t("Для входа через GitHub администратору нужно настроить OAuth на сервере CenterAI."));
+                return;
+              }
+              setPending(true);
+              setError("");
+              try {
+                const result = await api<{ url: string }>(
+                  "/auth/github/" + (registering ? "register" : "login"),
+                  "POST",
+                );
+                window.location.assign(result.url);
+              } catch (failure) {
+                setError(
+                  failure instanceof Error
+                    ? failure.message
+                    : t("Не удалось продолжить через GitHub"),
+                );
+                setPending(false);
+              }
+            }}
+          >
+            {t(registering ? "Зарегистрироваться через GitHub" : "Войти через GitHub")}
+          </button>
+          {!github.isPending && !github.data?.available && (
+            <p>{t("Подключение GitHub пока не настроено")}</p>
           )}
           <button
             type="button"
@@ -562,7 +579,7 @@ export function AccountPage({
                     <p>@{viewer.github_login}</p>
                     <button
                       type="button"
-                      disabled={pending}
+                      disabled={pending || !viewer.github_can_unlink}
                       onClick={() =>
                         void run(async () => {
                           await api("/auth/github/link", "DELETE");
@@ -573,25 +590,34 @@ export function AccountPage({
                     >
                       {t("Отвязать GitHub")}
                     </button>
+                    {!viewer.github_can_unlink && (
+                      <p>{t("GitHub используется как единственный способ входа")}</p>
+                    )}
                   </>
-                ) : github.data?.available ? (
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={() =>
-                      void run(async () => {
-                        const result = await api<{ url: string }>(
-                          "/auth/github/link",
-                          "POST",
-                        );
-                        window.location.assign(result.url);
-                      })
-                    }
-                  >
-                    {t("Привязать GitHub")}
-                  </button>
-                ) : github.isPending ? null : (
-                  <p>{t("Подключение GitHub пока не настроено")}</p>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={pending || github.isPending}
+                      onClick={() =>
+                        void run(async () => {
+                          if (!github.data?.available) {
+                            throw new Error(t("Для входа через GitHub администратору нужно настроить OAuth на сервере CenterAI."));
+                          }
+                          const result = await api<{ url: string }>(
+                            "/auth/github/link",
+                            "POST",
+                          );
+                          window.location.assign(result.url);
+                        })
+                      }
+                    >
+                      {t("Привязать GitHub")}
+                    </button>
+                    {!github.isPending && !github.data?.available && (
+                      <p>{t("Подключение GitHub пока не настроено")}</p>
+                    )}
+                  </>
                 )}
               </section>
             </>

@@ -18,6 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from .auth import (
     DB,
     member,
+    normalize_email,
     open_session,
     retire_session,
     throttle,
@@ -77,7 +78,7 @@ def start_flow(request, response, intent):
         {
             "client_id": client_id,
             "redirect_uri": callback,
-            "scope": "read:user",
+            "scope": "read:user user:email" if intent == "register" else "read:user",
             "state": state,
             "code_challenge": challenge,
             "code_challenge_method": "S256",
@@ -98,15 +99,22 @@ def login_with_github(request: Request, response: Response):
     return start_flow(request, response, "login")
 
 
+@router.post("/register")
+def register_with_github(request: Request, response: Response):
+    return start_flow(request, response, "register")
+
+
 @router.delete("/link")
 def unlink(db: DB):
     account = member(db)
+    if account.github_id is not None and not account.password_hash:
+        raise HTTPException(409, "GitHub используется как единственный способ входа")
     account.github_id = account.github_login = None
     db.commit()
     return {"ok": True}
 
 
-def get_identity(code, verifier):
+def get_identity(code, verifier, need_email=False):
     client_id, secret, callback = configuration()
     if not client_id or not secret:
         raise ValueError
@@ -126,13 +134,14 @@ def get_identity(code, verifier):
             .raise_for_status()
             .json()["access_token"]
         )
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+        }
         user = (
             client.get(
                 "https://api.github.com/user",
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Accept": "application/vnd.github+json",
-                },
+                headers=headers,
             )
             .raise_for_status()
             .json()
@@ -145,15 +154,47 @@ def get_identity(code, verifier):
             or not 0 < len(login) <= 100
         ):
             raise ValueError
-        return str(user_id), login
+        email = None
+        if need_email:
+            addresses = (
+                client.get("https://api.github.com/user/emails", headers=headers)
+                .raise_for_status()
+                .json()
+            )
+            raw = next(
+                (
+                    row.get("email")
+                    for row in addresses
+                    if isinstance(row, dict)
+                    and row.get("primary") is True
+                    and row.get("verified") is True
+                ),
+                None,
+            )
+            if isinstance(raw, str) and len(raw) <= 254:
+                try:
+                    email = normalize_email(raw)
+                except HTTPException:
+                    pass
+        return str(user_id), login, email
 
 
-def complete_flow(db, request, response, intent, github_id, login):
-    if intent == "login":
+def complete_flow(db, request, response, intent, github_id, login, email):
+    if intent in ("login", "register"):
         account = db.scalar(
             select(Account).where(Account.github_id == github_id).with_for_update()
         )
-        if account is None or account.email is None:
+        if account is None:
+            if intent == "login":
+                return "unlinked"
+            if email is None:
+                return "email-unavailable"
+            if db.scalar(select(Account.id).where(Account.email == email)) is not None:
+                return "existing-email"
+            account = Account(email=email, github_id=github_id, github_login=login)
+            db.add(account)
+            db.flush()
+        if account.email is None:
             return "unlinked"
         account.github_login = login
         retire_session(db, token_digest(request))
@@ -189,12 +230,13 @@ def oauth_callback(request: Request, code: str = "", state: str = ""):
         samesite="lax",
     )
     destination, result = "/account", "failed"
+    intent = None
     try:
         flow = json.loads(
             cipher().decrypt(request.cookies.get(COOKIE, "").encode(), ttl=TTL)
         )
         intent = flow["intent"]
-        if intent == "login":
+        if intent in ("login", "register"):
             destination = "/"
         if (
             code
@@ -202,14 +244,16 @@ def oauth_callback(request: Request, code: str = "", state: str = ""):
             and hmac.compare_digest(flow["state"], state)
             and flow["session"] == token_digest(request)
         ):
-            github_id, login = get_identity(code, flow["verifier"])
+            identity = get_identity(code, flow["verifier"], intent == "register")
             with Session() as db:
-                result = complete_flow(db, request, response, intent, github_id, login)
+                result = complete_flow(db, request, response, intent, *identity)
     except IntegrityError:
         result = "conflict"
     except (InvalidToken, httpx.HTTPError, ValueError, KeyError, TypeError):
         pass
-    response.headers["Location"] = (
-        "/" if result == "signed-in" else f"{destination}?github={result}"
-    )
+    if result == "signed-in":
+        response.headers["Location"] = "/"
+    else:
+        mode = "&mode=register" if intent == "register" else ""
+        response.headers["Location"] = f"{destination}?github={result}{mode}"
     return response

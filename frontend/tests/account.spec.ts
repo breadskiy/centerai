@@ -1,6 +1,52 @@
 import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 
+test("Кнопки регистрации, входа и привязки запускают разные GitHub OAuth потоки", async ({ page }) => {
+  // The browser receives the actual authorization URL without contacting GitHub.
+  const scopes: string[] = [];
+  await page.route("https://github.com/login/oauth/authorize**", async (route) => {
+    const url = new URL(route.request().url());
+    scopes.push(url.searchParams.get("scope") ?? "");
+    await route.fulfill({ contentType: "text/html", body: "<h1>GitHub OAuth fixture</h1>" });
+  });
+  const begin = async (label: string, intent: string) => {
+    const request = page.waitForRequest((req) =>
+      req.method() === "POST" && req.url().endsWith("/api/v1/auth/github/" + intent),
+    );
+    await page.getByRole("button", { name: label, exact: true }).click();
+    await request;
+    await expect(page.getByRole("heading", { name: "GitHub OAuth fixture" })).toBeVisible();
+  };
+
+  await page.goto("/");
+  await begin("Зарегистрироваться через GitHub", "register");
+  await page.goto("/");
+  await page.getByRole("button", { name: "Вход в аккаунт", exact: true }).click();
+  await begin("Войти через GitHub", "login");
+  await page.goto("/");
+  const account = await page.request.post("/api/v1/auth/register", {
+    data: {
+      email: "github-link-" + randomUUID() + "@example.com",
+      password: "Tangerine-River42!",
+    },
+  });
+  expect(account.status()).toBe(201);
+  await page.goto("/account");
+  await begin("Привязать GitHub", "link");
+  expect(scopes).toEqual(["read:user user:email", "read:user", "read:user"]);
+});
+
+test("Кнопка GitHub объясняет, почему вход недоступен", async ({ page }) => {
+  await page.route("**/api/v1/auth/github/status", (route) =>
+    route.fulfill({ json: { available: false } }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Зарегистрироваться через GitHub", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "Для входа через GitHub администратору нужно настроить OAuth на сервере CenterAI.",
+  );
+});
+
 test("Язык регистрации переключается и сохраняется", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("combobox", { name: "Язык" }).selectOption("en");

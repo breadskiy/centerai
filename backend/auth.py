@@ -147,6 +147,7 @@ def profile_out(account):
         "email": account.email,
         "nickname": account.nickname,
         "github_login": account.github_login,
+        "github_can_unlink": bool(account.password_hash),
         "avatar": (
             "data:image/jpeg;base64," + base64.b64encode(account.avatar).decode("ascii")
             if account.avatar

@@ -1,5 +1,9 @@
 [CmdletBinding()]
-param([ValidateRange(1,65535)][int]$Port = 8000)
+param(
+    [ValidateRange(1,65535)][int]$Port = 8000,
+    [switch]$ConfigureGitHub,
+    [switch]$SkipGitHub
+)
 
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath (Split-Path -Parent $PSScriptRoot)
@@ -10,13 +14,33 @@ try {
     $running = $null
 }
 if ($running.info.title -eq 'CenterAI Security Workflow') {
+    if ($ConfigureGitHub -or $SkipGitHub) {
+        throw 'Stop the running CenterAI window with Ctrl+C before changing GitHub settings.'
+    }
     Write-Host "CenterAI is already running at $url"
+    try {
+        $github = Invoke-RestMethod "$url/api/v1/auth/github/status" -TimeoutSec 2
+    } catch {
+        $github = $null
+    }
+    if (-not $github.available) {
+        Write-Warning 'This server has no GitHub OAuth configuration. Stop its window with Ctrl+C, then run Start-CenterAI.bat -ConfigureGitHub.'
+    }
     Start-Process $url
     exit 0
 }
+. (Join-Path $PSScriptRoot 'local_services.ps1')
+Initialize-CenterAIGitHub -Port $Port -Configure:$ConfigureGitHub -Skip:$SkipGitHub
+Initialize-CenterAIOllama
+
 $pythonPath = Join-Path (Get-Location) '.venv\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $pythonPath)) {
-    python -m venv .venv
+    $launcher = Get-Command py.exe -ErrorAction SilentlyContinue
+    if ($launcher) {
+        & $launcher.Source -3.13 -m venv .venv
+    } else {
+        python -m venv .venv
+    }
     if ($LASTEXITCODE) { throw 'Python 3.13 is required to create the virtual environment.' }
 }
 & $pythonPath -m pip --version 2>$null | Out-Null

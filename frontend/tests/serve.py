@@ -18,6 +18,11 @@ if __name__ == "__main__":
         os.environ["WORKER_MODE"] = "local"
         os.environ["AI_PROVIDER"] = "ollama"
         os.environ["AI_BASE_URL"] = "http://127.0.0.1:1"
+        os.environ["GITHUB_CLIENT_ID"] = "browser-test-client"
+        os.environ["GITHUB_CLIENT_SECRET"] = "browser-test-secret"
+        os.environ["GITHUB_OAUTH_CALLBACK_URL"] = (
+            "http://127.0.0.1:8765/api/v1/auth/github/callback"
+        )
         qa = ROOT / ".qa"
         qa.mkdir(exist_ok=True)
         with zipfile.ZipFile(qa / "e2e-fixture.zip", "w") as archive:
