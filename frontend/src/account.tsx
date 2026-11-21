@@ -27,7 +27,7 @@ function ThemeToggle() {
   return (
     <button
       type="button"
-      className="icon account-theme-toggle"
+      className="icon theme-toggle"
       aria-label={t("Тёмная тема")}
       aria-pressed={dark}
       title={t(dark ? "Включить светлую тему" : "Включить тёмную тему")}
@@ -220,6 +220,9 @@ function Access({ enter }: { enter: SetViewer }) {
 
   return (
     <main className="access">
+      <div className="access-controls">
+        <ThemeToggle />
+      </div>
       <section className="access-intro" aria-labelledby="access-brand">
         <div className="brand" id="access-brand">
           <img className="brandMark" src={bankMark} alt="" />

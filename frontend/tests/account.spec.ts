@@ -1,6 +1,24 @@
 import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 
+test("Тема переключается с экрана регистрации и входа", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  const toggle = page.getByRole("button", { name: "Тёмная тема" });
+  await expect(toggle.locator(".lucide-moon")).toBeVisible();
+  const bounds = await toggle.boundingBox();
+  expect(bounds?.y).toBeLessThan(40);
+  expect(bounds?.x).toBeGreaterThan((page.viewportSize()?.width ?? 0) - 96);
+  await toggle.click();
+  await expect(toggle.locator(".lucide-sun")).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.reload();
+  await page.getByRole("button", { name: "Вход в аккаунт", exact: true }).click();
+  await expect(toggle.locator(".lucide-sun")).toBeVisible();
+  await toggle.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+});
+
 test("Язык регистрации переключается и сохраняется", async ({ page }) => {
   const response = await page.goto("/");
   expect(response?.headers()["cache-control"]).toBe("no-store");
