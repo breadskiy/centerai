@@ -589,7 +589,9 @@ function FindingTable({
   partial?: boolean;
 }) {
   const [params] = useSearchParams();
-  const [level, setLevel] = useState(params.get("severity") || "");
+  const [selectedLevels, setSelectedLevels] = useState(() =>
+    levels.filter((level) => params.getAll("severity").includes(level)),
+  );
   const [kind, setKind] = useState("");
   const [q, search] = useState("");
   const query = useDeferredValue(q);
@@ -603,7 +605,9 @@ function FindingTable({
     q: query,
     sort,
   });
-  if (level) args.set("severity", level);
+  for (const level of levels) {
+    if (selectedLevels.includes(level)) args.append("severity", level);
+  }
   if (kind) args.set("category", kind);
   const selectedRun = runId || params.get("run_id");
   if (selectedRun) args.set("run_id", selectedRun);
@@ -639,24 +643,29 @@ function FindingTable({
           />
         </>
       )}
-      {summary && (
+      {(!summary || levels.some((level) => summary[level])) && (
         <div
           className="session-severity"
+          role="group"
           aria-label={translateText("Критичность находок")}
         >
           {levels
-            .filter((l) => summary[l])
+            .filter((l) => !summary || summary[l])
             .map((l) => (
               <button
                 key={l}
                 type="button"
-                aria-pressed={level === l}
+                aria-pressed={selectedLevels.includes(l)}
                 onClick={() => {
-                  setLevel(level === l ? "" : l);
+                  setSelectedLevels((current) =>
+                    current.includes(l)
+                      ? current.filter((level) => level !== l)
+                      : [...current, l],
+                  );
                   set(0);
                 }}
               >
-                <Severity value={l} /> {summary[l]}
+                <Severity value={l} /> {summary?.[l]}
               </button>
             ))}
         </div>
@@ -681,21 +690,6 @@ function FindingTable({
             }}
           />
         </label>
-        {!runId && (
-          <select
-            aria-label={translateText("Критичность")}
-            value={level}
-            onChange={(e) => {
-              setLevel(e.target.value);
-              set(0);
-            }}
-          >
-            <option value="">{translateText("Все уровни")}</option>
-            {levels.map((l) => (
-              <option key={l}>{l}</option>
-            ))}
-          </select>
-        )}
         <div className="finding-filters">
           <select
             aria-label={translateText("Категория")}

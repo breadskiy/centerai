@@ -1494,25 +1494,37 @@ dialog .repo-drop { position: absolute; inset: 8px; }
   align-items: center;
   gap: 8px 16px;
 }
-.finding-toolbar:has(> select) {
-  grid-template-columns: minmax(0, 280px) auto auto;
-}
 .finding-filters {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
-.finding-toolbar .search,
 .finding-toolbar select,
 .session-severity button {
   background: transparent;
   border-color: transparent;
 }
-.finding-toolbar .search { width: 100%; max-width: 280px; }
-.finding-toolbar .search input { width: 100%; min-width: 0; }
-.finding-toolbar .search:focus-within { border-bottom-color: var(--control-border); }
-.finding-toolbar .search input:focus-visible,
+.finding-toolbar .search {
+  width: 100%;
+  max-width: 280px;
+  min-height: 40px;
+  padding: 0 14px;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+}
+.finding-toolbar .search svg { flex-shrink: 0; }
+.finding-toolbar .search input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+}
+.finding-toolbar .search:focus-within { border-color: var(--control-border); }
 .finding-toolbar select:focus-visible,
 .session-severity button:focus-visible {
   outline: 1px solid var(--control-border);
@@ -1527,22 +1539,18 @@ dialog .repo-drop { position: absolute; inset: 8px; }
   background: var(--surface-hover);
 }
 @media (max-width: 900px) {
-  .finding-toolbar,
-  .finding-toolbar:has(> select) {
+  .finding-toolbar {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-.session-row:hover > svg,
-.session-row:focus-visible > svg,
-.finding-session:hover > svg:last-child,
-td a[aria-label]:hover,
-button.icon:hover,
-button.textbtn:hover,
-.session-severity button:hover,
-.finding-toolbar select:hover {
-  color: var(--accent);
-}
-.finding-toolbar label:focus-within > svg {
+a:hover > svg.lucide-chevron-right,
+a:hover > svg.lucide-chevron-left,
+a:focus-visible > svg.lucide-chevron-right,
+a:focus-visible > svg.lucide-chevron-left,
+button:hover > svg.lucide-chevron-right,
+button:hover > svg.lucide-chevron-left,
+button:focus-visible > svg.lucide-chevron-right,
+button:focus-visible > svg.lucide-chevron-left {
   color: var(--accent);
 }

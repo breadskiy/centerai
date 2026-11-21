@@ -774,7 +774,7 @@ def findings(
     db: DB,
     run_id: str | None = None,
     project_id: str | None = None,
-    severity: str | None = None,
+    severity: list[str] | None = Query(None),
     category: str | None = None,
     q: str = "",
     sort: str = Query("severity", pattern="^(severity|path)$"),
@@ -785,11 +785,12 @@ def findings(
     for column, value in [
         (Finding.run_id, run_id),
         (Run.project_id, project_id),
-        (Finding.severity, severity),
         (Finding.category, category),
     ]:
         if value:
             query = query.where(column == value)
+    if severity:
+        query = query.where(Finding.severity.in_(severity))
     if q:
         from sqlalchemy import or_
 

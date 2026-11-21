@@ -228,6 +228,22 @@ test("Сессия показывает один запуск, монитор о
   await expect
     .poll(async () => (await search.boundingBox())?.width || 0)
     .toBeLessThanOrEqual(280);
+  await expect(search.locator("..")).toHaveCSS("border-radius", "999px");
+  const full = await create("session-multiple-levels.zip", "full");
+  await page.goto("/projects/" + full.project_id);
+  const high = page.getByRole("button", { name: /^HIGH/ });
+  const medium = page.getByRole("button", { name: /^MEDIUM/ });
+  await high.click();
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
+  await medium.click();
+  await expect(high).toHaveAttribute("aria-pressed", "true");
+  await expect(medium).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(3);
+  await high.click();
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
+  await expect(
+    page.getByRole("table").getByText("MEDIUM", { exact: true }),
+  ).toBeVisible();
   await page.goto("/settings");
   await page.getByRole("combobox", { name: "Язык" }).selectOption("en");
   await page.goto("/projects");
