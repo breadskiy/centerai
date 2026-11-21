@@ -122,14 +122,21 @@ function passwordStrength(password: string) {
 
 function Access({ enter }: { enter: SetViewer }) {
   const { language, setLanguage } = useLanguage();
-  const [mode, setMode] = useState<"register" | "login">("register");
+  const location = useLocation();
+  const githubResult = new URLSearchParams(location.search).get("github");
+  const github = useQuery({
+    queryKey: ["/auth/github/status"],
+    queryFn: () => api<{ available: boolean }>("/auth/github/status"),
+  });
+  const [mode, setMode] = useState<"register" | "login">(
+    githubResult ? "login" : "register",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
-  const location = useLocation();
   const registering = mode === "register";
   const strength = password ? passwordStrength(password) : 0;
   const levels = [
@@ -284,6 +291,43 @@ function Access({ enter }: { enter: SetViewer }) {
           </button>
         </form>
         <div className="access-guest">
+          {githubResult === "unlinked" && (
+            <p role="alert">
+              {t(
+                "Сначала войдите с почтой и привяжите GitHub в личном кабинете",
+              )}
+            </p>
+          )}
+          {githubResult === "failed" && (
+            <p role="alert">{t("Не удалось войти через GitHub")}</p>
+          )}
+          {github.data?.available && (
+            <button
+              type="button"
+              className="access-github"
+              disabled={pending}
+              onClick={async () => {
+                setPending(true);
+                setError("");
+                try {
+                  const result = await api<{ url: string }>(
+                    "/auth/github/login",
+                    "POST",
+                  );
+                  window.location.assign(result.url);
+                } catch (failure) {
+                  setError(
+                    failure instanceof Error
+                      ? failure.message
+                      : t("Не удалось войти через GitHub"),
+                  );
+                  setPending(false);
+                }
+              }}
+            >
+              {t("Войти через GitHub")}
+            </button>
+          )}
           <button
             type="button"
             disabled={pending}

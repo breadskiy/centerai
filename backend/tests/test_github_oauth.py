@@ -32,3 +32,23 @@ def test_link_and_unlink_github(client, monkeypatch):
     assert client.get("/api/v1/auth/session").json()["github_login"] == "example-user"
     assert client.delete(PATH + "/link").status_code == 200
     assert client.get("/api/v1/auth/session").json()["github_login"] is None
+
+
+def test_github_sign_in_restores_only_linked_account(client, monkeypatch):
+    monkeypatch.setenv("GITHUB_CLIENT_ID", "test-id")
+    monkeypatch.setenv("GITHUB_CLIENT_SECRET", "test-secret")
+    monkeypatch.setattr(github_oauth, "get_identity", lambda *_: ("42", "original"))
+    owner = client.patch(
+        "/api/v1/auth/profile", json={"nickname": "Saved", "telegram_username": ""}
+    ).json()
+    assert callback(client, state(client)) == "/account?github=linked"
+    assert client.post("/api/v1/auth/logout").status_code == 200
+    monkeypatch.setattr(github_oauth, "get_identity", lambda *_: ("43", "original"))
+    assert callback(client, state(client, "login")) == "/?github=unlinked"
+    assert client.get("/api/v1/auth/session").json() is None
+    monkeypatch.setattr(github_oauth, "get_identity", lambda *_: ("42", "renamed"))
+    assert callback(client, state(client, "login")) == "/"
+    restored = client.get("/api/v1/auth/session").json()
+    assert restored["id"] == owner["id"]
+    assert restored["nickname"] == "Saved"
+    assert restored["github_login"] == "renamed"

@@ -12,10 +12,18 @@ import httpx
 from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
-from .auth import DB, member, throttle, token_digest, viewer
+from .auth import (
+    DB,
+    member,
+    open_session,
+    retire_session,
+    throttle,
+    token_digest,
+    viewer,
+)
 from .db import Account, Session, cipher
 
 router = APIRouter(prefix="/api/v1/auth/github", tags=["account"])
@@ -85,6 +93,11 @@ def link(request: Request, response: Response, db: DB):
     return start_flow(request, response, "link")
 
 
+@router.post("/login")
+def login_with_github(request: Request, response: Response):
+    return start_flow(request, response, "login")
+
+
 @router.delete("/link")
 def unlink(db: DB):
     account = member(db)
@@ -136,6 +149,16 @@ def get_identity(code, verifier):
 
 
 def complete_flow(db, request, response, intent, github_id, login):
+    if intent == "login":
+        account = db.scalar(
+            select(Account).where(Account.github_id == github_id).with_for_update()
+        )
+        if account is None or account.email is None:
+            return "unlinked"
+        account.github_login = login
+        retire_session(db, token_digest(request))
+        open_session(db, account, request, response)
+        return "signed-in"
     account = viewer(db, token_digest(request))
     if intent != "link" or account is None or account.email is None:
         return "failed"
@@ -171,6 +194,8 @@ def oauth_callback(request: Request, code: str = "", state: str = ""):
             cipher().decrypt(request.cookies.get(COOKIE, "").encode(), ttl=TTL)
         )
         intent = flow["intent"]
+        if intent == "login":
+            destination = "/"
         if (
             code
             and state.isascii()
@@ -184,5 +209,7 @@ def oauth_callback(request: Request, code: str = "", state: str = ""):
         result = "conflict"
     except (InvalidToken, httpx.HTTPError, ValueError, KeyError, TypeError):
         pass
-    response.headers["Location"] = f"{destination}?github={result}"
+    response.headers["Location"] = (
+        "/" if result == "signed-in" else f"{destination}?github={result}"
+    )
     return response
