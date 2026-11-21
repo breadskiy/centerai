@@ -434,11 +434,13 @@ function Detail({ f, close }: { f: Finding; close: () => void }) {
             {translateText("Объяснение AI ·")} {f.ai.model}
           </h3>
           <p>{f.ai.explanation}</p>
-          <p>{f.ai.technical_details}</p>
-          <p>
-            <strong>{translateText("Возможные последствия")}</strong>{" "}
-            {f.ai.business_impact}
-          </p>
+          {f.ai.technical_details && <p>{f.ai.technical_details}</p>}
+          {f.ai.business_impact && (
+            <p>
+              <strong>{translateText("Возможные последствия")}</strong>{" "}
+              {f.ai.business_impact}
+            </p>
+          )}
           <h4>{translateText("Шаги исправления")}</h4>
           <ol>
             {f.ai.remediation_steps.map((s, i) => (
@@ -449,7 +451,7 @@ function Detail({ f, close }: { f: Finding; close: () => void }) {
             <strong>{translateText("Оценка модели")}</strong>{" "}
             {f.ai.evidence_status}
           </p>
-          <p>{f.ai.false_positive_notes}</p>
+          {f.ai.false_positive_notes && <p>{f.ai.false_positive_notes}</p>}
         </section>
       )}
       <small>{f.rule_id}</small>

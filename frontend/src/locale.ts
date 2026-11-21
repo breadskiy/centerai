@@ -419,6 +419,21 @@ const english: Record<string, string> = {
   "Проверьте параметры узла": "Check the settings for node",
   "Подключите вход узла": "Connect the input of node",
   "Несовместимые порты:": "Incompatible ports:",
+  "Как собрать проверку": "How to build a scan",
+  "Ручной запуск и Исходники задают, когда начать и какой проект проверить.":
+    "Manual trigger and Source files define when the scan starts and which project it checks.",
+  "Добавьте анализатор. Стрелка передаёт результат следующему блоку. Фильтр помогает выбрать нужные находки.":
+    "Add an analyzer. Arrows pass results to the next node. Add a filter to select the findings you need.",
+  "Подключите находки к Отчёту. Чтобы получить объяснения, вставьте AI-анализ между анализатором и Отчётом.":
+    "Connect findings to Report. Add AI analysis between the analyzer and Report to get explanations.",
+  "Нажмите «Проверить», затем «Запустить». Для уведомления подключите Telegram после Отчёта.":
+    "Select Validate, then Run. Connect Telegram after Report to get a notification.",
+  "По будням в 9 утра проверяй зависимости и присылай критические находки в Telegram":
+    "Scan dependencies on weekdays at 9 AM and send critical findings to Telegram",
+  "AI соберёт черновик сценария из текста. Проверьте блоки и стрелки в редакторе. Расписание включается вручную.":
+    "AI drafts a workflow from your description. Check the nodes and connections in the editor and enable the schedule when ready.",
+  "Email временно отключён. Замените узел на Telegram.":
+    "Email is temporarily disabled. Replace the node with Telegram.",
 };
 
 const dynamicPrefixes = [

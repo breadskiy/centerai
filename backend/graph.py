@@ -18,7 +18,7 @@ from .node_config import (
 )
 from .analyzers import SCANNERS
 from .analyzers.common import SubmissionReportExporter
-from .notifications import send_email, telegram
+from .notifications import telegram
 from .ai_report import explain
 
 LEVELS = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
@@ -137,9 +137,7 @@ def notify(ctx, cfg, data):
 
 
 def email(ctx, cfg, data):
-    return Packet(
-        data.findings, receipt=send_email(ctx.session, ctx.run, len(data.findings))
-    )
+    raise ValueError("Email временно отключён. Замените узел на Telegram.")
 
 
 REGISTRY = {

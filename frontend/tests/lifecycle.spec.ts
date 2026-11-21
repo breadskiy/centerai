@@ -15,7 +15,7 @@ test("Генератор сохраняет описание при ошибке
   });
   await page.goto("/workflows?new=1&project=" + (await project.json()).id);
   await page.getByLabel("Начальный граф").selectOption("prompt");
-  const description = "Проверяй зависимости и отправляй письмо";
+  const description = "Проверяй зависимости и отправляй результат в Telegram";
   await page.getByLabel("Что проверить").fill(description);
   await page.getByRole("button", { name: "Открыть редактор" }).click();
   await expect(
@@ -26,6 +26,10 @@ test("Генератор сохраняет описание при ошибке
   await page.getByRole("button", { name: "Открыть редактор" }).click();
   await expect(
     page.getByRole("button", { name: "Email", exact: true }),
+  ).toHaveCount(0);
+  await page.getByText("Как собрать проверку", { exact: true }).click();
+  await expect(
+    page.getByText("Стрелка передаёт результат", { exact: false }),
   ).toBeVisible();
 });
 

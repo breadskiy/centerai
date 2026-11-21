@@ -18,7 +18,7 @@ class Plan(BaseModel):
     timezone: str
     path_regex: str
     explanations: bool
-    notify: list[Literal["email", "telegram"]]
+    notify: list[Literal["telegram"]]
     only_if_findings: bool
 
 
@@ -76,15 +76,8 @@ def compile_plan(plan):
         wire(parent, report, "true" if plan.only_if_findings else "")
     if plan.only_if_findings:
         wire("if_else", add("report_generator", x, 300, key="empty_report"), "false")
-    for i, channel in enumerate(dict.fromkeys(plan.notify)):
-        wire(
-            report,
-            add(
-                "email_notification" if channel == "email" else "notification",
-                x + 220,
-                i * 140,
-            ),
-        )
+    if plan.notify:
+        wire(report, add("notification", x + 220))
     graph = {"nodes": nodes, "edges": edges}
     validate(graph)
     return graph
@@ -123,21 +116,21 @@ def draft(description):
                 "Переведи задание пользователя в JSON план. Зависимости, библиотеки, Gradle = sca. "
                 "Секреты, пароли и токены = secrets. Статическая проверка кода = sast. "
                 "«По будням» и «каждый будний день» означают дни недели 1-5. "
-                '«Вручную» означает cron пустой. «По почте», «письмо», «email» означают notify=["email"]. '
+                '«Вручную» означает cron пустой. Единственный канал уведомлений — Telegram. '
                 "Use all three only for a general scan. Default levels=[], cron='', timezone='Europe/Moscow', "
                 "path_regex='', explanations=false, notify=[], only_if_findings=false. "
-                "Use five-field cron only if requested. Email/почта=email. "
+                "Use five-field cron only if requested. "
                 "Include an explanation stage only when explicitly requested. "
                 "Set only_if_findings=true for conditional delivery. Do not invent recipients or actions."
             ),
         },
         {
             "role": "user",
-            "content": "Запускай вручную проверку паролей, отправь письмо.",
+            "content": "Запускай вручную проверку паролей и сделай отчёт.",
         },
         {
             "role": "assistant",
-            "content": '{"scanners":["secrets"],"levels":[],"cron":"","timezone":"Europe/Moscow","path_regex":"","explanations":false,"notify":["email"],"only_if_findings":false}',
+            "content": '{"scanners":["secrets"],"levels":[],"cron":"","timezone":"Europe/Moscow","path_regex":"","explanations":false,"notify":[],"only_if_findings":false}',
         },
         {
             "role": "user",
@@ -155,6 +148,12 @@ def draft(description):
                 provider.complete(messages, Plan.model_json_schema())
             )
             apply_explicit_filters(plan, description)
+            if not re.search(r"\b(?:telegram|телеграм\w*)\b", description, re.I) or re.search(
+                r"\b(?:без|не отправляй в)\s+(?:telegram|телеграм\w*)\b", description, re.I
+            ):
+                plan.notify = []
+            if not re.search(r"\b(?:только если|если (?:есть|найден\w*|обнаружен\w*))\b", description, re.I):
+                plan.only_if_findings = False
             return compile_plan(plan)
         except (ValueError, TypeError, KeyError, IndexError):
             if attempt:
