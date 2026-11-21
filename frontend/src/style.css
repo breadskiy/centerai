@@ -1560,9 +1560,11 @@ button:focus-visible > svg.lucide-chevron-left {
   padding: 0;
   display: grid;
   grid-template-columns: minmax(0, 0.94fr) minmax(0, 1fr);
+  grid-template-rows: 1fr auto;
   background: var(--paper);
 }
 .access-intro {
+  grid-row: span 2;
   display: grid;
   grid-template-rows: auto 1fr;
   padding: clamp(28px, 5vw, 76px);
@@ -1627,6 +1629,8 @@ button:focus-visible > svg.lucide-chevron-left {
 .access-guest { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
 .access-guest button { width: 100%; justify-content: center; }
 .access-guest p { margin-top: 8px; }
+.access-language { grid-column: 2; display: flex; justify-content: flex-end; padding: 0 clamp(22px, 4vw, 36px) 20px; }
+.access-language select { width: auto; }
 .account-link {
   margin-top: auto;
   display: flex;

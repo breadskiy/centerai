@@ -1,6 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 
+test("Язык регистрации переключается и сохраняется", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("combobox", { name: "Язык" }).selectOption("en");
+  await expect(page.getByRole("heading", { name: "Create an account" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("combobox", { name: "Language" })).toHaveValue("en");
+});
+
 test("Регистрация, проверка пароля и сохранение профиля после входа", async ({
   page,
 }) => {

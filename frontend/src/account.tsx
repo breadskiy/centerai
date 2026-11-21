@@ -126,6 +126,7 @@ function passwordStrength(password: string) {
 }
 
 function Access({ enter }: { enter: SetViewer }) {
+  const { language, setLanguage } = useLanguage();
   const [mode, setMode] = useState<"register" | "login">("register");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -319,6 +320,13 @@ function Access({ enter }: { enter: SetViewer }) {
           </p>
         </div>
       </section>
+      <footer className="access-language">
+        <select aria-label={t("Язык")} value={language}
+          onChange={(event) => setLanguage(event.target.value === "en" ? "en" : "ru")}>
+          <option value="ru">Русский</option>
+          <option value="en">English</option>
+        </select>
+      </footer>
     </main>
   );
 }
