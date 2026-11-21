@@ -2,6 +2,52 @@ import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+test("Генератор сохраняет описание при ошибке, настройка Email и CI восстанавливается", async ({
+  page,
+  request,
+}) => {
+  const project = await request.post("/api/v1/projects", {
+    multipart: {
+      name: "Проект для CI",
+      archive: {
+        name: "input.zip",
+        mimeType: "application/zip",
+        buffer: readFileSync(resolve("../.qa/e2e-fixture.zip")),
+      },
+    },
+  });
+  await page.goto("/workflows?new=1&project=" + (await project.json()).id);
+  await page.getByLabel("Начальный граф").selectOption("prompt");
+  const description = "Проверяй зависимости и отправляй письмо";
+  await page.getByLabel("Что проверить").fill(description);
+  await page.getByRole("button", { name: "Открыть редактор" }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Сервис модели недоступен" }),
+  ).toBeVisible({ timeout: 20000 });
+  await expect(page.getByLabel("Что проверить")).toHaveValue(description);
+  await page.getByLabel("Начальный граф").selectOption("base");
+  await page.getByRole("button", { name: "Открыть редактор" }).click();
+  await expect(
+    page.getByRole("button", { name: "Email", exact: true }),
+  ).toBeVisible();
+  const flow = page.url().split("/").pop()!;
+  await page.goto("/settings");
+  await page.getByLabel("Адрес получателя").fill("qa@example.test");
+  await page.getByRole("button", { name: "Сохранить адрес" }).click();
+  await expect(page.getByRole("status")).toContainText("Получатель сохранён");
+  await page.getByLabel("Сценарий для CI").selectOption(flow);
+  await page.getByLabel("Завершать CI с ошибкой").selectOption("HIGH");
+  await page.getByLabel("Ожидание, секунд").fill("360");
+  await page.reload();
+  await expect(page.getByLabel("Адрес получателя")).toHaveValue(
+    "qa@example.test",
+  );
+  await expect(page.locator("pre.block")).toContainText("--workflow " + flow);
+  await expect(page.locator("pre.block")).toContainText(
+    "--timeout 360 --fail-on HIGH",
+  );
+});
+
 test("Готовый AI-граф сохраняет находки при недоступной модели", async ({
   page,
   request,

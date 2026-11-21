@@ -14,7 +14,7 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_ope
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-PROMPT_VERSION = "cyber-garden-explainer-v2"
+PROMPT_VERSION = "cyber-garden-explainer-v3"
 SYSTEM = """Ты объясняешь готовые результаты проверок безопасности разработчику.
 Верни только JSON по схеме, на русском. На каждую входную запись верни ровно одно
 объяснение с её finding_id. Опиши риск условно, практические шаги исправления,
@@ -105,6 +105,22 @@ class Finding(StrictModel):
 
     def for_model(self):
         # Paths, line numbers, source text and secret values stay on the server.
+        dependency_guidance = (
+            f"Версия {self.version} зависимости {self.group}:{self.artifact} входит в затронутый диапазон бюллетеня {self.advisory_id}. "
+            if self.category == "SCA"
+            else ""
+        )
+        if dependency_guidance:
+            if self.fixed_versions:
+                dependency_guidance += (
+                    "Исправленные версии из справочника: "
+                    + ", ".join(self.fixed_versions)
+                    + ". Обновите зависимость и повторите тесты сборки."
+                )
+            else:
+                dependency_guidance += (
+                    "Исправленная версия неизвестна. Проверьте бюллетень."
+                )
         return {
             "finding_id": self.finding_id,
             "category": self.category,
@@ -129,7 +145,7 @@ class Finding(StrictModel):
                 "окружения. Если секрет попал в репозиторий, отзови или смени его. "
                 "Хеширование не подходит для секрета подключения."
                 if self.category == "SECRET"
-                else "Для зависимости используй только переданные координаты и fixed_versions. Если исправленная версия неизвестна, предложи проверить бюллетень."
+                else dependency_guidance
                 if self.category == "SCA"
                 else SAST_GUIDANCE[self.kind]
             ),
@@ -263,6 +279,13 @@ def validate_report(raw, findings):
         if any(not CVE.fullmatch(value) for value in item.cve_references):
             raise ValueError("Invalid CVE reference")
         check_cves(item.model_dump(), allowed)
+        if not all(
+            re.search("[А-Яа-яЁё]", text)
+            for text in (item.explanation, *item.remediation_steps)
+        ):
+            raise ValueError(
+                "Объяснение и каждый шаг исправления должны быть на русском языке"
+            )
         check_location_claims(item.model_dump(exclude={"finding_id", "cve_references"}))
     allowed = {
         value.upper() for finding in findings for value in finding.cve_references
@@ -273,6 +296,12 @@ def validate_report(raw, findings):
     check_location_claims(
         [report.summary, report.prioritized_actions, report.limitations]
     )
+    if not re.search("[А-Яа-яЁё]", report.summary):
+        raise ValueError("Резюме должно быть на русском языке")
+    if any(f.fixed_versions for f in findings) and re.search(
+        r"\d(?:\s*(?:или выше|или новее|or higher|or later)|\s*\+)", raw, re.IGNORECASE
+    ):
+        raise ValueError("Укажите только подтверждённую исправленную версию")
     return report
 
 
@@ -297,16 +326,20 @@ def generate_report(findings: list[Finding], provider: LLMProvider) -> dict:
             "limitations": [],
         }
         summaries = []
+        missing = 0
         for offset in range(0, len(findings), 3):
             batch = generate_report(findings[offset : offset + 3], provider)
             if batch["status"] != "ok":
-                return result | {"status": "ai_unavailable", "report": None}
+                missing += len(findings[offset : offset + 3])
+                continue
             partial = batch["report"]
             summaries.append(partial["summary"])
             for field in ("findings", "prioritized_actions", "limitations"):
                 merged[field].extend(partial[field])
         merged["summary"] = "\n".join(summaries)
-        return result | {"status": "ok", "report": merged}
+        if not summaries:
+            return result | {"status": "ai_unavailable", "report": None}
+        return result | {"status": "partial" if missing else "ok", "report": merged}
     messages = [
         {"role": "system", "content": SYSTEM},
         {
@@ -317,6 +350,15 @@ def generate_report(findings: list[Finding], provider: LLMProvider) -> dict:
         },
     ]
     schema = AIReport.model_json_schema()
+    schema["$defs"]["Explanation"]["properties"]["finding_id"]["enum"] = ids
+    messages.append(
+        {
+            "role": "user",
+            "content": "Составь русскоязычную карточку по данным выше. Начни summary словами «Проверка выявила». "
+            "В шагах исправления используй русские глаголы, например «Обновите», «Проверьте». "
+            "Для зависимости укажи ровно версию из fixed_versions. Не расширяй диапазон версий.",
+        }
+    )
     for attempt in range(2):
         try:
             raw = provider.complete(messages, schema)
@@ -326,7 +368,7 @@ def generate_report(findings: list[Finding], provider: LLMProvider) -> dict:
                 messages.append(
                     {
                         "role": "user",
-                        "content": "Повтори ответ строго по схеме и сверяй все ID и CVE со входом.",
+                        "content": "Исправь ответ: пиши по-русски, проверь ID, CVE и точную версию. Верни JSON по схеме.",
                     }
                 )
             continue
@@ -338,6 +380,17 @@ def generate_report(findings: list[Finding], provider: LLMProvider) -> dict:
             continue
         return result | {"status": "ok", "report": report.model_dump(mode="json")}
     return result | {"status": "ai_unavailable", "report": None}
+
+
+def configured_provider(model=None):
+    model = model or os.getenv("AI_MODEL") or "qwen3:4b"
+    mode = os.getenv("AI_PROVIDER", "ollama")
+    base = os.getenv("AI_BASE_URL")
+    if mode == "ollama":
+        return OllamaProvider(model, base or "http://127.0.0.1:11434")
+    if mode == "openai-compatible" and base:
+        return OpenAICompatibleProvider(model, base, os.getenv("AI_API_KEY"))
+    raise ValueError("Проверьте AI_PROVIDER и AI_BASE_URL")
 
 
 def explain(rows, files, config):
@@ -370,12 +423,9 @@ def explain(rows, files, config):
                     fixed_versions=row.get("fixedVersions", []),
                 )
             )
-        base = os.getenv("AI_BASE_URL")
-        if mode == "ollama":
-            provider = OllamaProvider(model, base or "http://127.0.0.1:11434")
-        elif mode == "openai-compatible" and base:
-            provider = OpenAICompatibleProvider(model, base, os.getenv("AI_API_KEY"))
-        else:
+        try:
+            provider = configured_provider(model)
+        except ValueError:
             return rows, meta | {"status": "invalid_configuration"}
         result = generate_report(inputs, provider)
     except ValueError:
@@ -385,5 +435,10 @@ def explain(rows, files, config):
         return rows, meta
     report = result["report"]
     notes = {item["finding_id"]: item for item in report["findings"]}
-    enriched = {key: row | {"ai": notes[key] | meta} for key, row in rows.items()}
-    return enriched, meta | {k: v for k, v in report.items() if k != "findings"}
+    enriched = {
+        key: row | {"ai": notes[key] | meta} if key in notes else row
+        for key, row in rows.items()
+    }
+    return enriched, meta | {"explained": len(notes), "total": len(rows)} | {
+        k: v for k, v in report.items() if k != "findings"
+    }

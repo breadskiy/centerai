@@ -239,6 +239,7 @@ export function Monitor() {
                   const ai = n.output.ai!;
                   const labels: Record<string, string> = {
                     ok: "Объяснения готовы",
+                    partial: `Объяснения получены для ${ai.explained} из ${ai.total} находок`,
                     no_findings: "Нет находок для объяснения",
                     ai_unavailable:
                       "Модель недоступна или ответ не прошёл проверку",

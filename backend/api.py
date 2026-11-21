@@ -44,6 +44,7 @@ from .graph import Graph, LEVELS, REGISTRY, default_graph, next_due, validate
 from .sources import MAX_UPLOAD, fetch_repository, unpack
 from .worker import enqueue, local_worker, request_cancellation
 from .migrate import upgrade
+from .workflow_draft import draft
 
 Name = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
@@ -241,6 +242,15 @@ def registry():
         "default_graph": default_graph(),
         "ai_graph": default_graph(with_ai=True),
     }
+
+
+class DraftRequest(BaseModel):
+    description: str = Field(min_length=3, max_length=2000)
+
+
+@api.post("/workflow-drafts")
+def workflow_draft(body: DraftRequest):
+    return draft(body.description)
 
 
 @api.get("/dashboard")
@@ -725,12 +735,30 @@ def export(key: str, db: DB, format: str = Query("json", pattern="^(json|txt)$")
 @api.get("/integrations")
 def settings(db: DB):
     return {
+        "email_recipient": notifications.email_recipient(db),
+        "smtp": bool(os.getenv("SMTP_HOST")),
+        "demo_mailbox": os.getenv("CENTERAI_DEMO") == "1",
         "telegram": bool(db.get(Credential, "telegram")),
         "repositories": os.getenv("ALLOWED_REPOSITORIES", "TBagirov/training").split(
             ","
         ),
         "worker": os.getenv("WORKER_MODE", "local"),
     }
+
+
+class EmailSettings(BaseModel):
+    recipient: str = Field(min_length=3, max_length=254)
+
+
+@api.put("/integrations/email")
+def email_settings(body: EmailSettings, db: DB):
+    notifications.configure_email(db, body.recipient.strip())
+    return settings(db)
+
+
+@api.post("/integrations/email/test")
+def test_email(db: DB):
+    return notifications.send_email(db)
 
 
 @api.put("/integrations/telegram")

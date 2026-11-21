@@ -11,6 +11,52 @@ from backend.worker import tick
 from .test_workflow import API, create_flow
 
 
+def test_valid_batch_survives_an_invalid_batch():
+    rows = [
+        ai_report.Finding(
+            finding_id=str(i), category="SECRET", kind="password", path="x.kt", line=1
+        )
+        for i in range(4)
+    ]
+
+    class Provider:
+        model = "fixture"
+
+        def complete(self, messages, schema):
+            ids = schema["$defs"]["Explanation"]["properties"]["finding_id"]["enum"]
+            if "3" in ids:
+                return "{}"
+            notes = [
+                {
+                    "finding_id": key,
+                    "explanation": "Обнаружен секрет",
+                    "technical_details": "",
+                    "business_impact": "",
+                    "remediation_steps": ["Смените пароль"],
+                    "false_positive_notes": "",
+                    "evidence_status": "SUPPORTED",
+                    "cve_references": [],
+                }
+                for key in ids
+            ]
+            return json.dumps(
+                {
+                    "summary": "Найдены секреты",
+                    "findings": notes,
+                    "prioritized_actions": [],
+                    "limitations": [],
+                }
+            )
+
+    result = ai_report.generate_report(rows, Provider())
+    assert result["status"] == "partial"
+    assert [row["finding_id"] for row in result["report"]["findings"]] == [
+        "0",
+        "1",
+        "2",
+    ]
+
+
 @pytest.mark.parametrize("compatible", [False, True])
 def test_provider_http_contract(compatible):
     received = []

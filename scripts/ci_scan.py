@@ -4,12 +4,16 @@ import argparse
 import json
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 
 
 def scan(base, workflow, directory, archive=None, timeout=180, fail_on=None):
-    with httpx.Client(base_url=base.rstrip("/") + "/api/v1/", timeout=35) as client:
+    use_proxy = urlsplit(base).hostname not in ("127.0.0.1", "localhost", "::1")
+    with httpx.Client(
+        base_url=base.rstrip("/") + "/api/v1/", timeout=35, trust_env=use_proxy
+    ) as client:
         if archive:
             original = client.get(f"workflows/{workflow}").raise_for_status().json()
             with archive.open("rb") as file:

@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([ValidateRange(1,65535)][int]$Port = 8000, [switch]$OpenBrowser)
+param([ValidateRange(1,65535)][int]$Port = 8000, [switch]$OpenBrowser, [switch]$Demo)
 
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
@@ -36,6 +36,12 @@ try {
     Pop-Location
 }
 Write-Host "CenterAI: $url (Ctrl+C to stop)"
+if ($Demo) {
+    $demoArgs = @('scripts/demo_stack.py', '--port', $Port)
+    if ($OpenBrowser) { $demoArgs += '--open-browser' }
+    & $pythonPath @demoArgs
+    exit $LASTEXITCODE
+}
 if ($OpenBrowser) {
     $browserJob = Start-Job -ArgumentList $url -ScriptBlock {
         param($address)

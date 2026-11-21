@@ -76,7 +76,13 @@ export interface RunDetails extends Run {
       count?: number;
       files?: number;
       branch?: string;
-      ai?: { status: string; model: string; summary?: string };
+      ai?: {
+        status: string;
+        model: string;
+        summary?: string;
+        explained?: number;
+        total?: number;
+      };
     };
   }[];
   events: {
@@ -113,6 +119,9 @@ export interface Finding {
   rule_id: string;
 }
 export interface Settings {
+  email_recipient: string;
+  smtp: boolean;
+  demo_mailbox: boolean;
   telegram: boolean;
   worker: string;
   repositories: string[];

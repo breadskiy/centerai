@@ -489,6 +489,7 @@ function NewFlow({
   close: () => void;
 }) {
   const registry = useData<Registry>("/registry");
+  const [start, setStart] = useState("base");
   const { act, busy } = useAction();
   const nav = useNavigate();
   return (
@@ -503,6 +504,10 @@ function NewFlow({
               graph = { nodes: [graph.nodes[0]], edges: [] };
             if (v.get("start") === "ai" && registry.ai_graph)
               graph = registry.ai_graph;
+            if (start === "prompt")
+              graph = await api<Graph>("/workflow-drafts", "POST", {
+                description: v.get("prompt"),
+              });
             const f = await api<Flow>("/workflows", "POST", {
               name: v.get("name"),
               description: v.get("description"),
@@ -543,19 +548,42 @@ function NewFlow({
         </label>
         <label>
           Начальный граф
-          <select name="start">
+          <select
+            name="start"
+            value={start}
+            onChange={(e) => setStart(e.target.value)}
+          >
             <option value="base">Три анализатора и отчёт</option>
             {registry.ai_graph && (
               <option value="ai">Три анализатора, AI и отчёт</option>
             )}
             <option value="blank">Только триггер</option>
+            <option value="prompt">По описанию с AI</option>
           </select>
         </label>
+        {start === "prompt" && (
+          <label>
+            Что проверить
+            <textarea
+              name="prompt"
+              required
+              minLength={3}
+              maxLength={2000}
+              placeholder="По будням в 9 утра проверяй зависимости и присылай критические находки по почте"
+            />
+            <small>
+              Модель получит текст задания. Проверьте черновик в редакторе.
+              Расписание включается вручную.
+            </small>
+          </label>
+        )}
         {!projects.length && (
           <Link to="/projects?new=1">Сначала добавьте проект</Link>
         )}
         <button className="primary" disabled={busy || !projects.length}>
-          Открыть редактор
+          {busy && start === "prompt"
+            ? "Подготавливаем схему…"
+            : "Открыть редактор"}
         </button>
       </form>
     </Modal>
@@ -680,6 +708,104 @@ export function Workflows() {
     </>
   );
 }
+function CISettings({ flows }: { flows: Flow[] }) {
+  const [selected, select] = useState(
+    () => localStorage.getItem("ci-flow") || "",
+  );
+  const [gate, setGate] = useState(() => localStorage.getItem("ci-gate") || "");
+  const [timeout, setTimeoutValue] = useState(
+    () => Number(localStorage.getItem("ci-timeout")) || 180,
+  );
+  const flow = flows.find((f) => f.id === selected) || flows[0];
+  const { act } = useAction();
+  const show = useNotice((s) => s.show);
+  const command =
+    flow &&
+    `python scripts/ci_scan.py --workflow ${flow.id} --url ${location.origin} --timeout ${timeout}${gate ? " --fail-on " + gate : ""}`;
+  return (
+    <section className="panel padded">
+      <h2>CI/CD</h2>
+      {flow ? (
+        <>
+          <label>
+            Сценарий для CI
+            <select
+              value={flow.id}
+              onChange={(e) => {
+                select(e.target.value);
+                localStorage.setItem("ci-flow", e.target.value);
+              }}
+            >
+              {flows.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Завершать CI с ошибкой
+            <select
+              value={gate}
+              onChange={(e) => {
+                setGate(e.target.value);
+                localStorage.setItem("ci-gate", e.target.value);
+              }}
+            >
+              <option value="">Только при сбое запуска</option>
+              {["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"].map((l) => (
+                <option key={l} value={l}>
+                  {l} и выше
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Ожидание, секунд
+            <input
+              type="number"
+              min="1"
+              max="86400"
+              value={timeout}
+              onChange={(e) => {
+                const n = Math.min(
+                  86400,
+                  Math.max(1, Number(e.target.value) || 1),
+                );
+                setTimeoutValue(n);
+                localStorage.setItem("ci-timeout", String(n));
+              }}
+            />
+          </label>
+          <pre
+            className="block"
+            style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
+          >
+            {command}
+          </pre>
+          <button
+            onClick={() =>
+              void act(async () => {
+                await navigator.clipboard.writeText(command!);
+                show("Команда скопирована");
+              })
+            }
+          >
+            Скопировать команду
+          </button>
+          <p>
+            Выполните из корня репозитория на runner с доступом к этому адресу.
+            Параметры сохраняются в этом браузере. Файлы результата появятся в
+            reports.
+          </p>
+        </>
+      ) : (
+        <p>Создайте сценарий, чтобы подготовить команду запуска.</p>
+      )}
+    </section>
+  );
+}
+
 export function SettingsPage() {
   const s = useData<Settings>("/settings");
   const flows = useData<Flow[]>("/workflows");
@@ -752,6 +878,64 @@ export function SettingsPage() {
           </form>
         </section>
         <div>
+          <section className="panel padded">
+            <h2>Электронная почта</h2>
+            {s.demo_mailbox && (
+              <p>
+                <a
+                  href="http://127.0.0.1:8025"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Открыть тестовый почтовый ящик
+                </a>
+                . В этом режиме все письма остаются на компьютере.
+              </p>
+            )}
+            <p>
+              {s.smtp
+                ? "SMTP задан на сервере."
+                : "Для отправки задайте SMTP_HOST и параметры почтового сервера."}
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const recipient = new FormData(e.currentTarget).get(
+                  "recipient",
+                );
+                void act(async () => {
+                  await api("/integrations/email", "PUT", { recipient });
+                  show("Получатель сохранён");
+                });
+              }}
+            >
+              <label>
+                Адрес получателя
+                <input
+                  name="recipient"
+                  required
+                  type="email"
+                  defaultValue={s.email_recipient}
+                />
+              </label>
+              <div className="toolbar">
+                <button disabled={busy}>Сохранить адрес</button>
+                <button
+                  type="button"
+                  disabled={busy || !s.smtp || !s.email_recipient}
+                  onClick={() =>
+                    void act(async () => {
+                      await api("/integrations/email/test", "POST");
+                      show("SMTP-сервер принял письмо");
+                    })
+                  }
+                >
+                  Тестовое письмо
+                </button>
+              </div>
+            </form>
+          </section>
+          <CISettings flows={flows} />
           <section className="panel padded">
             <CalendarClock />
             <h2>Расписание</h2>
