@@ -1,4 +1,4 @@
-"""Run a CenterAI workflow in CI, export both reports and optionally gate the build."""
+"""Run a CenTRap workflow in CI, export both reports and optionally gate the build."""
 
 import argparse
 import json

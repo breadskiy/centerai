@@ -53,9 +53,9 @@ def send_email(session, run=None, count=0):
     msg["To"] = recipient
     msg["Message-ID"] = make_msgid()
     msg["Subject"] = (
-        "CenterAI · Результат проверки" if run else "CenterAI · Проверка почты"
+        "CenTRap · Результат проверки" if run else "CenTRap · Проверка почты"
     )
-    text = "Почтовый канал CenterAI работает."
+    text = "Почтовый канал CenTRap работает."
     if run:
         base = os.getenv("PUBLIC_URL", "http://localhost:8000").rstrip("/")
         text = f"{run.project_name} · {run.workflow_name}\nНаходок: {count}\n{base}/runs/{run.id}"
@@ -119,7 +119,7 @@ def telegram(session, run=None, count=0, *, owner_id=None):
     if not row:
         raise ValueError("Настройте Telegram через API")
     config = json.loads(cipher().decrypt(row.encrypted))
-    text = "CenterAI · Проверка подключения"
+    text = "CenTRap · Проверка подключения"
     if run:
         base = os.getenv("PUBLIC_URL", "http://localhost:8000").rstrip("/")
         text = f"{run.project_name} · {run.workflow_name}\nНаходок в отчёте: {count}\n{base}/runs/{run.id}"

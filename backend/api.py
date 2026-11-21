@@ -71,7 +71,7 @@ async def lifespan(app):
     engine.dispose()
 
 
-app = FastAPI(title="CenterAI Security Workflow", version="1.0", lifespan=lifespan)
+app = FastAPI(title="CenTRap Security Workflow", version="1.0", lifespan=lifespan)
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(

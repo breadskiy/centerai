@@ -69,7 +69,7 @@ function Shell({ viewer, change }: { viewer: Viewer; change: SetViewer }) {
             src={bankMark}
             alt={translateText("Центр-инвест")}
           />
-          CenterAI
+          CenTRap
         </Link>
         <nav aria-label={translateText("Основная навигация")}>
           {nav.map(([url, text, Icon]) => (

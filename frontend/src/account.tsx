@@ -180,7 +180,7 @@ function Access({ enter }: { enter: SetViewer }) {
       <section className="access-intro" aria-labelledby="access-brand">
         <div className="brand" id="access-brand">
           <img className="brandMark" src={bankMark} alt="" />
-          CenterAI
+          CenTRap
         </div>
       </section>
       <section className="access-form" aria-labelledby="access-title">

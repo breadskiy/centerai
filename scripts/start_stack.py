@@ -1,4 +1,4 @@
-"""Run CenterAI on Windows with a local model or a configured AI provider."""
+"""Run CenTRap on Windows with a local model or a configured AI provider."""
 
 import argparse
 import hashlib
@@ -153,13 +153,13 @@ def run(port):
             else:
                 raise RuntimeError(f"{name} did not become ready")
         print(
-            f"CenterAI: {base}   Ctrl+C to stop",
+            f"CenTRap: {base}   Ctrl+C to stop",
             flush=True,
         )
         webbrowser.open(base)
         while all(child.poll() is None for child in children):
             time.sleep(1)
-        raise RuntimeError(f"A CenterAI service stopped. See {LOGS}")
+        raise RuntimeError(f"A CenTRap service stopped. See {LOGS}")
     finally:
         for child in reversed(children):
             if child.poll() is None:

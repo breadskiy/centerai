@@ -9,8 +9,8 @@ try {
 } catch {
     $running = $null
 }
-if ($running.info.title -eq 'CenterAI Security Workflow') {
-    Write-Host "CenterAI is already running at $url"
+if ($running.info.title -in @('CenTRap Security Workflow', 'CenterAI Security Workflow')) {
+    Write-Host "CenTRap is already running at $url"
     Start-Process $url
     exit 0
 }
