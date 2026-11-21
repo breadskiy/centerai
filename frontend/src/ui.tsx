@@ -162,7 +162,13 @@ export function Status({ value }: { value: string | null }) {
 export function Severity({ value }: { value: string }) {
   return <span className={"severity " + value}>{value}</span>;
 }
-export function RunsTable({ rows }: { rows: Run[] }) {
+export function RunsTable({
+  rows,
+  compact = false,
+}: {
+  rows: Run[];
+  compact?: boolean;
+}) {
   return rows.length ? (
     <div className="scroll">
       <table>
@@ -171,9 +177,9 @@ export function RunsTable({ rows }: { rows: Run[] }) {
             <th>Сценарий / проект</th>
             <th>Статус</th>
             <th>Время запуска</th>
-            <th>Длительность</th>
-            <th>Находки</th>
-            <th />
+            {!compact && <th>Длительность</th>}
+            <th>{compact ? "Критичность" : "Находки"}</th>
+            {!compact && <th />}
           </tr>
         </thead>
         <tbody>
@@ -189,13 +195,33 @@ export function RunsTable({ rows }: { rows: Run[] }) {
                 <Status value={r.status} />
               </td>
               <td>{date(r.created)}</td>
-              <td className="mono">{duration(r)}</td>
-              <td className="mono">{r.count}</td>
-              <td>
-                <Link aria-label="Открыть запуск" to={"/runs/" + r.id}>
-                  <ChevronRight size={16} />
-                </Link>
+              {!compact && <td className="mono">{duration(r)}</td>}
+              <td className="mono">
+                {compact ? (
+                  <div className="run-risk">
+                    {["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"].flatMap(
+                      (level) =>
+                        r.levels?.[level]
+                          ? [
+                              <span key={level}>
+                                <Severity value={level} /> {r.levels[level]}
+                              </span>,
+                            ]
+                          : [],
+                    )}
+                    {!r.count && "—"}
+                  </div>
+                ) : (
+                  r.count
+                )}
               </td>
+              {!compact && (
+                <td>
+                  <Link aria-label="Открыть запуск" to={"/runs/" + r.id}>
+                    <ChevronRight size={16} />
+                  </Link>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

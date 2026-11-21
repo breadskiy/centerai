@@ -13,7 +13,6 @@ import {
   Folder,
   History,
   LayoutDashboard,
-  ScanLine,
   Settings2,
   Workflow,
 } from "lucide-react";
@@ -52,7 +51,6 @@ const nav = [
   ["/projects", "Сессии", Folder],
   ["/workflows", "Сценарии", Workflow],
   ["/runs", "Запуски", History],
-  ["/findings", "Находки", ScanLine],
   ["/settings", "Настройки", Settings2],
 ] as const;
 function Shell() {

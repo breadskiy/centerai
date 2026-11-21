@@ -83,7 +83,8 @@ test("ZIP → editable workflow → live execution → report and settings", asy
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: "JSON", exact: true }).click();
   expect((await download).suggestedFilename()).toMatch(/\.json$/);
-  await page.getByRole("link", { name: "Открыть находки" }).click();
+  await page.getByRole("link", { name: "Результаты сессии" }).click();
+  await page.getByText("Дополнительные фильтры", { exact: true }).click();
   await page.getByLabel("Категория", { exact: true }).selectOption("SECRET");
   await page.getByRole("button", { name: "Подробности находки" }).click();
   await expect(page.getByRole("dialog")).toContainText("Значение скрыто");
@@ -157,7 +158,7 @@ test("Главная сохраняет выбранный профиль пос
   });
 });
 
-test("Находки разделены по сессиям, ссылки из сессии и запуска открывают её папку", async ({
+test("Сессия показывает один запуск, монитор открывает выбранный снимок результатов", async ({
   page,
   request,
 }) => {
@@ -182,27 +183,31 @@ test("Находки разделены по сессиям, ссылки из �
   };
   const sca = await create("session-sca.zip", "sca");
   await create("session-secrets.zip", "secrets");
-  await page.goto("/findings");
-  await expect(
-    page.getByRole("link", { name: /session-sca.zip/ }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: /session-secrets.zip/ }),
-  ).toBeVisible();
-  await expect(page.getByRole("table")).toHaveCount(0);
+  const repeat = await request.post(
+    "/api/v1/workflows/" + sca.workflow_id + "/runs",
+  );
+  const latest = await repeat.json();
+  await expect
+    .poll(
+      async () =>
+        (await (await request.get("/api/v1/runs/" + latest.id)).json()).status,
+    )
+    .toBe("success");
   await page.goto("/projects/" + sca.project_id);
-  await page.getByRole("link", { name: "Открыть находки" }).click();
-  await expect(page).toHaveURL(new RegExp("/findings/" + sca.project_id + "$"));
   await expect(
-    page.getByRole("heading", { name: "session-sca.zip" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("table").getByText("SCA", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("table").getByText("SECRET", { exact: true }),
+    page.getByRole("navigation").getByRole("link", { name: "Находки" }),
   ).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Находки" })).toBeVisible();
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
+  await expect(page.getByRole("combobox", { name: "Запуск" })).toHaveValue(
+    latest.id,
+  );
+  await page.getByRole("combobox", { name: "Запуск" }).selectOption(sca.id);
+  await expect(page).toHaveURL(new RegExp("run_id=" + sca.id + "$"));
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
   await page.goto("/runs/" + sca.id);
-  await page.getByRole("link", { name: "Открыть находки" }).click();
-  await expect(page).toHaveURL(new RegExp("/findings/" + sca.project_id + "$"));
+  await page.getByRole("link", { name: "Результаты сессии" }).click();
+  await expect(page).toHaveURL(
+    new RegExp("/projects/" + sca.project_id + "[?]run_id=" + sca.id + "$"),
+  );
 });

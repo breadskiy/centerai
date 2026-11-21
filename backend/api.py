@@ -144,6 +144,12 @@ def project_out(db, row):
             Run.project_id == row.id
         )
     ).one()
+    latest = db.execute(
+        select(Run.id, Run.finished)
+        .where(Run.project_id == row.id, Run.status == "success")
+        .order_by(Run.created.desc(), Run.id.desc())
+        .limit(1)
+    ).first()
     return {
         **fields(
             row,
@@ -157,6 +163,15 @@ def project_out(db, row):
         ),
         "runs": count,
         "last_run": last,
+        "latest_completed": (
+            {
+                "id": latest.id,
+                "finished": latest.finished,
+                "levels": run_levels(db, latest.id),
+            }
+            if latest
+            else None
+        ),
     }
 
 
@@ -206,6 +221,16 @@ def run_out(row):
         "finished",
         "count",
         "error",
+    )
+
+
+def run_levels(db, key):
+    return dict(
+        db.execute(
+            select(Finding.severity, func.count())
+            .where(Finding.run_id == key)
+            .group_by(Finding.severity)
+        ).all()
     )
 
 
@@ -272,7 +297,7 @@ def dashboard(db: DB):
             ).all()
         ),
         "recent": [
-            run_out(r)
+            {**run_out(r), "levels": run_levels(db, r.id)}
             for r in db.scalars(select(Run).order_by(Run.created.desc()).limit(5))
         ],
     }
@@ -654,6 +679,7 @@ def run(key: str, db: DB):
         )
     return {
         **run_out(row),
+        "project_archived": db.get(Project, row.project_id).archived,
         "graph": row.graph,
         "nodes": outputs,
         "events": [

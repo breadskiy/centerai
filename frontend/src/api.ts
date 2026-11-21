@@ -38,6 +38,11 @@ export interface Project {
   created: number;
   runs: number;
   last_run: number | null;
+  latest_completed?: {
+    id: string;
+    finished: number | null;
+    levels: Record<string, number>;
+  } | null;
 }
 export interface Flow {
   description: string;
@@ -52,6 +57,7 @@ export interface Flow {
   last_status: string | null;
 }
 export interface Run {
+  levels?: Record<string, number>;
   cancel_requested: boolean;
   id: string;
   project_id: string;
@@ -68,6 +74,7 @@ export interface Run {
   error: string | null;
 }
 export interface RunDetails extends Run {
+  project_archived?: boolean;
   graph: Graph;
   nodes: {
     node_id: string;

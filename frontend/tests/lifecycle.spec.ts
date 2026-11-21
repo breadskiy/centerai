@@ -170,6 +170,7 @@ test("Ошибки импорта, поиск, история версий, пу
   await page.getByLabel("Поиск проектов").fill("Проект для шаблонов");
   await expect(page.locator(".projectrow")).toHaveCount(1);
   await page.locator(".projectrow").click();
+  await page.getByText("Источник и сценарии", { exact: true }).click();
   page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "Удалить", exact: true }).click();
   await expect(

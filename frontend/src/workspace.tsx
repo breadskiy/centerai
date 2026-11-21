@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Link,
   useNavigate,
@@ -6,15 +6,12 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import {
-  Activity,
   Archive,
-  ArrowUpRight,
   Braces,
   CalendarClock,
   ChevronRight,
   Copy,
   FileOutput,
-  Folder,
   FolderGit2,
   KeyRound,
   Layers3,
@@ -24,17 +21,14 @@ import {
   Search,
   Send,
   Settings2,
-  ScanLine,
   Trash2,
   Upload,
-  Workflow,
 } from "lucide-react";
 import {
   api,
   date,
   Flow,
   Graph,
-  levels,
   Project,
   Registry,
   Run,
@@ -54,6 +48,10 @@ import {
   useAction,
   useNotice,
 } from "./ui";
+
+const SessionResults = lazy(() =>
+  import("./results").then((module) => ({ default: module.SessionResults })),
+);
 
 function Pipeline() {
   return (
@@ -361,62 +359,19 @@ export function Dashboard() {
           </form>
         </Modal>
       )}
-      <div className="metrics">
-        {[
-          [data.projects, "Сессии", "/projects", Folder],
-          [data.workflows, "Сценарии", "/workflows", Workflow],
-          [data.runs, "Запуски", "/runs", Activity],
-          [data.findings, "Находки", "/findings", ScanLine],
-        ].map(([n, label, path, icon]) => {
-          const I = icon as typeof Folder;
-          return (
-            <Link key={String(path)} to={String(path)}>
-              <span>
-                <I size={16} />
-                {String(label)}
-              </span>
-              <b>{String(n)}</b>
-              <ArrowUpRight size={16} />
-            </Link>
-          );
-        })}
+      <div className="home-summary" aria-label="Сводка">
+        <Link to="/projects">{data.projects} · сессии</Link>
+        <Link to="/runs">{data.runs} · запуски</Link>
       </div>
-      <div className="dashgrid">
-        <section className="panel">
-          <div className="sectionHead">
-            <h2>Последние запуски</h2>
-            <Link to="/runs">
-              История <ChevronRight size={14} />
-            </Link>
-          </div>
-          <RunsTable rows={data.recent} />
-        </section>
-        <section className="panel">
-          <div className="sectionHead">
-            <h2>Критичность</h2>
-          </div>
-          <div className="riskList">
-            {levels.map((l) => (
-              <Link key={l} to={"/findings?severity=" + l}>
-                <i className={l} />
-                <span>{l}</span>
-                <div>
-                  <em
-                    className={l}
-                    style={{
-                      width:
-                        (100 * (data.levels[l] || 0)) /
-                          Math.max(1, data.findings) +
-                        "%",
-                    }}
-                  />
-                </div>
-                <b>{data.levels[l] || 0}</b>
-              </Link>
-            ))}
-          </div>
-        </section>
-      </div>
+      <section className="panel">
+        <div className="sectionHead">
+          <h2>Последние запуски</h2>
+          <Link to="/runs">
+            Вся история <ChevronRight size={14} />
+          </Link>
+        </div>
+        <RunsTable rows={data.recent} compact />
+      </section>
     </>
   );
 }
@@ -578,24 +533,30 @@ export function Projects() {
       <section className="panel">
         {rows.length ? (
           rows.map((p) => (
-            <Link className="projectrow" key={p.id} to={"/projects/" + p.id}>
-              <span className="bigicon">
-                <FolderGit2 />
-              </span>
-              <div>
-                <b>{p.name}</b>
-                <small>{p.description || p.source}</small>
-              </div>
-              <span className="tag">{p.source_type}</span>
-              <span>{p.file_count} файлов</span>
+            <Link
+              className="projectrow session-row"
+              key={p.id}
+              to={"/projects/" + p.id}
+            >
+              <b>{p.name}</b>
+              <small>
+                {p.latest_completed?.finished
+                  ? date(p.latest_completed.finished)
+                  : "Нет завершённых проверок"}
+              </small>
+              {p.latest_completed && (
+                <span className="session-list-risk">
+                  {(p.latest_completed.levels.CRITICAL || 0) +
+                    (p.latest_completed.levels.HIGH || 0)}{" "}
+                  · серьёзные
+                </span>
+              )}
               <ChevronRight />
             </Link>
           ))
         ) : (
           <Empty
-            title={
-              list.length ? "Сессии не найдены" : "Добавьте первую сессию"
-            }
+            title={list.length ? "Сессии не найдены" : "Добавьте первую сессию"}
           >
             Загрузите ZIP или подключите учебный репозиторий GitHub.
           </Empty>
@@ -609,6 +570,12 @@ export function ProjectDetail() {
   const { id } = useParams();
   const p = useData<Project>("/projects/" + id);
   const runs = useData<Run[]>("/runs?project_id=" + id);
+  const [params, setParams] = useSearchParams();
+  const completed = runs.filter((r) =>
+    ["success", "failed", "cancelled"].includes(r.status),
+  );
+  const runId =
+    params.get("run_id") || p.latest_completed?.id || completed[0]?.id;
   const [edit, setEdit] = useState(false);
   const { act } = useAction();
   const nav = useNavigate();
@@ -624,59 +591,102 @@ export function ProjectDetail() {
           </button>
         }
       />
-      <section className="panel detailgrid">
-        <div>
-          <small>Источник</small>
-          <b>{p.source_type}</b>
-          <code>{p.source}</code>
+      <section className="session-results">
+        <div className="session-results-head">
+          <h2>Находки</h2>
+          {runId && (
+            <div className="toolbar">
+              <label>
+                Запуск{" "}
+                <select
+                  aria-label="Запуск"
+                  value={runId}
+                  onChange={(e) => setParams({ run_id: e.target.value })}
+                >
+                  {!completed.some((r) => r.id === runId) && (
+                    <option value={runId}>Выбранный запуск</option>
+                  )}
+                  {completed.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {date(r.finished || r.created)} · {r.workflow_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Link className="button" to={"/runs/" + runId}>
+                Граф и журнал
+              </Link>
+            </div>
+          )}
         </div>
-        <div>
-          <small>Файлы для проверки</small>
-          <b>{p.file_count}</b>
-        </div>
-        <div>
-          <small>Последний запуск</small>
-          <b>{date(p.last_run)}</b>
-        </div>
+        {runId ? (
+          <Suspense fallback={<p role="status">Загружаем находки…</p>}>
+            <SessionResults key={runId} sessionId={p.id} runId={runId} />
+          </Suspense>
+        ) : (
+          <section className="panel">
+            <Empty title="Нет завершённых проверок">
+              Если проверка уже запущена, её ход виден в истории.
+              <div>
+                <Link to={"/workflows?project=" + id + "&new=1"}>
+                  Создать сценарий
+                </Link>
+              </div>
+            </Empty>
+          </section>
+        )}
       </section>
-      <div className="toolbar">
-        <Link
-          className="button primary"
-          to={"/workflows?project=" + id + "&new=1"}
-        >
-          <Plus />
-          Создать сценарий
-        </Link>
-        <Link className="button" to={"/workflows?project=" + id}>
-          Сценарии сессии
-        </Link>
-        <Link className="button" to={"/findings/" + p.id}>
-          Открыть находки
-        </Link>
-        <button
-          className="danger"
-          onClick={() => {
-            if (
-              confirm(
-                "Удалить проект и его сценарии? История проверок сохранится.",
-              )
-            )
-              void act(async () => {
-                await api("/projects/" + id, "DELETE");
-                nav("/projects");
-              });
-          }}
-        >
-          <Trash2 />
-          Удалить
-        </button>
-      </div>
-      <section className="panel">
-        <div className="sectionHead">
-          <h2>Проверки сессии</h2>
-        </div>
+      <details className="panel session-details">
+        <summary>История запусков</summary>
         <RunsTable rows={runs} />
-      </section>
+      </details>
+      <details className="panel session-details">
+        <summary>Источник и сценарии</summary>
+        <section className="panel detailgrid">
+          <div>
+            <small>Источник</small>
+            <b>{p.source_type}</b>
+            <code>{p.source}</code>
+          </div>
+          <div>
+            <small>Файлы для проверки</small>
+            <b>{p.file_count}</b>
+          </div>
+          <div>
+            <small>Последний запуск</small>
+            <b>{date(p.last_run)}</b>
+          </div>
+        </section>
+        <div className="toolbar">
+          <Link
+            className="button primary"
+            to={"/workflows?project=" + id + "&new=1"}
+          >
+            <Plus />
+            Создать сценарий
+          </Link>
+          <Link className="button" to={"/workflows?project=" + id}>
+            Сценарии сессии
+          </Link>
+          <button
+            className="danger"
+            onClick={() => {
+              if (
+                confirm(
+                  "Удалить проект и его сценарии? История проверок сохранится.",
+                )
+              )
+                void act(async () => {
+                  await api("/projects/" + id, "DELETE");
+                  nav("/projects");
+                });
+            }}
+          >
+            <Trash2 />
+            Удалить
+          </button>
+        </div>
+      </details>
       {edit && <ProjectForm project={p} close={() => setEdit(false)} />}
     </>
   );

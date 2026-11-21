@@ -266,8 +266,15 @@ export function Monitor() {
                     </p>
                   );
                 })}
-              <Link className="button primary" to={"/findings/" + r.project_id}>
-                Открыть находки
+              <Link
+                className="button primary"
+                to={
+                  r.project_archived
+                    ? "/findings?run_id=" + r.id
+                    : "/projects/" + r.project_id + "?run_id=" + r.id
+                }
+              >
+                Результаты сессии
               </Link>
               <ReportPreview run={r.id} />
               <div className="downloads">
@@ -497,12 +504,55 @@ function SessionFindings({ sessionId }: { sessionId: string }) {
   return <FindingTable sessionId={sessionId} title={session.name} />;
 }
 
+export function SessionResults({
+  sessionId,
+  runId,
+}: {
+  sessionId: string;
+  runId: string;
+}) {
+  const run = useData<RunDetails>("/runs/" + runId);
+  if (
+    run.project_id !== sessionId ||
+    !["success", "failed", "cancelled"].includes(run.status)
+  ) {
+    return <Empty title="Результаты запуска пока недоступны" />;
+  }
+  return <RunFindings sessionId={sessionId} runId={runId} />;
+}
+
+function RunFindings({
+  sessionId,
+  runId,
+}: {
+  sessionId: string;
+  runId: string;
+}) {
+  const report = useData<{ levels: Record<string, number>; partial: boolean }>(
+    "/runs/" + runId + "/report/preview",
+  );
+  return (
+    <FindingTable
+      sessionId={sessionId}
+      runId={runId}
+      summary={report.levels}
+      partial={report.partial}
+    />
+  );
+}
+
 function FindingTable({
   sessionId,
   title,
+  runId,
+  summary,
+  partial,
 }: {
   sessionId?: string;
   title?: string;
+  runId?: string;
+  summary?: Record<string, number>;
+  partial?: boolean;
 }) {
   const [params] = useSearchParams();
   const [level, setLevel] = useState(params.get("severity") || "");
@@ -520,7 +570,8 @@ function FindingTable({
   });
   if (level) args.set("severity", level);
   if (kind) args.set("category", kind);
-  if (params.get("run_id")) args.set("run_id", params.get("run_id")!);
+  const selectedRun = runId || params.get("run_id");
+  if (selectedRun) args.set("run_id", selectedRun);
   if (sessionId) args.set("project_id", sessionId);
   const rows = useData<Finding[]>("/findings?" + args);
   const groups = group
@@ -528,18 +579,44 @@ function FindingTable({
     : [""];
   return (
     <>
-      <Link className="back" to="/findings">
-        <ChevronLeft size={14} />
-        Все сессии с находками
-      </Link>
-      <Heading
-        title={title || "Находки"}
-        sub={
-          params.has("run_id")
-            ? "Результаты выбранного запуска."
-            : "Находки сессии по всем её запускам."
-        }
-      />
+      {!runId && (
+        <>
+          <Link className="back" to="/findings">
+            <ChevronLeft size={14} />
+            Все сессии с находками
+          </Link>
+          <Heading
+            title={title || "Находки"}
+            sub={
+              params.has("run_id")
+                ? "Результаты выбранного запуска."
+                : "Находки сессии по всем её запускам."
+            }
+          />
+        </>
+      )}
+      {summary && (
+        <div className="session-severity" aria-label="Критичность находок">
+          {levels
+            .filter((l) => summary[l])
+            .map((l) => (
+              <button
+                key={l}
+                type="button"
+                aria-pressed={level === l}
+                onClick={() => {
+                  setLevel(level === l ? "" : l);
+                  set(0);
+                }}
+              >
+                <Severity value={l} /> {summary[l]}
+              </button>
+            ))}
+        </div>
+      )}
+      {partial && (
+        <p>Показаны результаты, сохранённые до завершения запуска.</p>
+      )}
       <div className="filters">
         <label className="search">
           <Search />
@@ -553,51 +630,56 @@ function FindingTable({
             }}
           />
         </label>
-        <select
-          aria-label="Критичность"
-          value={level}
-          onChange={(e) => {
-            setLevel(e.target.value);
-            set(0);
-          }}
-        >
-          <option value="">Все уровни</option>
-          {levels.map((l) => (
-            <option key={l}>{l}</option>
-          ))}
-        </select>
-        <select
-          aria-label="Категория"
-          value={kind}
-          onChange={(e) => {
-            setKind(e.target.value);
-            set(0);
-          }}
-        >
-          <option value="">Все анализаторы</option>
-          {["SECRET", "SCA", "SAST"].map((k) => (
-            <option key={k}>{k}</option>
-          ))}
-        </select>
-        <select
-          aria-label="Сортировка"
-          value={sort}
-          onChange={(e) => {
-            setSort(e.target.value);
-            set(0);
-          }}
-        >
-          <option value="severity">По критичности</option>
-          <option value="path">По пути</option>
-        </select>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={group}
-            onChange={(e) => setGroup(e.target.checked)}
-          />
-          Группировать
-        </label>
+        {!runId && (
+          <select
+            aria-label="Критичность"
+            value={level}
+            onChange={(e) => {
+              setLevel(e.target.value);
+              set(0);
+            }}
+          >
+            <option value="">Все уровни</option>
+            {levels.map((l) => (
+              <option key={l}>{l}</option>
+            ))}
+          </select>
+        )}
+        <details className="finding-filters" open={runId ? undefined : true}>
+          <summary>Дополнительные фильтры</summary>
+          <select
+            aria-label="Категория"
+            value={kind}
+            onChange={(e) => {
+              setKind(e.target.value);
+              set(0);
+            }}
+          >
+            <option value="">Все анализаторы</option>
+            {["SECRET", "SCA", "SAST"].map((k) => (
+              <option key={k}>{k}</option>
+            ))}
+          </select>
+          <select
+            aria-label="Сортировка"
+            value={sort}
+            onChange={(e) => {
+              setSort(e.target.value);
+              set(0);
+            }}
+          >
+            <option value="severity">По критичности</option>
+            <option value="path">По пути</option>
+          </select>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={group}
+              onChange={(e) => setGroup(e.target.checked)}
+            />
+            Группировать
+          </label>
+        </details>
       </div>
       {rows.length ? (
         groups.map((g) => (
@@ -613,8 +695,8 @@ function FindingTable({
                   <tr>
                     <th>Критичность</th>
                     <th>Находка и расположение</th>
-                    <th>Анализатор</th>
-                    <th />
+                    {!runId && <th>Анализатор</th>}
+                    <th aria-label="Детали" />
                   </tr>
                 </thead>
                 <tbody>
@@ -633,9 +715,11 @@ function FindingTable({
                             {f.path}:{f.line}
                           </small>
                         </td>
-                        <td>
-                          <code>{f.category}</code>
-                        </td>
+                        {!runId && (
+                          <td>
+                            <code>{f.category}</code>
+                          </td>
+                        )}
                         <td>
                           <button
                             className="icon"
