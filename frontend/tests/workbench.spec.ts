@@ -5,7 +5,9 @@ test("Тема следует системе и сохраняет ручной 
   const root = page.locator("html");
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto("/");
-  await expect(root).toHaveCSS("background-color", "rgb(16, 23, 19)");
+  await expect(root).toHaveCSS("background-color", "rgb(17, 19, 22)");
+  await expect(page.locator(".pipeline")).toHaveCSS("background-image", "none");
+  await expect(page.getByRole("img", { name: "Центр-инвест" })).toBeVisible();
   await expect(page.getByText("Workspace", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Cyber Garden", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Локальная среда", { exact: true })).toHaveCount(
@@ -24,11 +26,11 @@ test("Тема следует системе и сохраняет ручной 
   await expect(theme).toHaveValue("light");
   await theme.selectOption({ label: "Тёмная" });
   await page.emulateMedia({ colorScheme: "light" });
-  await expect(root).toHaveCSS("background-color", "rgb(16, 23, 19)");
+  await expect(root).toHaveCSS("background-color", "rgb(17, 19, 22)");
   await theme.selectOption({ label: "Как в системе" });
   await expect(root).toHaveCSS("background-color", "rgb(243, 247, 244)");
   await page.emulateMedia({ colorScheme: "dark" });
-  await expect(root).toHaveCSS("background-color", "rgb(16, 23, 19)");
+  await expect(root).toHaveCSS("background-color", "rgb(17, 19, 22)");
 });
 
 test("ZIP → editable workflow → live execution → report and settings", async ({

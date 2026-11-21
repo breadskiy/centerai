@@ -55,18 +55,18 @@ progress {
 .tile.catstart {
   border-radius: 23px 7px 7px 23px;
   padding-left: 20px;
-  background: light-dark(#eef7ef, #213629);
+  background: light-dark(#eef7ef, #242a31);
 }
 .tile.catfiles {
   border-left: 4px double #6d8d84;
 }
 .tile.catreport,
 .tile.catreceipt {
-  background: light-dark(#f8f7fb, #2a2938);
+  background: light-dark(#f8f7fb, #272833);
 }
 .tile:has(.branch) {
   border-style: dashed;
-  background: light-dark(#fbf8ed, #343024);
+  background: light-dark(#fbf8ed, #2d2a25);
 }
 .branch + .branch {
   margin-top: 2px;
@@ -76,17 +76,20 @@ progress {
     16px/1.48 "IBM Plex Sans",
     Arial,
     sans-serif;
-  color: light-dark(#203229, #e4efe7);
-  background: light-dark(#f3f7f4, #101713);
+  color: light-dark(#203229, #e8eaed);
+  background: light-dark(#f3f7f4, #111316);
   --teal: light-dark(#17632e, #80dc98);
-  --dark: #163b24;
-  --muted: light-dark(#576b60, #a8baaf);
-  --line: light-dark(#d9e1df, #34443a);
-  --paper: light-dark(#fff, #1b2420);
+  --dark: light-dark(#163b24, #202328);
+  --hero-node: light-dark(#245433, #262a30);
+  --hero-stroke: light-dark(#abccaf, #717985);
+  --hero-label: light-dark(#cbdfd6, #bac0ca);
+  --muted: light-dark(#576b60, #afb6c0);
+  --line: light-dark(#d9e1df, #30353c);
+  --paper: light-dark(#fff, #1a1d21);
   --accent: #26b54c;
-  --surface-hover: light-dark(#ebf3ed, #27362d);
-  --control-border: light-dark(#c6d4cb, #46594d);
-  --graph-dot: light-dark(#a5b9ab, #405447);
+  --surface-hover: light-dark(#ebf3ed, #242930);
+  --control-border: light-dark(#c6d4cb, #414852);
+  --graph-dot: light-dark(#a5b9ab, #3a424c);
   color-scheme: light dark;
   --mono: "IBM Plex Mono", Consolas, monospace;
   font-synthesis: weight;
@@ -119,7 +122,7 @@ button,
   background: var(--paper);
   border: 1px solid var(--control-border);
   border-radius: 6px;
-  color: light-dark(#203229, #e4efe7);
+  color: light-dark(#203229, #e8eaed);
   min-height: 38px;
   padding: 7px 13px;
   font-size: 14px;
@@ -221,7 +224,7 @@ time {
 }
 .side {
   border-right: 1px solid var(--line);
-  background: light-dark(#e8efe9, #17211b);
+  background: light-dark(#e8efe9, #171a1e);
   padding: 25px 15px 15px;
   position: sticky;
   top: 0;
@@ -236,13 +239,12 @@ time {
   padding: 0 10px;
   font-size: 26px;
   letter-spacing: -1.8px;
-  color: light-dark(#203229, #e4efe7);
+  color: light-dark(#203229, #e8eaed);
   font-weight: 600;
 }
 .brand:hover {
   text-decoration: none;
 }
-.brandMark,
 .bigicon,
 .emptyicon {
   display: inline-flex;
@@ -252,9 +254,7 @@ time {
 .brandMark {
   width: 37px;
   height: 37px;
-  background: var(--accent);
-  color: #0b2312;
-  border-radius: 9px;
+  object-fit: contain;
 }
 .side nav {
   margin-top: 28px;
@@ -271,7 +271,7 @@ time {
   font-size: 15px;
 }
 .side nav a.active {
-  background: light-dark(#dcefe0, #233d2a);
+  background: light-dark(#dcefe0, #292f35);
   color: light-dark(#17632e, #80dc98);
   font-weight: 600;
   box-shadow: inset 3px 0 var(--accent);
@@ -306,8 +306,8 @@ main {
   display: grid;
   grid-template-columns: minmax(225px, 1fr) minmax(300px, 1fr);
   overflow: hidden;
-  background: #163b24;
-  border: 1px solid #245433;
+  background: var(--dark);
+  border: 1px solid light-dark(#245433, #343940);
   color: #f8fffc;
   border-radius: 10px;
 }
@@ -318,7 +318,7 @@ main {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #cbdfd6;
+  color: var(--hero-label);
   font-size: 14px;
 }
 .hero h2 {
@@ -327,7 +327,7 @@ main {
   margin: 10px 0;
 }
 .hero p {
-  color: #d5e7df;
+  color: var(--hero-label);
   max-width: 44ch;
   margin-bottom: 22px;
 }
@@ -338,16 +338,16 @@ main {
   isolation: isolate;
   position: relative;
   padding: 22px 16px;
-  background-color: #163b24;
+  background-color: var(--dark);
   background-image: radial-gradient(#4c805b 1px, transparent 1px);
   background-size: 15px 15px;
 }
 .pipeSource,
 .pipeEnd,
 .pipeNode {
-  background: #245433;
+  background: var(--hero-node);
   color: #f1fff7;
-  border: 1px solid #26b54c;
+  border: 1px solid light-dark(#26b54c, #434b55);
   border-radius: 5px;
   font: 13px var(--mono);
   display: flex;
@@ -376,13 +376,17 @@ main {
   padding: 0 10px;
 }
 .pipeNode svg {
-  color: #bce4d2;
+  color: var(--hero-label);
 }
 .fork {
   position: relative;
   width: clamp(20px, 3.4vw, 65px);
   height: 89px;
-  background: linear-gradient(#abccaf, #abccaf) center / 100% 1px no-repeat;
+  display: grid;
+  align-items: center;
+}
+.fork span {
+  border-top: 1px solid var(--hero-stroke);
 }
 .fork:before,
 .fork:after {
@@ -391,16 +395,16 @@ main {
   right: 0;
   width: 50%;
   height: 50%;
-  border-left: 1px solid #abccaf;
+  border-left: 1px solid var(--hero-stroke);
 }
 .fork:before {
   top: 0;
-  border-top: 1px solid #abccaf;
+  border-top: 1px solid var(--hero-stroke);
   border-top-left-radius: 5px;
 }
 .fork:after {
   bottom: 0;
-  border-bottom: 1px solid #abccaf;
+  border-bottom: 1px solid var(--hero-stroke);
   border-bottom-left-radius: 5px;
 }
 .rightFork {
@@ -685,7 +689,7 @@ main {
   color: light-dark(#375c6b, #b3dbe8);
 }
 .INFO.severity {
-  background: light-dark(#e8edeb, #333d36);
+  background: light-dark(#e8edeb, #30353c);
   color: light-dark(#485951, #c2d2c7);
 }
 .severity {
@@ -721,7 +725,7 @@ table {
 }
 th {
   text-align: left;
-  background: light-dark(#f3f7f4, #101713);
+  background: light-dark(#f3f7f4, #111316);
   font-size: 12px;
   font-weight: 600;
   color: var(--muted);
@@ -737,7 +741,7 @@ tr:last-child td {
 td a,
 td b,
 .textbtn {
-  color: light-dark(#203229, #e4efe7);
+  color: light-dark(#203229, #e8eaed);
 }
 td small {
   margin-top: 2px;
@@ -829,7 +833,7 @@ select {
   border-radius: 5px;
   padding: 8px 10px;
   background: var(--paper);
-  color: light-dark(#203229, #e4efe7);
+  color: light-dark(#203229, #e8eaed);
 }
 textarea {
   resize: vertical;
@@ -964,7 +968,7 @@ dialog > .button {
 .readgraph {
   flex: 1;
   min-width: 0;
-  background: light-dark(#e8efe9, #17211b);
+  background: light-dark(#e8efe9, #171a1e);
 }
 .readgraph {
   height: 300px;
@@ -1325,7 +1329,7 @@ fieldset {
 .repo-drop {
   position: fixed; z-index: 200; inset: 14px; pointer-events: none;
   display: grid; place-content: center; justify-items: center; gap: 12px;
-  background: #163b24; color: white; border: 2px dashed #a6d5c7; border-radius: 14px;
+  background: var(--dark); color: white; border: 2px dashed #a6d5c7; border-radius: 14px;
 }
 dialog .repo-drop { position: absolute; inset: 8px; }
 .repo-drop strong { font-size: clamp(24px, 4vw, 54px); }
@@ -1336,7 +1340,7 @@ dialog .repo-drop { position: absolute; inset: 8px; }
 .repo-profiles legend { margin-bottom: 6px; font-weight: 600; }
 .repo-profiles .repo-profile { display: flex; align-items: start; gap: 10px; padding: 7px 9px; border-top: 1px solid var(--line); cursor: pointer; }
 .repo-profile input { width: auto; min-height: 0; accent-color: var(--accent); }
-.repo-profile:has(input:checked) { background: light-dark(#dcefe0, #233d2a); }
+.repo-profile:has(input:checked) { background: light-dark(#dcefe0, #292f35); }
 .repo-profile small, .repo-file small { display: block; }
 .tile .risk-badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
 .tile .risk-badges .severity { font-size: 9px; padding: 1px 3px; }
@@ -1364,4 +1368,13 @@ dialog .repo-drop { position: absolute; inset: 8px; }
   --xy-edge-label-color: currentColor;
   --xy-attribution-background-color: var(--paper);
   --xy-background-pattern-dots-color: var(--graph-dot);
+}
+
+:root[data-theme="dark"] .pipeline {
+  background-image: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .pipeline {
+    background-image: none;
+  }
 }

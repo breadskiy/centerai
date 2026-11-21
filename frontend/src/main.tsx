@@ -10,7 +10,6 @@ import {
 } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
-  Blocks,
   Folder,
   History,
   LayoutDashboard,
@@ -23,6 +22,7 @@ import "@fontsource/ibm-plex-sans/cyrillic-600.css";
 import "@fontsource/ibm-plex-sans/latin-400.css";
 import "@fontsource/ibm-plex-sans/latin-600.css";
 import "@fontsource/ibm-plex-mono/latin-400.css";
+import bankMark from "./centr-invest.svg";
 import { cache } from "./api";
 import { Boundary, Toast } from "./ui";
 import {
@@ -61,9 +61,7 @@ function Shell() {
     <div className="shell">
       <aside className="side">
         <Link className="brand" to="/">
-          <span className="brandMark">
-            <Blocks size={24} />
-          </span>
+          <img className="brandMark" src={bankMark} alt="Центр-инвест" />
           CenterAI
         </Link>
         <nav aria-label="Основная навигация">

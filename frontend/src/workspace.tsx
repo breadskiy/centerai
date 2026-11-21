@@ -65,7 +65,9 @@ function Pipeline() {
         <FolderGit2 />
         <span>Исходники</span>
       </div>
-      <div className="fork leftFork" />
+      <div className="fork leftFork" aria-hidden="true">
+        <span />
+      </div>
       <div className="pipes">
         {[
           [KeyRound, "Secrets"],
@@ -81,7 +83,9 @@ function Pipeline() {
           );
         })}
       </div>
-      <div className="fork rightFork" />
+      <div className="fork rightFork" aria-hidden="true">
+        <span />
+      </div>
       <div className="pipeEnd">
         <FileOutput />
         <span>Отчёт</span>
