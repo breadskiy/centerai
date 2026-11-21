@@ -108,17 +108,17 @@ function Initialize-CenterAIOllama {
         }
     }
 
-    $env:AI_PROVIDER = 'ollama'
-    $env:AI_BASE_URL = $base
-    $env:AI_MODEL = $model
     try {
         $models = (Invoke-RestMethod "$base/api/tags" -TimeoutSec 2).models
         if ($model -in @($models.name)) {
+            $env:AI_PROVIDER = 'ollama'
+            $env:AI_BASE_URL = $base
+            $env:AI_MODEL = $model
             Write-Host "Ollama ready: $model"
-        } else {
-            Write-Warning "Ollama model $model is missing. Run ollama pull $model when you need AI."
+            return
         }
+        Write-Host "Ollama model $model is not downloaded. Using built-in GPU model."
     } catch {
-        Write-Warning "Ollama did not respond. Scanners can run; AI needs Ollama."
+        Write-Host "Ollama not running. Using built-in GPU model."
     }
 }

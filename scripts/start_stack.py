@@ -20,8 +20,8 @@ LOGS = ROOT / ".qa" / "startup"
 ASSETS = [
     (
         "llama.zip",
-        "https://github.com/ggml-org/llama.cpp/releases/download/b12600/llama-b12600-bin-win-cpu-x64.zip",
-        "a31a14f1630408422228d02ff2a3fc41c06a6b3b3849d8d2782c37f0f6e30951",
+        "https://github.com/ggml-org/llama.cpp/releases/download/b12600/llama-b12600-bin-win-vulkan-x64.zip",
+        "cca8bf28bf4193d0b7d674e8498bec8c8b82fb8fbd09a97759b79f542d984906",
         "runtime",
     ),
     (
@@ -42,6 +42,7 @@ def prepare():
     CACHE.mkdir(parents=True, exist_ok=True)
     for name, url, digest, folder in ASSETS:
         path = CACHE / name
+        downloaded = False
         if not path.exists() or checksum(path) != digest:
             tmp = path.with_suffix(".download")
             subprocess.run(
@@ -50,9 +51,12 @@ def prepare():
             if checksum(tmp) != digest:
                 raise RuntimeError(f"Checksum failed for {name}")
             tmp.replace(path)
+            downloaded = True
         if folder:
-            with zipfile.ZipFile(path) as archive:
-                archive.extractall(CACHE / folder)
+            dest = CACHE / folder
+            if downloaded or not (dest / "llama-server.exe").exists() or not (dest / "ggml-vulkan.dll").exists():
+                with zipfile.ZipFile(path) as archive:
+                    archive.extractall(dest)
 
 
 def run(port):
@@ -103,6 +107,8 @@ def run(port):
                     "8192",
                     "-np",
                     "1",
+                    "-ngl",
+                    "99",
                     "-t",
                     "6",
                     "--temp",

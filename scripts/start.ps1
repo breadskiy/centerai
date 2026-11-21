@@ -37,11 +37,16 @@ $pythonPath = Join-Path (Get-Location) '.venv\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $pythonPath)) {
     $launcher = Get-Command py.exe -ErrorAction SilentlyContinue
     if ($launcher) {
-        & $launcher.Source -3.13 -m venv .venv
+        & $launcher.Source -3.13 -m venv .venv 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            & $launcher.Source -3.12 -m venv .venv 2>$null
+        }
     } else {
         python -m venv .venv
     }
-    if ($LASTEXITCODE) { throw 'Python 3.13 is required to create the virtual environment.' }
+    if (-not (Test-Path -LiteralPath $pythonPath)) {
+        throw 'Python 3.12 or 3.13 is required to create the virtual environment.'
+    }
 }
 & $pythonPath -m pip --version 2>$null | Out-Null
 if ($LASTEXITCODE) {
