@@ -24,7 +24,7 @@ import {
   Search,
   Send,
   Settings2,
-  ShieldCheck,
+  ScanLine,
   Trash2,
   Upload,
   Workflow,
@@ -366,7 +366,7 @@ export function Dashboard() {
           [data.projects, "Сессии", "/projects", Folder],
           [data.workflows, "Сценарии", "/workflows", Workflow],
           [data.runs, "Запуски", "/runs", Activity],
-          [data.findings, "Находки", "/findings", ShieldCheck],
+          [data.findings, "Находки", "/findings", ScanLine],
         ].map(([n, label, path, icon]) => {
           const I = icon as typeof Folder;
           return (
@@ -394,7 +394,6 @@ export function Dashboard() {
         <section className="panel">
           <div className="sectionHead">
             <h2>Критичность</h2>
-            <ShieldCheck size={18} />
           </div>
           <div className="riskList">
             {levels.map((l) => (
