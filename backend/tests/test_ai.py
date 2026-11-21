@@ -119,31 +119,22 @@ def test_ai_workflow(client, project, monkeypatch, mode):
         if mode == "offline":
             raise ConnectionError()
         notes = []
+        explanations = {
+            "fake_line": "Ошибка в строке 42",
+            "unknown_cve": "Риск связан с CVE-2000-1234",
+        }
         for source in json.loads(payload):
             notes.append(
                 {
                     "finding_id": "unknown"
                     if mode == "wrong_id"
                     else source["finding_id"],
-                    "explanation": "line 42" if mode == "fake_line" else "Объяснение",
-                    "technical_details": "",
-                    "business_impact": "",
-                    "false_positive_notes": "",
+                    "explanation": explanations.get(mode, "Объяснение"),
                     "remediation_steps": ["Шаг исправления"],
                     "evidence_status": "SUPPORTED",
-                    "cve_references": ["CVE-2000-1234"]
-                    if mode == "unknown_cve"
-                    else [],
                 }
             )
-        return json.dumps(
-            {
-                "summary": "Итог",
-                "findings": notes,
-                "prioritized_actions": [],
-                "limitations": [],
-            }
-        )
+        return json.dumps({"findings": notes})
 
     monkeypatch.setenv("AI_PROVIDER", "ollama")
     monkeypatch.setattr(ai_report.OllamaProvider, "complete", complete)

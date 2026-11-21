@@ -539,7 +539,7 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
   function dropped(e: DragEvent) {
     e.preventDefault();
     const type = e.dataTransfer.getData("centerai/node");
-    if (registry.types[type])
+    if (type !== "email_notification" && registry.types[type])
       add(type, screen.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
   }
   function connect(c: Connection) {
@@ -652,6 +652,15 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
           {error || graphError}
         </p>
       )}
+      <details className="panel padded">
+        <summary>Как собрать проверку</summary>
+        <ol>
+          <li>Ручной запуск и Исходники задают, когда начать и какой проект проверить.</li>
+          <li>Добавьте анализатор. Стрелка передаёт результат следующему блоку. Фильтр помогает выбрать нужные находки.</li>
+          <li>Подключите находки к Отчёту. Чтобы получить объяснения, вставьте AI-анализ между анализатором и Отчётом.</li>
+          <li>Нажмите «Проверить», затем «Запустить». Для уведомления подключите Telegram после Отчёта.</li>
+        </ol>
+      </details>
       <div className="editorframe">
         <div className="canvasbar">
           <button onClick={() => setPalette(!palette)} aria-expanded={palette}>
@@ -697,7 +706,8 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
                   {!collapsed.includes(group) &&
                     Object.entries(registry.types)
                       .filter(
-                        ([, t]) =>
+                        ([key, t]) =>
+                          key !== "email_notification" &&
                           t.category === group &&
                           t.title.toLowerCase().includes(search.toLowerCase()),
                       )

@@ -10,7 +10,6 @@ import {
   Archive,
   ArrowUpRight,
   Braces,
-  CalendarClock,
   ChevronRight,
   Copy,
   FileOutput,
@@ -42,7 +41,6 @@ import {
   useData,
 } from "./api";
 import { Button } from "./components/button";
-import { ScheduleSettings } from "./schedules";
 import { TemplateLibrary } from "./templates";
 import { uploadForm, uploadProject } from "./upload";
 import {
@@ -768,7 +766,7 @@ function NewFlow({
               placeholder="По будням в 9 утра проверяй зависимости и присылай критические находки по почте"
             />
             <small>
-              Модель получит текст задания. Проверьте черновик в редакторе.
+              AI соберёт черновик сценария из текста. Проверьте блоки и стрелки в редакторе.
               Расписание включается вручную.
             </small>
           </label>
@@ -1011,7 +1009,7 @@ export function SettingsPage() {
     <>
       <Heading
         title="Настройки"
-        sub="Доставка отчётов и параметры рабочего пространства."
+        sub="Подключите Telegram для отправки отчётов."
       />
       <div className="settingsgrid">
         <section className="panel padded">
@@ -1073,78 +1071,11 @@ export function SettingsPage() {
             </div>
           </form>
         </section>
-        <div>
-          <section className="panel padded">
-            <h2>Электронная почта</h2>
-            {s.demo_mailbox && (
-              <p>
-                <a
-                  href="http://127.0.0.1:8025"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Открыть тестовый почтовый ящик
-                </a>
-                . В этом режиме все письма остаются на компьютере.
-              </p>
-            )}
-            <p>
-              {s.smtp
-                ? "SMTP задан на сервере."
-                : "Для отправки задайте SMTP_HOST и параметры почтового сервера."}
-            </p>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const recipient = new FormData(e.currentTarget).get(
-                  "recipient",
-                );
-                void act(async () => {
-                  await api("/integrations/email", "PUT", { recipient });
-                  show("Получатель сохранён");
-                });
-              }}
-            >
-              <label>
-                Адрес получателя
-                <input
-                  name="recipient"
-                  required
-                  type="email"
-                  defaultValue={s.email_recipient}
-                />
-              </label>
-              <div className="toolbar">
-                <button disabled={busy}>Сохранить адрес</button>
-                <button
-                  type="button"
-                  disabled={busy || !s.smtp || !s.email_recipient}
-                  onClick={() =>
-                    void act(async () => {
-                      await api("/integrations/email/test", "POST");
-                      show("SMTP-сервер принял письмо");
-                    })
-                  }
-                >
-                  Тестовое письмо
-                </button>
-              </div>
-            </form>
-          </section>
+        <details className="panel padded">
+          <summary>Для разработчиков</summary>
+          <p>CI/CD запускает проверку автоматически при изменении кода. Для ручных проверок эти параметры не нужны.</p>
           <CISettings flows={flows} />
-          <section className="panel padded">
-            <CalendarClock />
-            <h2>Расписание</h2>
-            <ScheduleSettings flows={flows} />
-          </section>
-          <section className="panel padded">
-            <Archive />
-            <h2>Источники GitHub</h2>
-            {s.repositories.map((r) => (
-              <code key={r}>{r}</code>
-            ))}
-          </section>
-        </div>
+        </details>
       </div>
     </>
   );

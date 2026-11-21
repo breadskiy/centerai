@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-test("Генератор сохраняет описание при ошибке, настройка Email и CI восстанавливается", async ({
+test("Черновик сохраняется при сбое AI, отправка доступна через Telegram, CI свёрнут", async ({
   page,
   request,
 }) => {
@@ -18,7 +18,7 @@ test("Генератор сохраняет описание при ошибке
   });
   await page.goto("/workflows?new=1&project=" + (await project.json()).id);
   await page.getByLabel("Начальный граф").selectOption("prompt");
-  const description = "Проверяй зависимости и отправляй письмо";
+  const description = "Проверяй зависимости и отправляй результат в Telegram";
   await page.getByLabel("Что проверить").fill(description);
   await page.getByRole("button", { name: "Открыть редактор" }).click();
   await expect(
@@ -27,21 +27,21 @@ test("Генератор сохраняет описание при ошибке
   await expect(page.getByLabel("Что проверить")).toHaveValue(description);
   await page.getByLabel("Начальный граф").selectOption("base");
   await page.getByRole("button", { name: "Открыть редактор" }).click();
-  await expect(
-    page.getByRole("button", { name: "Email", exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Email", exact: true })).toHaveCount(0);
+  await page.getByText("Как собрать проверку", { exact: true }).click();
+  await expect(page.getByText("Стрелка передаёт результат", { exact: false })).toBeVisible();
   const flow = page.url().split("/").pop()!;
   await page.goto("/settings");
-  await page.getByLabel("Адрес получателя").fill("qa@example.test");
-  await page.getByRole("button", { name: "Сохранить адрес" }).click();
-  await expect(page.getByRole("status")).toContainText("Получатель сохранён");
+  await expect(page.getByRole("heading", { name: "Telegram" })).toBeVisible();
+  await expect(page.getByText("Источники GitHub")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Электронная почта" })).toHaveCount(0);
+  await expect(page.getByLabel("Сценарий для CI")).toBeHidden();
+  await page.getByText("Для разработчиков", { exact: true }).click();
   await page.getByLabel("Сценарий для CI").selectOption(flow);
   await page.getByLabel("Завершать CI с ошибкой").selectOption("HIGH");
   await page.getByLabel("Ожидание, секунд").fill("360");
   await page.reload();
-  await expect(page.getByLabel("Адрес получателя")).toHaveValue(
-    "qa@example.test",
-  );
+  await page.getByText("Для разработчиков", { exact: true }).click();
   await expect(page.locator("pre.block")).toContainText("--workflow " + flow);
   await expect(page.locator("pre.block")).toContainText(
     "--timeout 360 --fail-on HIGH",
@@ -208,17 +208,20 @@ test("Настройки cron, часовой пояс, выключение р�
     },
   });
   expect(response.ok()).toBeTruthy();
-  await page.goto("/settings");
+  await page.goto("/workflows/" + (await response.json()).id);
+  await page.locator(".react-flow__node").filter({ hasText: "Расписание" }).click();
   await page.getByLabel("Cron", { exact: true }).fill("0 3 * * *");
   await page.getByLabel("Часовой пояс").fill("Europe/Moscow");
-  await page.getByLabel("Включено").check();
-  await page.getByRole("button", { name: "Сохранить расписание" }).click();
-  await expect(page.getByText("Следующий запуск · —")).toHaveCount(0);
+  await page.getByLabel("Включить расписание").check();
+  await page.getByRole("button", { name: "Сохранить", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Граф сохранён");
   await page.reload();
-  await expect(page.getByLabel("Включено")).toBeChecked();
-  await page.getByLabel("Включено").uncheck();
-  await page.getByRole("button", { name: "Сохранить расписание" }).click();
-  await expect(page.getByText("Следующий запуск · —")).toBeVisible();
+  await page.locator(".react-flow__node").filter({ hasText: "Расписание" }).click();
+  await expect(page.getByLabel("Включить расписание")).toBeChecked();
+  await page.getByLabel("Включить расписание").uncheck();
+  await page.getByRole("button", { name: "Сохранить", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Граф сохранён");
+  await page.goto("/settings");
   await page.getByLabel("Токен бота").fill("invalid");
   await page.getByLabel("Идентификатор чата").fill("1234");
   await page.getByRole("button", { name: "Сохранить", exact: true }).click();

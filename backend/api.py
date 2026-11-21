@@ -851,13 +851,12 @@ class EmailSettings(BaseModel):
 
 @api.put("/integrations/email")
 def email_settings(body: EmailSettings, db: DB):
-    notifications.configure_email(db, body.recipient.strip())
-    return settings(db)
+    raise HTTPException(410, "Email временно отключён. Используйте Telegram.")
 
 
 @api.post("/integrations/email/test")
 def test_email(db: DB):
-    return notifications.send_email(db)
+    raise HTTPException(410, "Email временно отключён. Используйте Telegram.")
 
 
 @api.put("/integrations/telegram")
