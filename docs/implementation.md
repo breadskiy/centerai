@@ -111,4 +111,4 @@ React → REST API → БД проектов, графов и версий
 | backend/notifications.py | Адаптер Telegram |
 | frontend/src/ | Обзор, проекты, редактор, монитор, находки и настройки |
 | backend/tests/, frontend/tests/ | Проверка правил, интеграций и полного пользовательского сценария |
-| compose.yaml, Dockerfile, start.ps1 | Воспроизводимый запуск в контейнерах или на Windows |
+| compose.yaml, Dockerfile, Start-CenterAI.bat | Воспроизводимый запуск в контейнерах или на Windows |

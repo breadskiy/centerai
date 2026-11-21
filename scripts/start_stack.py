@@ -1,4 +1,4 @@
-"""Run an isolated Windows demo with local inference and an SMTP inbox."""
+"""Run CenterAI on Windows with a local model or a configured AI provider."""
 
 import argparse
 import hashlib
@@ -16,19 +16,13 @@ from urllib.request import ProxyHandler, build_opener
 
 ROOT = Path(__file__).resolve().parents[1]
 CACHE = ROOT / ".qa" / "model"
-DATA = ROOT / ".qa" / "full-demo"
+LOGS = ROOT / ".qa" / "startup"
 ASSETS = [
     (
         "llama.zip",
         "https://github.com/ggml-org/llama.cpp/releases/download/b12600/llama-b12600-bin-win-cpu-x64.zip",
         "a31a14f1630408422228d02ff2a3fc41c06a6b3b3849d8d2782c37f0f6e30951",
         "runtime",
-    ),
-    (
-        "mailpit.zip",
-        "https://github.com/axllent/mailpit/releases/download/v1.34.0/mailpit-windows-amd64.zip",
-        "8f080d41374bf22686606374a0a483c8563c1bf29ae078179792392ff8c911d7",
-        "mailpit",
     ),
     (
         "qwen.gguf",
@@ -46,7 +40,6 @@ def checksum(path):
 
 def prepare():
     CACHE.mkdir(parents=True, exist_ok=True)
-    DATA.mkdir(parents=True, exist_ok=True)
     for name, url, digest, folder in ASSETS:
         path = CACHE / name
         if not path.exists() or checksum(path) != digest:
@@ -62,68 +55,63 @@ def prepare():
                 archive.extractall(CACHE / folder)
 
 
-def run(port, open_browser):
-    for number in (port, 8091, 8025, 1025):
-        with socket.socket() as probe:
-            probe.bind(("127.0.0.1", number))
-    prepare()
+def run(port):
     base = f"http://127.0.0.1:{port}"
     env = os.environ | {
-        "CENTERAI_DATA": str(DATA),
-        "DATABASE_URL": f"sqlite:///{(DATA / 'centerai.db').as_posix()}",
         "WORKER_MODE": "local",
-        "PUBLIC_URL": base,
-        "CENTERAI_DEMO": "1",
-        "AI_PROVIDER": "openai-compatible",
-        "AI_MODEL": "qwen-local",
-        "AI_BASE_URL": "http://127.0.0.1:8091/v1",
-        "AI_API_KEY": secrets.token_urlsafe(32),
-        "SMTP_HOST": "127.0.0.1",
-        "SMTP_PORT": "1025",
-        "SMTP_SECURITY": "local",
-        "SMTP_FROM": "centerai@example.test",
-        "SMTP_USER": "",
-        "SMTP_PASSWORD": "",
+        "PUBLIC_URL": os.getenv("PUBLIC_URL") or base,
     }
-    commands = [
-        (
-            "model",
-            [
-                CACHE / "runtime/llama-server.exe",
-                "-m",
-                CACHE / "qwen.gguf",
-                "--alias",
-                "qwen-local",
-                "--api-key",
-                env["AI_API_KEY"],
-                "--host",
-                "127.0.0.1",
-                "--port",
-                "8091",
-                "-c",
-                "8192",
-                "-np",
-                "1",
-                "-t",
-                "6",
-                "--temp",
-                "0",
-            ],
-            "http://127.0.0.1:8091/health",
-        ),
-        (
-            "mail",
-            [
-                CACHE / "mailpit/mailpit.exe",
-                "--listen",
-                "127.0.0.1:8025",
-                "--smtp",
-                "127.0.0.1:1025",
-                "--database",
-                DATA / "mail.db",
-            ],
-            "http://127.0.0.1:8025/livez",
-        ),
+    commands = []
+    configured = any(
+        os.getenv(key)
+        for key in ("AI_PROVIDER", "AI_BASE_URL", "AI_MODEL", "AI_API_KEY")
+    )
+    ports = (port,) if configured else (port, 8091)
+    for number in ports:
+        try:
+            with socket.socket() as probe:
+                probe.bind(("127.0.0.1", number))
+        except OSError:
+            raise RuntimeError(f"Port {number} is already in use") from None
+    if not configured:
+        print("Preparing the local Qwen model…", flush=True)
+        prepare()
+        env.update(
+            {
+                "AI_PROVIDER": "openai-compatible",
+                "AI_MODEL": "qwen-local",
+                "AI_BASE_URL": "http://127.0.0.1:8091/v1",
+                "AI_API_KEY": secrets.token_urlsafe(32),
+            }
+        )
+        commands.append(
+            (
+                "model",
+                [
+                    CACHE / "runtime/llama-server.exe",
+                    "-m",
+                    CACHE / "qwen.gguf",
+                    "--alias",
+                    "qwen-local",
+                    "--api-key",
+                    env["AI_API_KEY"],
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    "8091",
+                    "-c",
+                    "8192",
+                    "-np",
+                    "1",
+                    "-t",
+                    "6",
+                    "--temp",
+                    "0",
+                ],
+                "http://127.0.0.1:8091/health",
+            )
+        )
+    commands.append(
         (
             "app",
             [
@@ -137,13 +125,14 @@ def run(port, open_browser):
                 str(port),
             ],
             base + "/api/v1/settings",
-        ),
-    ]
+        )
+    )
+    LOGS.mkdir(parents=True, exist_ok=True)
     children = []
     opener = build_opener(ProxyHandler({}))
     try:
         for name, cmd, health in commands:
-            with (DATA / f"{name}.log").open("w", encoding="utf-8") as log:
+            with (LOGS / f"{name}.log").open("w", encoding="utf-8") as log:
                 child = subprocess.Popen(
                     cmd,
                     cwd=ROOT,
@@ -155,7 +144,7 @@ def run(port, open_browser):
             children.append(child)
             for _ in range(120):
                 if child.poll() is not None:
-                    raise RuntimeError(f"{name} stopped. See {DATA / (name + '.log')}")
+                    raise RuntimeError(f"{name} stopped. See {LOGS / (name + '.log')}")
                 try:
                     with opener.open(health, timeout=1):
                         break
@@ -164,14 +153,13 @@ def run(port, open_browser):
             else:
                 raise RuntimeError(f"{name} did not become ready")
         print(
-            f"CenterAI: {base}   Mail inbox: http://127.0.0.1:8025   Ctrl+C to stop",
+            f"CenterAI: {base}   Ctrl+C to stop",
             flush=True,
         )
-        if open_browser:
-            webbrowser.open(base)
+        webbrowser.open(base)
         while all(child.poll() is None for child in children):
             time.sleep(1)
-        raise RuntimeError(f"A demo service stopped. See {DATA}")
+        raise RuntimeError(f"A CenterAI service stopped. See {LOGS}")
     finally:
         for child in reversed(children):
             if child.poll() is None:
@@ -181,10 +169,9 @@ def run(port, open_browser):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--port", type=int, default=8002)
-    parser.add_argument("--open-browser", action="store_true")
+    parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
     try:
-        run(args.port, args.open_browser)
+        run(args.port)
     except KeyboardInterrupt:
         pass
