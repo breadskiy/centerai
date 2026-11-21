@@ -10,7 +10,6 @@ import time
 from threading import BoundedSemaphore, Lock
 from typing import Annotated
 
-import regex
 from email_validator import EmailNotValidError, validate_email
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
 from PIL import Image, ImageOps
@@ -61,12 +60,43 @@ def normalize_email(email):
         raise HTTPException(422, "Введите корректный адрес электронной почты") from None
 
 
-def password_strength(password):
-    if len(password) < 8 or not password.strip():
+def password_strength(password, email):
+    value = password.lower()
+    letters = re.sub(r"[^a-zа-яё]", "", value)
+    local = email.strip().lower().split("@", 1)[0]
+    if (
+        len(password) < 12
+        or len(set(value)) < 5
+        or re.fullmatch(r"(.+)\1+", value, re.DOTALL)
+        or letters
+        in {
+            "password",
+            "passwd",
+            "qwerty",
+            "qwertyuiop",
+            "admin",
+            "letmein",
+            "iloveyou",
+            "пароль",
+            "йцукен",
+            "йцукенгшщз",
+            "привет",
+        }
+        or (len(local) >= 5 and local in value)
+        or any(
+            value in sequence or value in sequence[::-1]
+            for sequence in (
+                "abcdefghijklmnopqrstuvwxyz",
+                "абвгдеёжзийклмнопрстуфхцчшщъыьэюя",
+                "qwertyuiopasdfghjklzxcvbnm",
+                "01234567890123456789",
+            )
+        )
+    ):
         return 1
-    if not regex.search(r"\p{L}", password) or not re.search(r"[0-9]", password):
-        return 2
-    return 4 if regex.search(r"[\p{P}\p{S}]", password) else 3
+    if len(password) >= 18:
+        return 4
+    return 3 if len(password) >= 14 else 2
 
 
 def derive(password, salt):
@@ -217,7 +247,7 @@ def current(request: Request):
 def register(body: Credentials, request: Request, response: Response):
     throttle(request, "register", 30)
     email = normalize_email(body.email)
-    if password_strength(body.password) < 3:
+    if password_strength(body.password, email) < 2:
         raise HTTPException(422, "Выберите более надёжный пароль")
     encoded = password_hash(body.password)
     with Session() as db:

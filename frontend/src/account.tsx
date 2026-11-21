@@ -114,10 +114,34 @@ export function AccountGate({
   );
 }
 
-function passwordStrength(password: string) {
-  if ([...password].length < 8 || !password.trim()) return 1;
-  if (!/\p{L}/u.test(password) || !/[0-9]/.test(password)) return 2;
-  return /[\p{P}\p{S}]/u.test(password) ? 4 : 3;
+function passwordStrength(password: string, email: string) {
+  const length = [...password].length;
+  const value = password.toLowerCase();
+  const letters = value.replace(/[^a-zа-яё]/g, "");
+  const local = email.trim().toLowerCase().split("@")[0];
+  const sequences = [
+    "abcdefghijklmnopqrstuvwxyz",
+    "абвгдеёжзийклмнопрстуфхцчшщъыьэюя",
+    "qwertyuiopasdfghjklzxcvbnm",
+    "01234567890123456789",
+  ];
+  if (
+    length < 12 ||
+    new Set(value).size < 5 ||
+    /^(.+)\1+$/su.test(value) ||
+    /^(password|passwd|qwerty|qwertyuiop|admin|letmein|iloveyou|пароль|йцукен|йцукенгшщз|привет)$/.test(
+      letters,
+    ) ||
+    ([...local].length >= 5 && value.includes(local)) ||
+    sequences.some(
+      (sequence) =>
+        sequence.includes(value) ||
+        [...sequence].reverse().join("").includes(value),
+    )
+  )
+    return 1;
+  if (length >= 18) return 4;
+  return length >= 14 ? 3 : 2;
 }
 
 function Access({ enter }: { enter: SetViewer }) {
@@ -138,7 +162,7 @@ function Access({ enter }: { enter: SetViewer }) {
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const registering = mode === "register";
-  const strength = password ? passwordStrength(password) : 0;
+  const strength = password ? passwordStrength(password, email) : 0;
   const levels = [
     "Введите пароль",
     "Слабый",
@@ -149,7 +173,7 @@ function Access({ enter }: { enter: SetViewer }) {
 
   const submit = async (action: "register" | "login" | "guest") => {
     if (pending) return;
-    if (action === "register" && strength < 3) {
+    if (action === "register" && strength < 2) {
       setError(t("Выберите более надёжный пароль"));
       return;
     }
@@ -276,7 +300,7 @@ function Access({ enter }: { enter: SetViewer }) {
               <strong aria-live="polite">{t(levels[strength])}</strong>
               <small>
                 {t(
-                  "Минимум 8 символов, включая буквы и цифры. Спецсимволы повышают надёжность.",
+                  "Минимум 12 символов. Подойдёт длинная фраза из нескольких несвязанных слов.",
                 )}
               </small>
             </div>

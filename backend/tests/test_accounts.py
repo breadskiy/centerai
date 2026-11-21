@@ -24,7 +24,7 @@ from backend.worker import execute, tick
 from .conftest import zip_bytes
 
 API = "/api/v1"
-CREDS = {"email": "owner@example.com", "password": "Quartz43"}
+CREDS = {"email": "owner@example.com", "password": "birch amber glacier"}
 
 
 def test_registration_password_and_profile(anonymous):
@@ -35,12 +35,19 @@ def test_registration_password_and_profile(anonymous):
         ).status_code
         == 422
     )
-    assert (
-        anonymous.post(
-            API + "/auth/register", json={**CREDS, "password": "abcdefg"}
-        ).status_code
-        == 422
-    )
+    for password in (
+        "abcdefg",
+        "Password12345!",
+        "123456789012",
+        "maplemaplemaple",
+        "owner-orchard-hill",
+    ):
+        assert (
+            anonymous.post(
+                API + "/auth/register", json={**CREDS, "password": password}
+            ).status_code
+            == 422
+        )
     created = anonymous.post(API + "/auth/register", json=CREDS)
     assert created.status_code == 201
     assert "httponly" in created.headers["set-cookie"].lower()
