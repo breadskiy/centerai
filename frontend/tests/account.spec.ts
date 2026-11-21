@@ -8,8 +8,8 @@ test("Язык регистрации переключается и сохран
   await page.getByRole("combobox", { name: "Язык" }).focus();
   const ring = await page
     .getByRole("combobox", { name: "Язык" })
-    .evaluate((select) => getComputedStyle(select).outlineColor);
-  expect(ring).not.toBe("rgb(38, 181, 76)");
+    .evaluate((select) => getComputedStyle(select).outlineStyle);
+  expect(ring).toBe("none");
   await page.getByRole("combobox", { name: "Язык" }).selectOption("en");
   await expect(
     page.getByRole("heading", { name: "Create an account" }),

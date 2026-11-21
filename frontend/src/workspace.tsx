@@ -1,4 +1,5 @@
 import { t as translateText, useLanguage } from "./locale";
+import { useTheme, type ThemePreference } from "./theme";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Link,
@@ -992,9 +993,7 @@ export function Workflows() {
 }
 function ThemeSettings() {
   const { language, setLanguage } = useLanguage();
-  const [theme, setTheme] = useState(
-    document.documentElement.dataset.theme || "system",
-  );
+  const { theme, setTheme } = useTheme();
   return (
     <section className="panel padded theme-settings">
       <h2>{translateText("Внешний вид")}</h2>
@@ -1002,16 +1001,7 @@ function ThemeSettings() {
         {translateText("Тема")}
         <select
           value={theme}
-          onChange={(event) => {
-            const preference = event.target.value;
-            setTheme(preference);
-            if (preference === "system")
-              delete document.documentElement.dataset.theme;
-            else document.documentElement.dataset.theme = preference;
-            try {
-              localStorage.setItem("centerai-theme", preference);
-            } catch {}
-          }}
+          onChange={(event) => setTheme(event.target.value as ThemePreference)}
         >
           <option value="light">{translateText("Светлая")}</option>
           <option value="dark">{translateText("Тёмная")}</option>

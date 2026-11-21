@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Eye, EyeOff, LogOut, UserRound } from "lucide-react";
+import { Eye, EyeOff, LogOut, Moon, Sun, UserRound } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api, cache } from "./api";
 import bankMark from "./centr-invest.svg";
 import { t, useLanguage } from "./locale";
+import { useSystemDark, useTheme } from "./theme";
 
 export type Viewer = {
   id: string;
@@ -18,6 +19,24 @@ export type Viewer = {
 };
 export type SetViewer = (viewer: Viewer | null) => void;
 const sessionSignal = "centerai-auth-change";
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  const systemDark = useSystemDark();
+  const dark = theme === "dark" || (theme === "system" && systemDark);
+  return (
+    <button
+      type="button"
+      className="icon account-theme-toggle"
+      aria-label={t("Тёмная тема")}
+      aria-pressed={dark}
+      title={t(dark ? "Включить светлую тему" : "Включить тёмную тему")}
+      onClick={() => setTheme(dark ? "light" : "dark")}
+    >
+      {dark ? <Moon aria-hidden="true" /> : <Sun aria-hidden="true" />}
+    </button>
+  );
+}
 
 export function AccountGate({
   children,
@@ -434,8 +453,9 @@ export function AccountPage({
   };
   return (
     <>
-      <div className="heading">
+      <div className="heading account-heading">
         <h1>{t("Личный кабинет")}</h1>
+        <ThemeToggle />
       </div>
       <div className="account-layout" data-guest={viewer.guest}>
         <aside className="panel account-summary">
