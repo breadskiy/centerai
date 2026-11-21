@@ -84,14 +84,16 @@ test("ZIP → editable workflow → live execution → report and settings", asy
   await page.getByRole("link", { name: "JSON", exact: true }).click();
   expect((await download).suggestedFilename()).toMatch(/\.json$/);
   await page.getByRole("link", { name: "Результаты сессии" }).click();
-  await page.getByText("Дополнительные фильтры", { exact: true }).click();
   await page.getByLabel("Категория", { exact: true }).selectOption("SECRET");
+  await expect(
+    page.getByRole("button", { name: "Подробности находки" }),
+  ).toHaveCount(1);
   await page.getByRole("button", { name: "Подробности находки" }).click();
   await expect(page.getByRole("dialog")).toContainText("Значение скрыто");
   await page.getByRole("button", { name: "Закрыть", exact: true }).click();
   await page.getByRole("link", { name: "Настройки", exact: true }).click();
   await expect(
-    page.locator("summary").filter({ hasText: "Telegram" }),
+    page.getByRole("heading", { name: "Внешний вид" }),
   ).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("link", { name: "Главная", exact: true }).click();
@@ -200,6 +202,17 @@ test("Сессия показывает один запуск, монитор о
     page.getByRole("navigation").getByRole("link", { name: "Находки" }),
   ).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Находки" })).toBeVisible();
+  const search = page.getByRole("textbox", { name: "Поиск находок" });
+  await search.pressSequentially("missing");
+  await expect(page.getByText("Находок нет", { exact: true })).toBeVisible();
+  await expect(search).toBeFocused();
+  await expect(search).toHaveValue("missing");
+  await search.fill("");
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
+  const severity = page.locator(".session-severity button").first();
+  await severity.click();
+  await expect(severity).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
   await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
   await expect(page.getByRole("combobox", { name: "Запуск" })).toHaveValue(
     latest.id,

@@ -1,3 +1,4 @@
+import { t as translateText } from "./locale";
 import { Component, ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
@@ -38,7 +39,7 @@ export function Toast() {
     createPortal(
       <div role="status" className={"toast " + (notice.bad ? "bad" : "")}>
         <span>{notice.text}</span>
-        <button aria-label="Закрыть сообщение" onClick={clear}>
+        <button aria-label={translateText("Закрыть сообщение")} onClick={clear}>
           <X size={16} />
         </button>
       </div>,
@@ -60,7 +61,10 @@ export function useAction() {
         await fn();
         await cache.invalidateQueries();
       } catch (e) {
-        show(e instanceof Error ? e.message : "Ошибка операции", true);
+        show(
+          e instanceof Error ? e.message : translateText("Ошибка операции"),
+          true,
+        );
       } finally {
         lock.current = false;
         setBusy(false);
@@ -128,7 +132,11 @@ export function Modal({
     >
       <div className="dialogHead">
         <h2>{title}</h2>
-        <button className="icon" aria-label="Закрыть" onClick={close}>
+        <button
+          className="icon"
+          aria-label={translateText("Закрыть")}
+          onClick={close}
+        >
           <X size={18} />
         </button>
       </div>
@@ -155,7 +163,9 @@ export function Status({ value }: { value: string | null }) {
       ) : (
         <i />
       )}
-      {value ? names[value] || value : "Без запусков"}
+      {value
+        ? translateText(names[value] || value)
+        : translateText("Без запусков")}
     </span>
   );
 }
@@ -174,11 +184,15 @@ export function RunsTable({
       <table>
         <thead>
           <tr>
-            <th>Сценарий / проект</th>
-            <th>Статус</th>
-            <th>Время запуска</th>
-            {!compact && <th>Длительность</th>}
-            <th>{compact ? "Критичность" : "Находки"}</th>
+            <th>{translateText("Сценарий / проект")}</th>
+            <th>{translateText("Статус")}</th>
+            <th>{translateText("Время запуска")}</th>
+            {!compact && <th>{translateText("Длительность")}</th>}
+            <th>
+              {compact
+                ? translateText("Критичность")
+                : translateText("Находки")}
+            </th>
             {!compact && <th />}
           </tr>
         </thead>
@@ -217,7 +231,10 @@ export function RunsTable({
               </td>
               {!compact && (
                 <td>
-                  <Link aria-label="Открыть запуск" to={"/runs/" + r.id}>
+                  <Link
+                    aria-label={translateText("Открыть запуск")}
+                    to={"/runs/" + r.id}
+                  >
                     <ChevronRight size={16} />
                   </Link>
                 </td>
@@ -228,8 +245,8 @@ export function RunsTable({
       </table>
     </div>
   ) : (
-    <Empty title="История запусков пуста">
-      Здесь появятся этапы и результаты первой проверки.
+    <Empty title={translateText("История запусков пуста")}>
+      {translateText("Здесь появятся этапы и результаты первой проверки.")}
     </Empty>
   );
 }
@@ -252,9 +269,11 @@ export class Boundary extends Component<
   render() {
     return this.state.error ? (
       <section className="panel empty" role="alert">
-        <h2>Не удалось открыть раздел</h2>
+        <h2>{translateText("Не удалось открыть раздел")}</h2>
         <p>{this.state.error}</p>
-        <button onClick={() => location.reload()}>Повторить загрузку</button>
+        <button onClick={() => location.reload()}>
+          {translateText("Повторить загрузку")}
+        </button>
       </section>
     ) : (
       this.props.children

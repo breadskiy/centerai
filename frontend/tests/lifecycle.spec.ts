@@ -2,10 +2,7 @@ import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-test("Генератор сохраняет описание при ошибке, настройка Email и CI восстанавливается", async ({
-  page,
-  request,
-}) => {
+test("Генератор сохраняет описание при ошибке", async ({ page, request }) => {
   const project = await request.post("/api/v1/projects", {
     multipart: {
       name: "Проект для CI",
@@ -30,32 +27,6 @@ test("Генератор сохраняет описание при ошибке
   await expect(
     page.getByRole("button", { name: "Email", exact: true }),
   ).toBeVisible();
-  const flow = page.url().split("/").pop()!;
-  await page.goto("/settings");
-  await page
-    .locator("summary")
-    .filter({ hasText: "Электронная почта" })
-    .click();
-  await page.getByLabel("Адрес получателя").fill("qa@example.test");
-  await page.getByRole("button", { name: "Сохранить адрес" }).click();
-  await expect(page.getByRole("status")).toContainText("Получатель сохранён");
-  await page.locator("summary").filter({ hasText: "CI/CD" }).click();
-  await page.getByLabel("Сценарий для CI").selectOption(flow);
-  await page.getByLabel("Завершать CI с ошибкой").selectOption("HIGH");
-  await page.getByLabel("Ожидание, секунд").fill("360");
-  await page.reload();
-  await page
-    .locator("summary")
-    .filter({ hasText: "Электронная почта" })
-    .click();
-  await page.locator("summary").filter({ hasText: "CI/CD" }).click();
-  await expect(page.getByLabel("Адрес получателя")).toHaveValue(
-    "qa@example.test",
-  );
-  await expect(page.locator("pre.block")).toContainText("--workflow " + flow);
-  await expect(page.locator("pre.block")).toContainText(
-    "--timeout 360 --fail-on HIGH",
-  );
 });
 
 test("Готовый AI-граф сохраняет находки при недоступной модели", async ({
@@ -189,58 +160,27 @@ test("Ошибки импорта, поиск, история версий, пу
   expect(errors).toEqual([]);
 });
 
-test("Настройки cron, часовой пояс, выключение расписания и отказ при ошибке Telegram", async ({
+test("В настройках только внешний вид, язык меняется и сохраняется", async ({
   page,
-  request,
 }) => {
-  const projectResponse = await request.post("/api/v1/projects", {
-    multipart: {
-      name: "Проект расписаний",
-      archive: {
-        name: "input.zip",
-        mimeType: "application/zip",
-        buffer: readFileSync(resolve("../.qa/e2e-fixture.zip")),
-      },
-    },
-  });
-  expect(projectResponse.ok()).toBeTruthy();
-  const registry = await (await request.get("/api/v1/registry")).json();
-  const graph = registry.default_graph;
-  graph.nodes[0] = {
-    ...graph.nodes[0],
-    type: "schedule_trigger",
-    config: registry.types.schedule_trigger.defaults,
-  };
-  const response = await request.post("/api/v1/workflows", {
-    data: {
-      project_id: (await projectResponse.json()).id,
-      name: "Проверка расписания",
-      graph,
-    },
-  });
-  expect(response.ok()).toBeTruthy();
   await page.goto("/settings");
-  await page
-    .locator("summary")
-    .filter({ hasText: /^Расписание$/ })
-    .click();
-  await page.getByLabel("Cron", { exact: true }).fill("0 3 * * *");
-  await page.getByLabel("Часовой пояс").fill("Europe/Moscow");
-  await page.getByLabel("Включено").check();
-  await page.getByRole("button", { name: "Сохранить расписание" }).click();
-  await expect(page.getByText("Следующий запуск · —")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 2 })).toHaveText(
+    "Внешний вид",
+  );
+  await expect(page.getByRole("combobox")).toHaveCount(2);
+  await page.getByRole("combobox", { name: "Язык" }).selectOption("en");
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Appearance" })).toBeVisible();
   await page.reload();
-  await page
-    .locator("summary")
-    .filter({ hasText: /^Расписание$/ })
-    .click();
-  await expect(page.getByLabel("Включено")).toBeChecked();
-  await page.getByLabel("Включено").uncheck();
-  await page.getByRole("button", { name: "Сохранить расписание" }).click();
-  await expect(page.getByText("Следующий запуск · —")).toBeVisible();
-  await page.locator("summary").filter({ hasText: "Telegram" }).click();
-  await page.getByLabel("Токен бота").fill("invalid");
-  await page.getByLabel("Идентификатор чата").fill("1234");
-  await page.getByRole("button", { name: "Сохранить", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("Проверьте токен");
+  await expect(page.getByRole("combobox", { name: "Language" })).toHaveValue(
+    "en",
+  );
+  await page.getByRole("link", { name: "Sessions", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Search projects" }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await page.getByRole("combobox", { name: "Language" }).selectOption("ru");
+  await expect(page.getByRole("heading", { name: "Настройки" })).toBeVisible();
 });

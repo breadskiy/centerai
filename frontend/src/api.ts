@@ -1,4 +1,5 @@
 import { useSuspenseQuery, QueryClient } from "@tanstack/react-query";
+import { useLanguage } from "./locale";
 
 export interface GraphNode {
   id: string;
@@ -167,12 +168,15 @@ export function useData<T>(path: string) {
 }
 export const date = (timestamp: number | null) =>
   timestamp
-    ? new Date(timestamp * 1000).toLocaleString("ru-RU", {
-        day: "2-digit",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+    ? new Date(timestamp * 1000).toLocaleString(
+        useLanguage.getState().language === "en" ? "en-GB" : "ru-RU",
+        {
+          day: "2-digit",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        },
+      )
     : "—";
 export const duration = (r: Run) =>
   r.started && r.finished

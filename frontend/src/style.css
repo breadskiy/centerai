@@ -1456,18 +1456,15 @@ dialog .repo-drop { position: absolute; inset: 8px; }
   min-width: 0;
 }
 .session-run-controls select { max-width: min(52vw, 320px); }
+.heading > div { min-width: 0; }
+.heading h1 { overflow-wrap: anywhere; }
 .session-details .detailgrid { padding: 12px 16px; }
 .session-details .detailgrid code { overflow-wrap: anywhere; }
 .session-severity { margin: 0 0 12px; }
-.session-severity button[aria-pressed="true"] {
-  border-color: var(--accent);
-  background: var(--surface-hover);
-}
-.finding-filters summary, .session-details > summary {
+.session-details > summary {
   cursor: pointer;
   font-weight: 600;
 }
-.finding-filters > :not(summary) { margin: 6px 8px 0 0; }
 .session-details { margin-top: 14px; }
 .session-details > summary { padding: 12px 16px; }
 .session-details > .toolbar { padding: 12px 16px; }
@@ -1490,36 +1487,47 @@ dialog .repo-drop { position: absolute; inset: 8px; }
   max-width: 760px;
 }
 .settings-stack > .panel { margin: 0; }
-.settings-stack .theme-settings,
-.settings-group > h2 { padding: 16px; }
-.settings-group > details {
-  margin: 0;
-  border-top: 1px solid var(--line);
-}
-.settings-group summary {
-  display: flex;
+.settings-stack .theme-settings { padding: 16px; }
+.finding-toolbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  cursor: pointer;
-  font-weight: 600;
-  color: inherit;
+  gap: 8px 16px;
 }
-.settings-group summary::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-right: 1px solid currentColor;
-  border-bottom: 1px solid currentColor;
-  transform: rotate(-45deg);
+.finding-toolbar:has(> select) {
+  grid-template-columns: minmax(180px, 1fr) auto auto;
 }
-.settings-group details[open] > summary::before { transform: rotate(45deg); }
-.settings-group summary small {
-  margin-left: auto;
-  font-weight: 400;
+.finding-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
-.settings-fields {
-  padding: 0 16px 16px;
-  max-width: 540px;
+.finding-toolbar .search,
+.finding-toolbar select,
+.session-severity button {
+  background: transparent;
+  border-color: transparent;
 }
-.settings-fields .toolbar { margin-block: 8px 0; }
+.finding-toolbar .search input { width: 100%; }
+.finding-toolbar .search:focus-within { border-bottom-color: var(--control-border); }
+.finding-toolbar .search input:focus-visible,
+.finding-toolbar select:focus-visible,
+.session-severity button:focus-visible {
+  outline: 1px solid var(--control-border);
+  outline-offset: 0;
+}
+.finding-toolbar select:hover,
+.session-severity button:hover {
+  background: var(--surface-hover);
+}
+.session-severity button[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--surface-hover);
+}
+@media (max-width: 900px) {
+  .finding-toolbar,
+  .finding-toolbar:has(> select) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -9,6 +9,8 @@
         const theme = localStorage.getItem("centerai-theme");
         if (theme === "light" || theme === "dark")
           document.documentElement.dataset.theme = theme;
+        if (localStorage.getItem("centerai-language") === "en")
+          document.documentElement.lang = "en";
       } catch {}
     </script>
     <title>CenterAI</title>

@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { t as translateText } from "./locale";
+import { useDeferredValue, useEffect, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   Activity,
@@ -52,11 +54,13 @@ function Pages({
         onClick={() => set(Math.max(0, offset - size))}
       >
         <ChevronLeft />
-        Назад
+        {translateText("Назад")}
       </button>
-      <span>Страница {1 + offset / size}</span>
+      <span>
+        {translateText("Страница")} {1 + offset / size}
+      </span>
       <button disabled={length < size} onClick={() => set(offset + size)}>
-        Далее
+        {translateText("Далее")}
         <ChevronRight />
       </button>
     </div>
@@ -74,19 +78,21 @@ export function HistoryPage() {
   return (
     <>
       <Heading
-        title="История запусков"
-        sub="Проверки, версии сценариев и результаты выполнения."
+        title={translateText("История запусков")}
+        sub={translateText(
+          "Проверки, версии сценариев и результаты выполнения.",
+        )}
       />
       <div className="filters">
         <select
-          aria-label="Проект"
+          aria-label={translateText("Проект")}
           value={project}
           onChange={(e) => {
             setProject(e.target.value);
             set(0);
           }}
         >
-          <option value="">Все проекты</option>
+          <option value="">{translateText("Все проекты")}</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -94,18 +100,18 @@ export function HistoryPage() {
           ))}
         </select>
         <select
-          aria-label="Статус"
+          aria-label={translateText("Статус")}
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);
             set(0);
           }}
         >
-          <option value="">Все статусы</option>
-          <option value="success">Завершён</option>
-          <option value="failed">Ошибка</option>
-          <option value="running">Выполняется</option>
-          <option value="queued">В очереди</option>
+          <option value="">{translateText("Все статусы")}</option>
+          <option value="success">{translateText("Завершён")}</option>
+          <option value="failed">{translateText("Ошибка")}</option>
+          <option value="running">{translateText("Выполняется")}</option>
+          <option value="queued">{translateText("В очереди")}</option>
         </select>
       </div>
       <div className="panel">
@@ -123,12 +129,14 @@ export function Monitor() {
   const done = ["success", "failed", "cancelled"].includes(r.status);
   const { busy, act } = useAction();
   const [stage, inspect] = useState("");
-  const [connection, setConnection] = useState("Подключение к журналу…");
+  const [connection, setConnection] = useState(
+    translateText("Подключение к журналу…"),
+  );
   useEffect(() => {
     if (done) return;
     const sse = new EventSource("/api/v1" + key + "/events");
     const refresh = () => void cache.invalidateQueries({ queryKey: [key] });
-    sse.onopen = () => setConnection("Журнал подключён");
+    sse.onopen = () => setConnection(translateText("Журнал подключён"));
     sse.onmessage = refresh;
     sse.addEventListener("done", () => {
       sse.close();
@@ -136,7 +144,7 @@ export function Monitor() {
       void cache.invalidateQueries();
     });
     sse.onerror = () => {
-      setConnection("Переподключение к журналу…");
+      setConnection(translateText("Переподключение к журналу…"));
       refresh();
     };
     return () => sse.close();
@@ -148,12 +156,16 @@ export function Monitor() {
     <>
       <Link className="back" to="/runs">
         <ChevronLeft size={14} />
-        История запусков
+        {translateText("История запусков")}
       </Link>
       <Heading
         title={r.workflow_name}
         sub={
-          r.project_name + " · версия " + r.revision + " · " + date(r.created)
+          r.project_name +
+          translateText(" · версия ") +
+          r.revision +
+          " · " +
+          date(r.created)
         }
         action={
           <div className="toolbar">
@@ -167,7 +179,9 @@ export function Monitor() {
                   })
                 }
               >
-                {r.cancel_requested ? "Завершается этап…" : "Отменить запуск"}
+                {r.cancel_requested
+                  ? translateText("Завершается этап…")
+                  : translateText("Отменить запуск")}
               </button>
             )}
           </div>
@@ -180,10 +194,11 @@ export function Monitor() {
       )}
       <section className="panel">
         <div className="sectionHead">
-          <h2>Выполнение графа</h2>
+          <h2>{translateText("Выполнение графа")}</h2>
           <span>
             {!done && connection + " · "}
-            {complete} из {r.nodes.length} узлов · {duration(r)}
+            {complete} {translateText("из")} {r.nodes.length}{" "}
+            {translateText("узлов ·")} {duration(r)}
           </span>
         </div>
         <ReadonlyGraph
@@ -201,7 +216,7 @@ export function Monitor() {
       <div className="monitorgrid">
         <section className="panel">
           <div className="sectionHead">
-            <h2>Журнал событий</h2>
+            <h2>{translateText("Журнал событий")}</h2>
             <Activity size={18} />
           </div>
           <ol className="timeline">
@@ -230,12 +245,12 @@ export function Monitor() {
         </section>
         <section className="panel padded">
           <FileText />
-          <h2>Результат проверки</h2>
+          <h2>{translateText("Результат проверки")}</h2>
           <small className="mono">run / {r.id.slice(0, 12)}</small>
           <p>
             {done
-              ? r.count + " находок в итоговом отчёте."
-              : "Данные появятся после выполнения графа."}
+              ? r.count + translateText(" находок в итоговом отчёте.")
+              : translateText("Данные появятся после выполнения графа.")}
           </p>
           {done && (
             <>
@@ -244,13 +259,18 @@ export function Monitor() {
                 .map((n) => {
                   const ai = n.output.ai!;
                   const labels: Record<string, string> = {
-                    ok: "Объяснения готовы",
+                    ok: translateText("Объяснения готовы"),
                     partial: `Объяснения получены для ${ai.explained} из ${ai.total} находок`,
-                    no_findings: "Нет находок для объяснения",
-                    ai_unavailable:
+                    no_findings: translateText("Нет находок для объяснения"),
+                    ai_unavailable: translateText(
                       "Модель недоступна или ответ не прошёл проверку",
-                    invalid_input: "Не удалось подтвердить исходные данные",
-                    invalid_configuration: "Проверьте настройки провайдера",
+                    ),
+                    invalid_input: translateText(
+                      "Не удалось подтвердить исходные данные",
+                    ),
+                    invalid_configuration: translateText(
+                      "Проверьте настройки провайдера",
+                    ),
                   };
                   return (
                     <p key={n.node_id}>
@@ -274,7 +294,7 @@ export function Monitor() {
                     : "/projects/" + r.project_id + "?run_id=" + r.id
                 }
               >
-                Результаты сессии
+                {translateText("Результаты сессии")}
               </Link>
               <ReportPreview run={r.id} />
               <div className="downloads">
@@ -292,7 +312,7 @@ export function Monitor() {
             </>
           )}
           <details>
-            <summary>Данные этапов</summary>
+            <summary>{translateText("Данные этапов")}</summary>
             {r.nodes.map((n) => (
               <p key={n.node_id}>
                 <button className="textbtn" onClick={() => inspect(n.node_id)}>
@@ -300,9 +320,9 @@ export function Monitor() {
                 </button>
                 <small>
                   {n.output.files !== undefined
-                    ? n.output.files + " файлов"
+                    ? n.output.files + translateText(" файлов")
                     : n.output.count !== undefined
-                      ? n.output.count + " находок"
+                      ? n.output.count + translateText(" находок")
                       : "—"}{" "}
                   {n.output.branch}
                 </small>
@@ -326,22 +346,25 @@ function ReportPreview({ run }: { run: string }) {
   const [chosen, choose] = useState<Finding | null>(null);
   return (
     <div className="reportPreview">
-      <h3>Проверка перед экспортом</h3>
+      <h3>{translateText("Проверка перед экспортом")}</h3>
       <p>
-        {data.valid && "Структура JSON проверена"} · {data.count} записей
+        {data.valid && translateText("Структура JSON проверена")} · {data.count}{" "}
+        {translateText("записей")}
       </p>
       {data.partial && (
         <p>
-          Запуск завершился досрочно. В отчёт вошли результаты завершённых узлов
-          отчёта.
+          {translateText(
+            "Запуск завершился досрочно. В отчёт вошли результаты завершённых узлов отчёта.",
+          )}
         </p>
       )}
       <p>
-        Критические: {data.levels.CRITICAL} · Высокие: {data.levels.HIGH}
+        {translateText("Критические:")} {data.levels.CRITICAL}{" "}
+        {translateText("· Высокие:")} {data.levels.HIGH}
       </p>
       {data.priorities.length > 0 && (
         <details>
-          <summary>Порядок исправлений</summary>
+          <summary>{translateText("Порядок исправлений")}</summary>
           <ol>
             {data.priorities.map((f) => (
               <li key={f.id}>
@@ -355,8 +378,9 @@ function ReportPreview({ run }: { run: string }) {
         </details>
       )}
       <small>
-        Проверены поддерживаемые правила Kotlin и снимок базы Maven.
-        Динамическое поведение приложения требует отдельной проверки.
+        {translateText(
+          "Проверены поддерживаемые правила Kotlin и снимок базы Maven. Динамическое поведение приложения требует отдельной проверки.",
+        )}
       </small>
       {chosen && <Detail f={chosen} close={() => choose(null)} />}
     </div>
@@ -373,7 +397,7 @@ function Stage({
 }) {
   const data = useData<{ output: unknown }>("/runs/" + run + "/nodes/" + node);
   return (
-    <Modal title="Выход узла" close={close}>
+    <Modal title={translateText("Выход узла")} close={close}>
       <code>{node}</code>
       <pre className="block" style={{ whiteSpace: "pre-wrap" }}>
         {JSON.stringify(data.output, null, 2)}
@@ -388,11 +412,11 @@ function Detail({ f, close }: { f: Finding; close: () => void }) {
         <Severity value={f.severity} />
         <span className="tag">{f.category}</span>
       </div>
-      <h3>Расположение</h3>
+      <h3>{translateText("Расположение")}</h3>
       <code className="block">
         {f.path}:{f.line}
       </code>
-      <h3>Факт анализатора</h3>
+      <h3>{translateText("Факт анализатора")}</h3>
       <p>{f.description}</p>
       <code className="block">{f.evidence}</code>
       {f.advisoryId && (
@@ -400,31 +424,35 @@ function Detail({ f, close }: { f: Finding; close: () => void }) {
           {f.advisoryId} · {f.aliases?.join(", ")}
         </p>
       )}
-      <h3>Исправление</h3>
+      <h3>{translateText("Исправление")}</h3>
       <p>{f.remediation}</p>
       {f.ai && (
         <section>
-          <h3>Объяснение AI · {f.ai.model}</h3>
+          <h3>
+            {translateText("Объяснение AI ·")} {f.ai.model}
+          </h3>
           <p>{f.ai.explanation}</p>
           <p>{f.ai.technical_details}</p>
           <p>
-            <strong>Возможные последствия</strong> {f.ai.business_impact}
+            <strong>{translateText("Возможные последствия")}</strong>{" "}
+            {f.ai.business_impact}
           </p>
-          <h4>Шаги исправления</h4>
+          <h4>{translateText("Шаги исправления")}</h4>
           <ol>
             {f.ai.remediation_steps.map((s, i) => (
               <li key={i}>{s}</li>
             ))}
           </ol>
           <p>
-            <strong>Оценка модели</strong> {f.ai.evidence_status}
+            <strong>{translateText("Оценка модели")}</strong>{" "}
+            {f.ai.evidence_status}
           </p>
           <p>{f.ai.false_positive_notes}</p>
         </section>
       )}
       <small>{f.rule_id}</small>
       <Link className="button" to={"/runs/" + f.run_id}>
-        Открыть запуск
+        {translateText("Открыть запуск")}
       </Link>
     </Modal>
   );
@@ -449,19 +477,19 @@ function FindingSessions() {
   return (
     <>
       <Heading
-        title="Находки"
-        sub="Выберите сессию, чтобы открыть её находки."
+        title={translateText("Находки")}
+        sub={translateText("Выберите сессию, чтобы открыть её находки.")}
       />
       <div className="filters">
         <select
-          aria-label="Критичность"
+          aria-label={translateText("Критичность")}
           value={level}
           onChange={(e) => {
             const value = e.target.value;
             setParams(value ? { severity: value } : {});
           }}
         >
-          <option value="">Все уровни</option>
+          <option value="">{translateText("Все уровни")}</option>
           {levels.map((l) => (
             <option key={l}>{l}</option>
           ))}
@@ -479,13 +507,15 @@ function FindingSessions() {
             >
               <Folder size={20} aria-hidden />
               <strong>{session.name}</strong>
-              <small>{session.count} · находки</small>
+              <small>
+                {session.count} {translateText("· находки")}
+              </small>
               <ChevronRight size={16} aria-hidden />
             </Link>
           ))
         ) : (
-          <Empty title="Нет сессий с находками">
-            Проверьте фильтр или запустите проверку.
+          <Empty title={translateText("Нет сессий с находками")}>
+            {translateText("Проверьте фильтр или запустите проверку.")}
           </Empty>
         )}
       </section>
@@ -516,7 +546,9 @@ export function SessionResults({
     run.project_id !== sessionId ||
     !["success", "failed", "cancelled"].includes(run.status)
   ) {
-    return <Empty title="Результаты запуска пока недоступны" />;
+    return (
+      <Empty title={translateText("Результаты запуска пока недоступны")} />
+    );
   }
   return <RunFindings sessionId={sessionId} runId={runId} />;
 }
@@ -558,6 +590,7 @@ function FindingTable({
   const [level, setLevel] = useState(params.get("severity") || "");
   const [kind, setKind] = useState("");
   const [q, search] = useState("");
+  const query = useDeferredValue(q);
   const [offset, set] = useState(0);
   const [group, setGroup] = useState(false);
   const [sort, setSort] = useState("severity");
@@ -565,7 +598,7 @@ function FindingTable({
   const args = new URLSearchParams({
     offset: String(offset),
     limit: "50",
-    q,
+    q: query,
     sort,
   });
   if (level) args.set("severity", level);
@@ -573,7 +606,16 @@ function FindingTable({
   const selectedRun = runId || params.get("run_id");
   if (selectedRun) args.set("run_id", selectedRun);
   if (sessionId) args.set("project_id", sessionId);
-  const rows = useData<Finding[]>("/findings?" + args);
+  const path = "/findings?" + args;
+  const {
+    data: rows = [],
+    isFetching,
+    isError,
+  } = useQuery({
+    queryKey: [path],
+    queryFn: () => api<Finding[]>(path),
+    placeholderData: keepPreviousData,
+  });
   const groups = group
     ? Array.from(new Set(rows.map((f) => f.category)))
     : [""];
@@ -583,20 +625,23 @@ function FindingTable({
         <>
           <Link className="back" to="/findings">
             <ChevronLeft size={14} />
-            Все сессии с находками
+            {translateText("Все сессии с находками")}
           </Link>
           <Heading
-            title={title || "Находки"}
+            title={title || translateText("Находки")}
             sub={
               params.has("run_id")
-                ? "Результаты выбранного запуска."
-                : "Находки сессии по всем её запускам."
+                ? translateText("Результаты выбранного запуска.")
+                : translateText("Находки сессии по всем её запускам.")
             }
           />
         </>
       )}
       {summary && (
-        <div className="session-severity" aria-label="Критичность находок">
+        <div
+          className="session-severity"
+          aria-label={translateText("Критичность находок")}
+        >
           {levels
             .filter((l) => summary[l])
             .map((l) => (
@@ -615,14 +660,18 @@ function FindingTable({
         </div>
       )}
       {partial && (
-        <p>Показаны результаты, сохранённые до завершения запуска.</p>
+        <p>
+          {translateText(
+            "Показаны результаты, сохранённые до завершения запуска.",
+          )}
+        </p>
       )}
-      <div className="filters">
+      <div className="filters finding-toolbar">
         <label className="search">
           <Search />
           <input
-            aria-label="Поиск находок"
-            placeholder="Путь, класс или advisory"
+            aria-label={translateText("Поиск находок")}
+            placeholder={translateText("Путь, класс или advisory")}
             value={q}
             onChange={(e) => {
               search(e.target.value);
@@ -632,44 +681,43 @@ function FindingTable({
         </label>
         {!runId && (
           <select
-            aria-label="Критичность"
+            aria-label={translateText("Критичность")}
             value={level}
             onChange={(e) => {
               setLevel(e.target.value);
               set(0);
             }}
           >
-            <option value="">Все уровни</option>
+            <option value="">{translateText("Все уровни")}</option>
             {levels.map((l) => (
               <option key={l}>{l}</option>
             ))}
           </select>
         )}
-        <details className="finding-filters" open={runId ? undefined : true}>
-          <summary>Дополнительные фильтры</summary>
+        <div className="finding-filters">
           <select
-            aria-label="Категория"
+            aria-label={translateText("Категория")}
             value={kind}
             onChange={(e) => {
               setKind(e.target.value);
               set(0);
             }}
           >
-            <option value="">Все анализаторы</option>
+            <option value="">{translateText("Все анализаторы")}</option>
             {["SECRET", "SCA", "SAST"].map((k) => (
               <option key={k}>{k}</option>
             ))}
           </select>
           <select
-            aria-label="Сортировка"
+            aria-label={translateText("Сортировка")}
             value={sort}
             onChange={(e) => {
               setSort(e.target.value);
               set(0);
             }}
           >
-            <option value="severity">По критичности</option>
-            <option value="path">По пути</option>
+            <option value="severity">{translateText("По критичности")}</option>
+            <option value="path">{translateText("По пути")}</option>
           </select>
           <label className="check">
             <input
@@ -677,11 +725,15 @@ function FindingTable({
               checked={group}
               onChange={(e) => setGroup(e.target.checked)}
             />
-            Группировать
+            {translateText("Группировать")}
           </label>
-        </details>
+        </div>
       </div>
-      {rows.length ? (
+      {isError ? (
+        <p className="errorline" role="alert">
+          {translateText("Не удалось загрузить находки.")}
+        </p>
+      ) : rows.length ? (
         groups.map((g) => (
           <section className="panel" key={g}>
             {g && (
@@ -693,10 +745,10 @@ function FindingTable({
               <table>
                 <thead>
                   <tr>
-                    <th>Критичность</th>
-                    <th>Находка и расположение</th>
-                    {!runId && <th>Анализатор</th>}
-                    <th aria-label="Детали" />
+                    <th>{translateText("Критичность")}</th>
+                    <th>{translateText("Находка и расположение")}</th>
+                    {!runId && <th>{translateText("Анализатор")}</th>}
+                    <th aria-label={translateText("Детали")} />
                   </tr>
                 </thead>
                 <tbody>
@@ -723,7 +775,7 @@ function FindingTable({
                         <td>
                           <button
                             className="icon"
-                            aria-label="Подробности находки"
+                            aria-label={translateText("Подробности находки")}
                             onClick={() => select(f)}
                           >
                             <ChevronRight />
@@ -738,8 +790,15 @@ function FindingTable({
         ))
       ) : (
         <section className="panel">
-          <Empty title="Находок нет">
-            Проверьте фильтры или запустите сценарий для проекта.
+          <Empty
+            title={
+              isFetching
+                ? translateText("Загружаем находки…")
+                : translateText("Находок нет")
+            }
+          >
+            {!isFetching &&
+              "Проверьте фильтры или запустите сценарий для проекта."}
           </Empty>
         </section>
       )}

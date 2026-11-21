@@ -1,3 +1,4 @@
+import { t as translateText, useLanguage } from "./locale";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Link,
@@ -22,19 +23,8 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import {
-  api,
-  date,
-  Flow,
-  Graph,
-  Project,
-  Registry,
-  Run,
-  Settings,
-  useData,
-} from "./api";
+import { api, date, Flow, Graph, Project, Registry, Run, useData } from "./api";
 import { Button } from "./components/button";
-import { ScheduleSettings } from "./schedules";
 import { TemplateLibrary } from "./templates";
 import { uploadForm, uploadProject } from "./upload";
 import {
@@ -55,11 +45,13 @@ function Pipeline() {
   return (
     <div
       className="pipeline"
-      aria-label="Граф проверки: исходники, три анализатора и отчёт"
+      aria-label={translateText(
+        "Граф проверки: исходники, три анализатора и отчёт",
+      )}
     >
       <div className="pipeSource">
         <FolderGit2 />
-        <span>Исходники</span>
+        <span>{translateText("Исходники")}</span>
       </div>
       <div className="fork leftFork" aria-hidden="true">
         <span />
@@ -84,7 +76,7 @@ function Pipeline() {
       </div>
       <div className="pipeEnd">
         <FileOutput />
-        <span>Отчёт</span>
+        <span>{translateText("Отчёт")}</span>
       </div>
     </div>
   );
@@ -118,26 +110,32 @@ export function Dashboard() {
     }[]
   >("/templates");
   const profiles = [
-    { id: "full", name: "Полная проверка", description: "Secrets, SCA и SAST" },
+    {
+      id: "full",
+      name: translateText("Полная проверка"),
+      description: translateText("Secrets, SCA и SAST"),
+    },
     {
       id: "sca",
-      name: "Только зависимости",
-      description: "Версии библиотек Gradle и известные уязвимости",
+      name: translateText("Только зависимости"),
+      description: translateText(
+        "Версии библиотек Gradle и известные уязвимости",
+      ),
     },
     {
       id: "secrets",
-      name: "Только секреты",
-      description: "Пароли, токены и ключи в исходниках",
+      name: translateText("Только секреты"),
+      description: translateText("Пароли, токены и ключи в исходниках"),
     },
     {
       id: "sast",
-      name: "Только код",
-      description: "Статические правила для Kotlin и Spring",
+      name: translateText("Только код"),
+      description: translateText("Статические правила для Kotlin и Spring"),
     },
     {
       id: "ai",
-      name: "Полная проверка с AI",
-      description: "Три анализатора и пояснения модели",
+      name: translateText("Полная проверка с AI"),
+      description: translateText("Три анализатора и пояснения модели"),
     },
     ...templates.map((t) => ({
       id: t.workflow_id + ":" + t.revision,
@@ -191,23 +189,24 @@ export function Dashboard() {
   const fileError =
     archive &&
     (!/\.(zip|rar|7z|tar|tar\.gz|tgz)$/i.test(archive.name)
-      ? "Выберите ZIP, RAR, 7Z, TAR, TAR.GZ или TGZ."
+      ? translateText("Выберите ZIP, RAR, 7Z, TAR, TAR.GZ или TGZ.")
       : archive.size > 24 * 1024 * 1024
-        ? "Архив превышает 24 МБ."
+        ? translateText("Архив превышает 24 МБ.")
         : "");
   return (
     <>
-      <Heading title="Главная" />
+      <Heading title={translateText("Главная")} />
       <section className="hero import-hero">
         <div className="heroText">
-          <h2>Проверить репозиторий</h2>
+          <h2>{translateText("Проверить репозиторий")}</h2>
           <p>
-            Загрузите архив или вставьте ссылку GitHub, затем выберите профиль
-            проверки Kotlin-проекта.
+            {translateText(
+              "Загрузите архив или вставьте ссылку GitHub, затем выберите профиль проверки Kotlin-проекта.",
+            )}
           </p>
           <Button className="button light" onClick={() => setDialog(true)}>
             <Upload size={16} />
-            Загрузить репозиторий
+            {translateText("Загрузить репозиторий")}
           </Button>
         </div>
         <Pipeline />
@@ -215,13 +214,13 @@ export function Dashboard() {
       {dragging && !dialog && (
         <div className="repo-drop">
           <Upload size={36} />
-          <strong>Отпустите архив</strong>
-          <span>Затем выберите профиль проверки</span>
+          <strong>{translateText("Отпустите архив")}</strong>
+          <span>{translateText("Затем выберите профиль проверки")}</span>
         </div>
       )}
       {dialog && (
         <Modal
-          title="Загрузить репозиторий"
+          title={translateText("Загрузить репозиторий")}
           close={() => {
             if (!busy) setDialog(false);
           }}
@@ -229,7 +228,7 @@ export function Dashboard() {
           {dragging && (
             <div className="repo-drop">
               <Upload size={36} />
-              <strong>Отпустите архив</strong>
+              <strong>{translateText("Отпустите архив")}</strong>
             </div>
           )}
           <form
@@ -251,13 +250,18 @@ export function Dashboard() {
                   nav("/runs/" + run.id);
                 } catch (error) {
                   setImportError(
-                    error instanceof Error ? error.message : "Ошибка импорта",
+                    error instanceof Error
+                      ? error.message
+                      : translateText("Ошибка импорта"),
                   );
                 }
               });
             }}
           >
-            <div className="seg" aria-label="Источник репозитория">
+            <div
+              className="seg"
+              aria-label={translateText("Источник репозитория")}
+            >
               <button
                 type="button"
                 disabled={busy}
@@ -265,7 +269,7 @@ export function Dashboard() {
                 className={mode === "archive" ? "on" : ""}
                 onClick={() => setMode("archive")}
               >
-                Архив
+                {translateText("Архив")}
               </button>
               <button
                 type="button"
@@ -274,7 +278,7 @@ export function Dashboard() {
                 className={mode === "link" ? "on" : ""}
                 onClick={() => setMode("link")}
               >
-                По ссылке
+                {translateText("По ссылке")}
               </button>
             </div>
             {mode === "archive" ? (
@@ -283,10 +287,14 @@ export function Dashboard() {
                   <Archive size={18} />
                   <span>
                     {archive?.name || "Выбрать архив"}
-                    <small>ZIP, RAR, 7Z, TAR, TAR.GZ, TGZ · до 24 МБ</small>
+                    <small>
+                      {translateText(
+                        "ZIP, RAR, 7Z, TAR, TAR.GZ, TGZ · до 24 МБ",
+                      )}
+                    </small>
                   </span>
                   <input
-                    aria-label="Выбрать архив"
+                    aria-label={translateText("Выбрать архив")}
                     type="file"
                     disabled={busy}
                     accept=".zip,.rar,.7z,.tar,.gz,.tgz"
@@ -303,7 +311,7 @@ export function Dashboard() {
               </>
             ) : (
               <label>
-                Ссылка на публичный GitHub-репозиторий
+                {translateText("Ссылка на публичный GitHub-репозиторий")}
                 <input
                   disabled={busy}
                   required
@@ -315,7 +323,7 @@ export function Dashboard() {
               </label>
             )}
             <fieldset className="repo-profiles" disabled={busy}>
-              <legend>Профиль проверки</legend>
+              <legend>{translateText("Профиль проверки")}</legend>
               {profiles.map((p) => (
                 <label className="repo-profile" key={p.id}>
                   <input
@@ -339,8 +347,8 @@ export function Dashboard() {
             {busy && (
               <p role="status">
                 {mode === "archive" && progress < 100
-                  ? "Загрузка " + progress + "%"
-                  : "Импортируем исходники и создаём запуск…"}
+                  ? translateText("Загрузка ") + progress + "%"
+                  : translateText("Импортируем исходники и создаём запуск…")}
               </p>
             )}
             <Button
@@ -352,20 +360,24 @@ export function Dashboard() {
               }
             >
               <Play size={16} />
-              Запустить проверку
+              {translateText("Запустить проверку")}
             </Button>
           </form>
         </Modal>
       )}
-      <div className="home-summary" aria-label="Сводка">
-        <Link to="/projects">{data.projects} · сессии</Link>
-        <Link to="/runs">{data.runs} · запуски</Link>
+      <div className="home-summary" aria-label={translateText("Сводка")}>
+        <Link to="/projects">
+          {data.projects} {translateText("· сессии")}
+        </Link>
+        <Link to="/runs">
+          {data.runs} {translateText("· запуски")}
+        </Link>
       </div>
       <section className="panel">
         <div className="sectionHead">
-          <h2>Последние запуски</h2>
+          <h2>{translateText("Последние запуски")}</h2>
           <Link to="/runs">
-            Вся история <ChevronRight size={14} />
+            {translateText("Вся история")} <ChevronRight size={14} />
           </Link>
         </div>
         <RunsTable rows={data.recent} compact />
@@ -387,7 +399,14 @@ function ProjectForm({
   const nav = useNavigate();
   const show = useNotice((s) => s.show);
   return (
-    <Modal title={project ? "Изменить проект" : "Новый проект"} close={close}>
+    <Modal
+      title={
+        project
+          ? translateText("Изменить проект")
+          : translateText("Новый проект")
+      }
+      close={close}
+    >
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -399,30 +418,30 @@ function ProjectForm({
                   description: values.get("description"),
                 })
               : await uploadProject(values, setProgress);
-            show("Проект сохранён");
+            show(translateText("Проект сохранён"));
             close();
             nav("/projects/" + res.id);
           });
         }}
       >
         <label>
-          Название
+          {translateText("Название")}
           <input
             name="name"
             autoFocus
             required
             maxLength={100}
             defaultValue={project?.name}
-            placeholder="Например, Repair Desk"
+            placeholder={translateText("Например, Repair Desk")}
           />
         </label>
         <label>
-          Описание
+          {translateText("Описание")}
           <textarea
             name="description"
             maxLength={2000}
             defaultValue={project?.description}
-            placeholder="Что проверяем в этом проекте"
+            placeholder={translateText("Что проверяем в этом проекте")}
           />
         </label>
         {!project && (
@@ -443,9 +462,12 @@ function ProjectForm({
               <label className="upload">
                 <Upload />
                 {file
-                  ? file.name + " · " + Math.ceil(file.size / 1024) + " КБ"
-                  : "Выберите ZIP с проектом"}
-                <small>Gradle Kotlin DSL · до 24 МБ</small>
+                  ? file.name +
+                    " · " +
+                    Math.ceil(file.size / 1024) +
+                    translateText(" КБ")
+                  : translateText("Выберите ZIP с проектом")}
+                <small>{translateText("Gradle Kotlin DSL · до 24 МБ")}</small>
                 <input
                   required
                   type="file"
@@ -456,7 +478,7 @@ function ProjectForm({
               </label>
             ) : (
               <label>
-                Ссылка на учебный репозиторий
+                {translateText("Ссылка на учебный репозиторий")}
                 <input
                   required
                   type="url"
@@ -470,13 +492,17 @@ function ProjectForm({
         {busy && !project && (
           <label>
             {progress < 100
-              ? "Загрузка " + progress + "%"
-              : "Проверяем исходники…"}
+              ? translateText("Загрузка ") + progress + "%"
+              : translateText("Проверяем исходники…")}
             <progress max={100} value={progress} />
           </label>
         )}
         <button className="primary" disabled={busy}>
-          {busy ? "Сохраняем…" : project ? "Сохранить" : "Создать проект"}
+          {busy
+            ? translateText("Сохраняем…")
+            : project
+              ? translateText("Сохранить")
+              : translateText("Создать проект")}
         </button>
       </form>
     </Modal>
@@ -498,12 +524,12 @@ export function Projects() {
   return (
     <>
       <Heading
-        title="Сессии"
-        sub="Исходники и история проверок каждого проекта."
+        title={translateText("Сессии")}
+        sub={translateText("Исходники и история проверок каждого проекта.")}
         action={
           <button className="primary" onClick={() => toggle(true)}>
             <Plus />
-            Новый проект
+            {translateText("Новый проект")}
           </button>
         }
       />
@@ -511,20 +537,20 @@ export function Projects() {
         <label className="search">
           <Search />
           <input
-            aria-label="Поиск проектов"
-            placeholder="Поиск проектов"
+            aria-label={translateText("Поиск проектов")}
+            placeholder={translateText("Поиск проектов")}
             value={query}
             onChange={(e) => set(e.target.value)}
           />
         </label>
         <select
-          aria-label="Тип источника"
+          aria-label={translateText("Тип источника")}
           value={kind}
           onChange={(e) => filter(e.target.value)}
         >
-          <option value="">Все источники</option>
+          <option value="">{translateText("Все источники")}</option>
           <option>ZIP</option>
-          <option>Архив</option>
+          <option value="Архив">{translateText("Архив")}</option>
           <option>GitHub</option>
         </select>
       </div>
@@ -532,9 +558,9 @@ export function Projects() {
         {rows.length ? (
           <>
             <div className="session-list-labels" aria-hidden="true">
-              <span>Сессия</span>
-              <span>Последняя проверка</span>
-              <span>Серьёзные находки</span>
+              <span>{translateText("Сессия")}</span>
+              <span>{translateText("Последняя проверка")}</span>
+              <span>{translateText("Серьёзные находки")}</span>
             </div>
             {rows.map((p) => (
               <Link
@@ -546,17 +572,20 @@ export function Projects() {
                 <small>
                   {p.latest_completed?.finished
                     ? date(p.latest_completed.finished)
-                    : "Нет завершённых проверок"}
+                    : translateText("Нет завершённых проверок")}
                 </small>
                 <span
                   className="session-list-risk"
-                  aria-label="Критические и высокие"
+                  aria-label={translateText("Критические и высокие")}
                 >
                   {p.latest_completed
                     ? (p.latest_completed.levels.CRITICAL || 0) +
                       (p.latest_completed.levels.HIGH || 0)
                     : "—"}
-                  <span className="session-risk-label"> · серьёзные</span>
+                  <span className="session-risk-label">
+                    {" "}
+                    {translateText("· серьёзные")}
+                  </span>
                 </span>
                 <ChevronRight aria-hidden />
               </Link>
@@ -564,9 +593,15 @@ export function Projects() {
           </>
         ) : (
           <Empty
-            title={list.length ? "Сессии не найдены" : "Добавьте первую сессию"}
+            title={
+              list.length
+                ? translateText("Сессии не найдены")
+                : translateText("Добавьте первую сессию")
+            }
           >
-            Загрузите ZIP или подключите учебный репозиторий GitHub.
+            {translateText(
+              "Загрузите ZIP или подключите учебный репозиторий GitHub.",
+            )}
           </Empty>
         )}
       </section>
@@ -595,24 +630,29 @@ export function ProjectDetail() {
         action={
           <button onClick={() => setEdit(true)}>
             <Settings2 />
-            Изменить
+            {translateText("Изменить")}
           </button>
         }
       />
-      <section className="session-results" aria-label="Находки сессии">
+      <section
+        className="session-results"
+        aria-label={translateText("Находки сессии")}
+      >
         <div className="session-results-head">
-          <h2>Находки</h2>
+          <h2>{translateText("Находки")}</h2>
           {runId && (
             <div className="session-run-controls">
               <label>
-                <span>Запуск</span>
+                <span>{translateText("Запуск")}</span>
                 <select
-                  aria-label="Запуск"
+                  aria-label={translateText("Запуск")}
                   value={runId}
                   onChange={(e) => setParams({ run_id: e.target.value })}
                 >
                   {!completed.some((r) => r.id === runId) && (
-                    <option value={runId}>Выбранный запуск</option>
+                    <option value={runId}>
+                      {translateText("Выбранный запуск")}
+                    </option>
                   )}
                   {completed.map((r) => (
                     <option key={r.id} value={r.id}>
@@ -622,22 +662,28 @@ export function ProjectDetail() {
                 </select>
               </label>
               <Link className="button" to={"/runs/" + runId}>
-                Граф и журнал
+                {translateText("Граф и журнал")}
               </Link>
             </div>
           )}
         </div>
         {runId ? (
-          <Suspense fallback={<p role="status">Загружаем находки…</p>}>
+          <Suspense
+            fallback={
+              <p role="status">{translateText("Загружаем находки…")}</p>
+            }
+          >
             <SessionResults key={runId} sessionId={p.id} runId={runId} />
           </Suspense>
         ) : (
           <section className="panel">
-            <Empty title="Нет завершённых проверок">
-              Если проверка уже запущена, её ход виден в истории.
+            <Empty title={translateText("Нет завершённых проверок")}>
+              {translateText(
+                "Если проверка уже запущена, её ход виден в истории.",
+              )}
               <div>
                 <Link to={"/workflows?project=" + id + "&new=1"}>
-                  Создать сценарий
+                  {translateText("Создать сценарий")}
                 </Link>
               </div>
             </Empty>
@@ -645,23 +691,23 @@ export function ProjectDetail() {
         )}
       </section>
       <details className="panel session-details">
-        <summary>История запусков</summary>
+        <summary>{translateText("История запусков")}</summary>
         <RunsTable rows={runs} />
       </details>
       <details className="panel session-details">
-        <summary>Источник и сценарии</summary>
+        <summary>{translateText("Источник и сценарии")}</summary>
         <section className="detailgrid">
           <div>
-            <small>Источник</small>
+            <small>{translateText("Источник")}</small>
             <b>{p.source_type}</b>
             <code>{p.source}</code>
           </div>
           <div>
-            <small>Файлы для проверки</small>
+            <small>{translateText("Файлы для проверки")}</small>
             <b>{p.file_count}</b>
           </div>
           <div>
-            <small>Последний запуск</small>
+            <small>{translateText("Последний запуск")}</small>
             <b>{date(p.last_run)}</b>
           </div>
         </section>
@@ -671,17 +717,19 @@ export function ProjectDetail() {
             to={"/workflows?project=" + id + "&new=1"}
           >
             <Plus />
-            Создать сценарий
+            {translateText("Создать сценарий")}
           </Link>
           <Link className="button" to={"/workflows?project=" + id}>
-            Сценарии сессии
+            {translateText("Сценарии сессии")}
           </Link>
           <button
             className="danger"
             onClick={() => {
               if (
                 confirm(
-                  "Удалить проект и его сценарии? История проверок сохранится.",
+                  translateText(
+                    "Удалить проект и его сценарии? История проверок сохранится.",
+                  ),
                 )
               )
                 void act(async () => {
@@ -691,7 +739,7 @@ export function ProjectDetail() {
             }}
           >
             <Trash2 />
-            Удалить
+            {translateText("Удалить")}
           </button>
         </div>
       </details>
@@ -713,7 +761,7 @@ function NewFlow({
   const { act, busy } = useAction();
   const nav = useNavigate();
   return (
-    <Modal title="Новый сценарий" close={close}>
+    <Modal title={translateText("Новый сценарий")} close={close}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -740,20 +788,20 @@ function NewFlow({
         }}
       >
         <label>
-          Название
+          {translateText("Название")}
           <input
             name="name"
             required
             maxLength={100}
-            defaultValue="Проверка исходного кода"
+            defaultValue={translateText("Проверка исходного кода")}
           />
         </label>
         <label>
-          Описание
+          {translateText("Описание")}
           <textarea name="description" maxLength={2000} />
         </label>
         <label>
-          Проект
+          {translateText("Проект")}
           <select
             required
             name="project"
@@ -767,43 +815,52 @@ function NewFlow({
           </select>
         </label>
         <label>
-          Начальный граф
+          {translateText("Начальный граф")}
           <select
             name="start"
             value={start}
             onChange={(e) => setStart(e.target.value)}
           >
-            <option value="base">Три анализатора и отчёт</option>
+            <option value="base">
+              {translateText("Три анализатора и отчёт")}
+            </option>
             {registry.ai_graph && (
-              <option value="ai">Три анализатора, AI и отчёт</option>
+              <option value="ai">
+                {translateText("Три анализатора, AI и отчёт")}
+              </option>
             )}
-            <option value="blank">Только триггер</option>
-            <option value="prompt">По описанию с AI</option>
+            <option value="blank">{translateText("Только триггер")}</option>
+            <option value="prompt">{translateText("По описанию с AI")}</option>
           </select>
         </label>
         {start === "prompt" && (
           <label>
-            Что проверить
+            {translateText("Что проверить")}
             <textarea
               name="prompt"
               required
               minLength={3}
               maxLength={2000}
-              placeholder="По будням в 9 утра проверяй зависимости и присылай критические находки по почте"
+              placeholder={translateText(
+                "По будням в 9 утра проверяй зависимости и присылай критические находки по почте",
+              )}
             />
             <small>
-              Модель получит текст задания. Проверьте черновик в редакторе.
-              Расписание включается вручную.
+              {translateText(
+                "Модель получит текст задания. Проверьте черновик в редакторе. Расписание включается вручную.",
+              )}
             </small>
           </label>
         )}
         {!projects.length && (
-          <Link to="/projects?new=1">Сначала добавьте проект</Link>
+          <Link to="/projects?new=1">
+            {translateText("Сначала добавьте проект")}
+          </Link>
         )}
         <button className="primary" disabled={busy || !projects.length}>
           {busy && start === "prompt"
-            ? "Подготавливаем схему…"
-            : "Открыть редактор"}
+            ? translateText("Подготавливаем схему…")
+            : translateText("Открыть редактор")}
         </button>
       </form>
     </Modal>
@@ -821,22 +878,22 @@ export function Workflows() {
   return (
     <>
       <Heading
-        title="Сценарии"
-        sub="Графы анализа и правила передачи результатов."
+        title={translateText("Сценарии")}
+        sub={translateText("Графы анализа и правила передачи результатов.")}
         action={
           <button className="primary" onClick={() => toggle(true)}>
             <Plus />
-            Новый сценарий
+            {translateText("Новый сценарий")}
           </button>
         }
       />
       <div className="filters">
         <select
-          aria-label="Фильтр проекта"
+          aria-label={translateText("Фильтр проекта")}
           value={project}
           onChange={(e) => setProject(e.target.value)}
         >
-          <option value="">Все проекты</option>
+          <option value="">{translateText("Все проекты")}</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -858,22 +915,24 @@ export function Workflows() {
                 {f.description && <p>{f.description}</p>}
                 <small>
                   {projects.find((p) => p.id === f.project_id)?.name} ·{" "}
-                  {f.graph.nodes.length} узлов · v{f.revision}
+                  {f.graph.nodes.length} {translateText("узлов · v")}
+                  {f.revision}
                 </small>
                 <small>
-                  Изменён {date(f.updated)} · запуск {date(f.last_run)}
+                  {translateText("Изменён")} {date(f.updated)}{" "}
+                  {translateText("· запуск")} {date(f.last_run)}
                 </small>
               </div>
               <Status value={f.last_status} />
               <button
                 className="icon"
-                title="Скопировать"
+                title={translateText("Скопировать")}
                 disabled={busy}
                 onClick={() =>
                   void act(async () => {
                     const copy = await api<Flow>("/workflows", "POST", {
                       ...f,
-                      name: f.name.slice(0, 90) + " (копия)",
+                      name: f.name.slice(0, 90) + translateText(" (копия)"),
                     });
                     nav("/workflows/" + copy.id);
                   })
@@ -883,10 +942,10 @@ export function Workflows() {
               </button>
               <button
                 className="icon"
-                title="Удалить сценарий"
+                title={translateText("Удалить сценарий")}
                 disabled={busy}
                 onClick={() => {
-                  if (confirm("Удалить сценарий?"))
+                  if (confirm(translateText("Удалить сценарий?")))
                     void act(async () => {
                       await api("/workflows/" + f.id, "DELETE");
                     });
@@ -907,13 +966,15 @@ export function Workflows() {
                 }
               >
                 <Play />
-                Запуск
+                {translateText("Запуск")}
               </button>
             </article>
           ))
         ) : (
-          <Empty title="Сценариев пока нет">
-            Создайте граф из базовой проверки или начните с одного триггера.
+          <Empty title={translateText("Сценариев пока нет")}>
+            {translateText(
+              "Создайте граф из базовой проверки или начните с одного триггера.",
+            )}
           </Empty>
         )}
       </section>
@@ -928,112 +989,16 @@ export function Workflows() {
     </>
   );
 }
-function CISettings({ flows }: { flows: Flow[] }) {
-  const [selected, select] = useState(
-    () => localStorage.getItem("ci-flow") || "",
-  );
-  const [gate, setGate] = useState(() => localStorage.getItem("ci-gate") || "");
-  const [timeout, setTimeoutValue] = useState(
-    () => Number(localStorage.getItem("ci-timeout")) || 180,
-  );
-  const flow = flows.find((f) => f.id === selected) || flows[0];
-  const { act } = useAction();
-  const show = useNotice((s) => s.show);
-  const command =
-    flow &&
-    `python scripts/ci_scan.py --workflow ${flow.id} --url ${location.origin} --timeout ${timeout}${gate ? " --fail-on " + gate : ""}`;
-  return (
-    <div className="settings-fields">
-      {flow ? (
-        <>
-          <label>
-            Сценарий для CI
-            <select
-              value={flow.id}
-              onChange={(e) => {
-                select(e.target.value);
-                localStorage.setItem("ci-flow", e.target.value);
-              }}
-            >
-              {flows.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Завершать CI с ошибкой
-            <select
-              value={gate}
-              onChange={(e) => {
-                setGate(e.target.value);
-                localStorage.setItem("ci-gate", e.target.value);
-              }}
-            >
-              <option value="">Только при сбое запуска</option>
-              {["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"].map((l) => (
-                <option key={l} value={l}>
-                  {l} и выше
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Ожидание, секунд
-            <input
-              type="number"
-              min="1"
-              max="86400"
-              value={timeout}
-              onChange={(e) => {
-                const n = Math.min(
-                  86400,
-                  Math.max(1, Number(e.target.value) || 1),
-                );
-                setTimeoutValue(n);
-                localStorage.setItem("ci-timeout", String(n));
-              }}
-            />
-          </label>
-          <pre
-            className="block"
-            style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
-          >
-            {command}
-          </pre>
-          <button
-            onClick={() =>
-              void act(async () => {
-                await navigator.clipboard.writeText(command!);
-                show("Команда скопирована");
-              })
-            }
-          >
-            Скопировать команду
-          </button>
-          <p>
-            Выполните из корня репозитория на runner с доступом к этому адресу.
-            Параметры сохраняются в этом браузере. Файлы результата появятся в
-            reports.
-          </p>
-        </>
-      ) : (
-        <p>Создайте сценарий, чтобы подготовить команду запуска.</p>
-      )}
-    </div>
-  );
-}
-
 function ThemeSettings() {
+  const { language, setLanguage } = useLanguage();
   const [theme, setTheme] = useState(
     document.documentElement.dataset.theme || "system",
   );
   return (
     <section className="panel padded theme-settings">
-      <h2>Внешний вид</h2>
+      <h2>{translateText("Внешний вид")}</h2>
       <label>
-        Тема
+        {translateText("Тема")}
         <select
           value={theme}
           onChange={(event) => {
@@ -1047,9 +1012,19 @@ function ThemeSettings() {
             } catch {}
           }}
         >
-          <option value="light">Светлая</option>
-          <option value="dark">Тёмная</option>
-          <option value="system">Как в системе</option>
+          <option value="light">{translateText("Светлая")}</option>
+          <option value="dark">{translateText("Тёмная")}</option>
+          <option value="system">{translateText("Как в системе")}</option>
+        </select>
+      </label>
+      <label>
+        {translateText("Язык")}
+        <select
+          value={language}
+          onChange={(e) => setLanguage(e.target.value === "en" ? "en" : "ru")}
+        >
+          <option value="ru">Русский</option>
+          <option value="en">English</option>
         </select>
       </label>
     </section>
@@ -1057,155 +1032,11 @@ function ThemeSettings() {
 }
 
 export function SettingsPage() {
-  const s = useData<Settings>("/settings");
-  const flows = useData<Flow[]>("/workflows");
-  const { act, busy } = useAction();
-  const show = useNotice((n) => n.show);
   return (
     <>
-      <Heading title="Настройки" />
+      <Heading title={translateText("Настройки")} />
       <div className="settings-stack">
         <ThemeSettings />
-        <section className="panel settings-group">
-          <h2>Уведомления</h2>
-          <details>
-            <summary>
-              Telegram{" "}
-              <small>{s.telegram ? "Подключён" : "Требует настройки"}</small>
-            </summary>
-            <div className="settings-fields">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const form = e.currentTarget;
-                  const v = new FormData(form);
-                  void act(async () => {
-                    await api(
-                      "/integrations/telegram",
-                      "PUT",
-                      Object.fromEntries(v),
-                    );
-                    form.reset();
-                    show("Настройки сохранены");
-                  });
-                }}
-              >
-                <label>
-                  Токен бота
-                  <input
-                    name="token"
-                    type="password"
-                    autoComplete="new-password"
-                    required={!s.telegram}
-                    placeholder={
-                      s.telegram ? "•••••••• (сохранён)" : "Токен BotFather"
-                    }
-                  />
-                </label>
-                <label>
-                  Идентификатор чата
-                  <input required name="chat" placeholder="Например, -100…" />
-                </label>
-                <div className="toolbar">
-                  <button className="primary" disabled={busy}>
-                    Сохранить
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy || !s.telegram}
-                    onClick={() =>
-                      void act(async () => {
-                        await api("/integrations/telegram/test", "POST");
-                        show("Telegram подтвердил доставку");
-                      })
-                    }
-                  >
-                    Тест доставки
-                  </button>
-                </div>
-              </form>
-            </div>
-          </details>
-          <details>
-            <summary>
-              Электронная почта{" "}
-              <small>
-                {s.smtp && s.email_recipient
-                  ? "Настроена"
-                  : "Требует настройки"}
-              </small>
-            </summary>
-            <div className="settings-fields">
-              {s.demo_mailbox && (
-                <p>
-                  <a
-                    href="http://127.0.0.1:8025"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Открыть тестовый почтовый ящик
-                  </a>
-                  . В этом режиме все письма остаются на компьютере.
-                </p>
-              )}
-              <p>
-                {s.smtp
-                  ? "SMTP задан на сервере."
-                  : "Для отправки задайте SMTP_HOST и параметры почтового сервера."}
-              </p>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const recipient = new FormData(e.currentTarget).get(
-                    "recipient",
-                  );
-                  void act(async () => {
-                    await api("/integrations/email", "PUT", { recipient });
-                    show("Получатель сохранён");
-                  });
-                }}
-              >
-                <label>
-                  Адрес получателя
-                  <input
-                    name="recipient"
-                    required
-                    type="email"
-                    defaultValue={s.email_recipient}
-                  />
-                </label>
-                <div className="toolbar">
-                  <button disabled={busy}>Сохранить адрес</button>
-                  <button
-                    type="button"
-                    disabled={busy || !s.smtp || !s.email_recipient}
-                    onClick={() =>
-                      void act(async () => {
-                        await api("/integrations/email/test", "POST");
-                        show("SMTP-сервер принял письмо");
-                      })
-                    }
-                  >
-                    Тестовое письмо
-                  </button>
-                </div>
-              </form>
-            </div>
-          </details>
-        </section>
-        <section className="panel settings-group">
-          <h2>Автоматизация</h2>
-          <details>
-            <summary>Расписание</summary>
-            <div className="settings-fields">
-              <ScheduleSettings flows={flows} />
-            </div>
-          </details>
-          <details>
-            <summary>CI/CD</summary>
-            <CISettings flows={flows} />
-          </details>
-        </section>
       </div>
     </>
   );
