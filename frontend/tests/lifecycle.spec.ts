@@ -2,10 +2,7 @@ import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-test("Черновик сохраняется при сбое AI, отправка доступна через Telegram, CI свёрнут", async ({
-  page,
-  request,
-}) => {
+test("Генератор сохраняет описание при ошибке", async ({ page, request }) => {
   const project = await request.post("/api/v1/projects", {
     multipart: {
       name: "Проект для CI",
@@ -27,25 +24,13 @@ test("Черновик сохраняется при сбое AI, отправк
   await expect(page.getByLabel("Что проверить")).toHaveValue(description);
   await page.getByLabel("Начальный граф").selectOption("base");
   await page.getByRole("button", { name: "Открыть редактор" }).click();
-  await expect(page.getByRole("button", { name: "Email", exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Email", exact: true }),
+  ).toHaveCount(0);
   await page.getByText("Как собрать проверку", { exact: true }).click();
-  await expect(page.getByText("Стрелка передаёт результат", { exact: false })).toBeVisible();
-  const flow = page.url().split("/").pop()!;
-  await page.goto("/settings");
-  await expect(page.getByRole("heading", { name: "Telegram" })).toBeVisible();
-  await expect(page.getByText("Источники GitHub")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Электронная почта" })).toHaveCount(0);
-  await expect(page.getByLabel("Сценарий для CI")).toBeHidden();
-  await page.getByText("Для разработчиков", { exact: true }).click();
-  await page.getByLabel("Сценарий для CI").selectOption(flow);
-  await page.getByLabel("Завершать CI с ошибкой").selectOption("HIGH");
-  await page.getByLabel("Ожидание, секунд").fill("360");
-  await page.reload();
-  await page.getByText("Для разработчиков", { exact: true }).click();
-  await expect(page.locator("pre.block")).toContainText("--workflow " + flow);
-  await expect(page.locator("pre.block")).toContainText(
-    "--timeout 360 --fail-on HIGH",
-  );
+  await expect(
+    page.getByText("Стрелка передаёт результат", { exact: false }),
+  ).toBeVisible();
 });
 
 test("Готовый AI-граф сохраняет находки при недоступной модели", async ({
@@ -170,60 +155,36 @@ test("Ошибки импорта, поиск, история версий, пу
   await page.getByLabel("Поиск проектов").fill("Проект для шаблонов");
   await expect(page.locator(".projectrow")).toHaveCount(1);
   await page.locator(".projectrow").click();
+  await page.getByText("Источник и сценарии", { exact: true }).click();
   page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "Удалить", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Проекты", exact: true }),
+    page.getByRole("heading", { name: "Сессии", exact: true }),
   ).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-test("Настройки cron, часовой пояс, выключение расписания и отказ при ошибке Telegram", async ({
+test("В настройках только внешний вид, язык меняется и сохраняется", async ({
   page,
-  request,
 }) => {
-  const projectResponse = await request.post("/api/v1/projects", {
-    multipart: {
-      name: "Проект расписаний",
-      archive: {
-        name: "input.zip",
-        mimeType: "application/zip",
-        buffer: readFileSync(resolve("../.qa/e2e-fixture.zip")),
-      },
-    },
-  });
-  expect(projectResponse.ok()).toBeTruthy();
-  const registry = await (await request.get("/api/v1/registry")).json();
-  const graph = registry.default_graph;
-  graph.nodes[0] = {
-    ...graph.nodes[0],
-    type: "schedule_trigger",
-    config: registry.types.schedule_trigger.defaults,
-  };
-  const response = await request.post("/api/v1/workflows", {
-    data: {
-      project_id: (await projectResponse.json()).id,
-      name: "Проверка расписания",
-      graph,
-    },
-  });
-  expect(response.ok()).toBeTruthy();
-  await page.goto("/workflows/" + (await response.json()).id);
-  await page.locator(".react-flow__node").filter({ hasText: "Расписание" }).click();
-  await page.getByLabel("Cron", { exact: true }).fill("0 3 * * *");
-  await page.getByLabel("Часовой пояс").fill("Europe/Moscow");
-  await page.getByLabel("Включить расписание").check();
-  await page.getByRole("button", { name: "Сохранить", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("Граф сохранён");
-  await page.reload();
-  await page.locator(".react-flow__node").filter({ hasText: "Расписание" }).click();
-  await expect(page.getByLabel("Включить расписание")).toBeChecked();
-  await page.getByLabel("Включить расписание").uncheck();
-  await page.getByRole("button", { name: "Сохранить", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("Граф сохранён");
   await page.goto("/settings");
-  await page.getByLabel("Токен бота").fill("invalid");
-  await page.getByLabel("Идентификатор чата").fill("1234");
-  await page.getByRole("button", { name: "Сохранить", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("Проверьте токен");
+  await expect(page.getByRole("heading", { level: 2 })).toHaveText(
+    "Внешний вид",
+  );
+  await expect(page.getByRole("combobox")).toHaveCount(2);
+  await page.getByRole("combobox", { name: "Язык" }).selectOption("en");
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Appearance" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("combobox", { name: "Language" })).toHaveValue(
+    "en",
+  );
+  await page.getByRole("link", { name: "Sessions", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Search projects" }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await page.getByRole("combobox", { name: "Language" }).selectOption("ru");
+  await expect(page.getByRole("heading", { name: "Настройки" })).toBeVisible();
 });

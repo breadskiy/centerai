@@ -46,7 +46,7 @@ test("ZIP → editable workflow → live execution → report and settings", asy
   });
   await page
     .getByRole("navigation")
-    .getByRole("link", { name: "Проекты", exact: true })
+    .getByRole("link", { name: "Сессии", exact: true })
     .click();
   await page.getByRole("button", { name: "Новый проект", exact: true }).click();
   await page
@@ -83,13 +83,18 @@ test("ZIP → editable workflow → live execution → report and settings", asy
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: "JSON", exact: true }).click();
   expect((await download).suggestedFilename()).toMatch(/\.json$/);
-  await page.getByRole("link", { name: "Открыть находки" }).click();
+  await page.getByRole("link", { name: "Результаты сессии" }).click();
   await page.getByLabel("Категория", { exact: true }).selectOption("SECRET");
+  await expect(
+    page.getByRole("button", { name: "Подробности находки" }),
+  ).toHaveCount(1);
   await page.getByRole("button", { name: "Подробности находки" }).click();
   await expect(page.getByRole("dialog")).toContainText("Значение скрыто");
   await page.getByRole("button", { name: "Закрыть", exact: true }).click();
   await page.getByRole("link", { name: "Настройки", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Telegram" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Внешний вид" }),
+  ).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("link", { name: "Главная", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Главная" })).toBeVisible();
@@ -155,4 +160,99 @@ test("Главная сохраняет выбранный профиль пос
   await expect(page.getByText("1 находок в итоговом отчёте.")).toBeVisible({
     timeout: 20000,
   });
+});
+
+test("Сессия показывает один запуск, монитор открывает выбранный снимок результатов", async ({
+  page,
+  request,
+}) => {
+  const { readFileSync } = await import("node:fs");
+  const buffer = readFileSync(resolve("../.qa/e2e-fixture.zip"));
+  const create = async (name: string, profile: string) => {
+    const response = await request.post("/api/v1/quick-scan", {
+      multipart: {
+        profile,
+        archive: { name, mimeType: "application/zip", buffer },
+      },
+    });
+    expect(response.status()).toBe(202);
+    const run = await response.json();
+    await expect
+      .poll(
+        async () =>
+          (await (await request.get("/api/v1/runs/" + run.id)).json()).status,
+      )
+      .toBe("success");
+    return run;
+  };
+  const sca = await create("session-sca.zip", "sca");
+  await create("session-secrets.zip", "secrets");
+  const repeat = await request.post(
+    "/api/v1/workflows/" + sca.workflow_id + "/runs",
+  );
+  const latest = await repeat.json();
+  await expect
+    .poll(
+      async () =>
+        (await (await request.get("/api/v1/runs/" + latest.id)).json()).status,
+    )
+    .toBe("success");
+  await page.goto("/projects/" + sca.project_id);
+  await expect(
+    page.getByRole("navigation").getByRole("link", { name: "Находки" }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Находки" })).toBeVisible();
+  const search = page.getByRole("textbox", { name: "Поиск находок" });
+  await search.pressSequentially("missing");
+  await expect(page.getByText("Находок нет", { exact: true })).toBeVisible();
+  await expect(search).toBeFocused();
+  await expect(search).toHaveValue("missing");
+  await search.fill("");
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
+  const severity = page.locator(".session-severity button").first();
+  await severity.click();
+  await expect(severity).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
+  await expect(page.getByRole("combobox", { name: "Запуск" })).toHaveValue(
+    latest.id,
+  );
+  await page.getByRole("combobox", { name: "Запуск" }).selectOption(sca.id);
+  await expect(page).toHaveURL(new RegExp("run_id=" + sca.id + "$"));
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
+  await page.goto("/runs/" + sca.id);
+  await page.getByRole("link", { name: "Результаты сессии" }).click();
+  await expect(page).toHaveURL(
+    new RegExp("/projects/" + sca.project_id + "[?]run_id=" + sca.id + "$"),
+  );
+  await expect
+    .poll(async () => (await search.boundingBox())?.width || 0)
+    .toBeLessThanOrEqual(280);
+  await expect(search.locator("..")).toHaveCSS("border-radius", "999px");
+  const full = await create("session-multiple-levels.zip", "full");
+  await page.goto("/projects/" + full.project_id);
+  const high = page.getByRole("button", { name: /^HIGH/ });
+  const medium = page.getByRole("button", { name: /^MEDIUM/ });
+  await high.click();
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
+  await medium.click();
+  await expect(high).toHaveAttribute("aria-pressed", "true");
+  await expect(medium).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(3);
+  await high.click();
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
+  await expect(
+    page.getByRole("table").getByText("MEDIUM", { exact: true }),
+  ).toBeVisible();
+  await page.goto("/settings");
+  await page.getByRole("combobox", { name: "Язык" }).selectOption("en");
+  await page.goto("/projects");
+  const row = page.getByRole("link", { name: /session-secrets.zip/ });
+  await row.hover();
+  await expect(row.locator("svg")).toHaveCSS("color", "rgb(38, 181, 76)");
+  await row.click();
+  await page.getByRole("button", { name: "Hardcoded API key" }).click();
+  await expect(page.getByRole("dialog")).toContainText(
+    "Credentials can be recovered from the project files.",
+  );
 });

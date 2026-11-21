@@ -1,3 +1,4 @@
+import { t as translateText, useLanguage } from "./locale";
 import React, { Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -13,7 +14,6 @@ import {
   Folder,
   History,
   LayoutDashboard,
-  ScanLine,
   Settings2,
   Workflow,
 } from "lucide-react";
@@ -49,37 +49,41 @@ import "./style.css";
 
 const nav = [
   ["/", "Главная", LayoutDashboard],
-  ["/projects", "Проекты", Folder],
+  ["/projects", "Сессии", Folder],
   ["/workflows", "Сценарии", Workflow],
   ["/runs", "Запуски", History],
-  ["/findings", "Находки", ScanLine],
   ["/settings", "Настройки", Settings2],
 ] as const;
 function Shell() {
   const location = useLocation();
+  const language = useLanguage((state) => state.language);
   return (
     <div className="shell">
       <aside className="side">
         <Link className="brand" to="/">
-          <img className="brandMark" src={bankMark} alt="Центр-инвест" />
+          <img
+            className="brandMark"
+            src={bankMark}
+            alt={translateText("Центр-инвест")}
+          />
           CenterAI
         </Link>
-        <nav aria-label="Основная навигация">
+        <nav aria-label={translateText("Основная навигация")}>
           {nav.map(([url, text, Icon]) => (
             <NavLink key={url} end={url === "/"} to={url}>
               <Icon size={18} />
-              <span>{text}</span>
+              <span>{translateText(text)}</span>
             </NavLink>
           ))}
         </nav>
       </aside>
       <div className="content">
         <main>
-          <Boundary key={location.pathname}>
+          <Boundary key={language + location.pathname}>
             <Suspense
               fallback={
                 <div className="loading" role="status">
-                  Загрузка…
+                  {translateText("Загрузка…")}
                 </div>
               }
             >
@@ -92,8 +96,12 @@ function Shell() {
                 <Route path="/runs" element={<HistoryPage />} />
                 <Route path="/runs/:id" element={<Monitor />} />
                 <Route path="/findings" element={<FindingsPage />} />
+                <Route path="/findings/:sessionId" element={<FindingsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
-                <Route path="*" element={<Link to="/">На главную</Link>} />
+                <Route
+                  path="*"
+                  element={<Link to="/">{translateText("На главную")}</Link>}
+                />
               </Routes>
             </Suspense>
           </Boundary>

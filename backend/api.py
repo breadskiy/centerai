@@ -144,6 +144,12 @@ def project_out(db, row):
             Run.project_id == row.id
         )
     ).one()
+    latest = db.execute(
+        select(Run.id, Run.finished)
+        .where(Run.project_id == row.id, Run.status == "success")
+        .order_by(Run.created.desc(), Run.id.desc())
+        .limit(1)
+    ).first()
     return {
         **fields(
             row,
@@ -157,6 +163,15 @@ def project_out(db, row):
         ),
         "runs": count,
         "last_run": last,
+        "latest_completed": (
+            {
+                "id": latest.id,
+                "finished": latest.finished,
+                "levels": run_levels(db, latest.id),
+            }
+            if latest
+            else None
+        ),
     }
 
 
@@ -206,6 +221,16 @@ def run_out(row):
         "finished",
         "count",
         "error",
+    )
+
+
+def run_levels(db, key):
+    return dict(
+        db.execute(
+            select(Finding.severity, func.count())
+            .where(Finding.run_id == key)
+            .group_by(Finding.severity)
+        ).all()
     )
 
 
@@ -272,7 +297,7 @@ def dashboard(db: DB):
             ).all()
         ),
         "recent": [
-            run_out(r)
+            {**run_out(r), "levels": run_levels(db, r.id)}
             for r in db.scalars(select(Run).order_by(Run.created.desc()).limit(5))
         ],
     }
@@ -654,6 +679,7 @@ def run(key: str, db: DB):
         )
     return {
         **run_out(row),
+        "project_archived": db.get(Project, row.project_id).archived,
         "graph": row.graph,
         "nodes": outputs,
         "events": [
@@ -714,11 +740,41 @@ async def events(key: str, request: Request):
     )
 
 
+@api.get("/findings/sessions")
+def finding_sessions(
+    db: DB,
+    severity: str | None = None,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+):
+    query = (
+        select(Project.id, Project.name, func.count().label("count"))
+        .join(Run, Run.project_id == Project.id)
+        .join(Finding, Finding.run_id == Run.id)
+        .group_by(Project.id, Project.name)
+        .order_by(func.max(Run.created).desc(), Project.id)
+    )
+    if severity:
+        query = query.where(Finding.severity == severity)
+    return [
+        dict(row) for row in db.execute(query.offset(offset).limit(limit)).mappings()
+    ]
+
+
+@api.get("/findings/sessions/{key}")
+def finding_session(key: str, db: DB):
+    row = db.get(Project, key)
+    if row is None:
+        raise HTTPException(404, "Сессия не найдена")
+    return fields(row, "id", "name")
+
+
 @api.get("/findings")
 def findings(
     db: DB,
     run_id: str | None = None,
-    severity: str | None = None,
+    project_id: str | None = None,
+    severity: list[str] | None = Query(None),
     category: str | None = None,
     q: str = "",
     sort: str = Query("severity", pattern="^(severity|path)$"),
@@ -728,11 +784,13 @@ def findings(
     query = select(Finding, Run.created).join(Run, Finding.run_id == Run.id)
     for column, value in [
         (Finding.run_id, run_id),
-        (Finding.severity, severity),
+        (Run.project_id, project_id),
         (Finding.category, category),
     ]:
         if value:
             query = query.where(column == value)
+    if severity:
+        query = query.where(Finding.severity.in_(severity))
     if q:
         from sqlalchemy import or_
 

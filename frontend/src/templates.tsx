@@ -1,3 +1,4 @@
+import { t as translateText } from "./locale";
 import { lazy, Suspense, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BookOpen, Upload } from "lucide-react";
@@ -35,7 +36,7 @@ export function TemplateLibrary({
   return (
     <section className="panel">
       <div className="sectionHead">
-        <h2>Библиотека шаблонов</h2>
+        <h2>{translateText("Библиотека шаблонов")}</h2>
         <button
           disabled={!flows.length}
           onClick={() => {
@@ -44,7 +45,7 @@ export function TemplateLibrary({
           }}
         >
           <Upload />
-          Опубликовать версию
+          {translateText("Опубликовать версию")}
         </button>
       </div>
       {templates.length ? (
@@ -54,21 +55,27 @@ export function TemplateLibrary({
             <div className="grow">
               <b>{t.name}</b>
               <small>
-                v{t.revision} · {t.graph.nodes.length} узлов ·{" "}
-                {date(t.published_at)}
+                v{t.revision} · {t.graph.nodes.length}{" "}
+                {translateText("узлов ·")} {date(t.published_at)}
               </small>
             </div>
-            <button onClick={() => open(t)}>Посмотреть шаблон</button>
+            <button onClick={() => open(t)}>
+              {translateText("Посмотреть шаблон")}
+            </button>
           </article>
         ))
       ) : (
-        <Empty title="Опубликованных шаблонов пока нет">
-          Сохраните версию сценария в библиотеку рабочего пространства, чтобы
-          использовать её в другом проекте.
+        <Empty title={translateText("Опубликованных шаблонов пока нет")}>
+          {translateText(
+            "Сохраните версию сценария в библиотеку рабочего пространства, чтобы использовать её в другом проекте.",
+          )}
         </Empty>
       )}
       {publishing && (
-        <Modal title="Публикация версии" close={() => publish(false)}>
+        <Modal
+          title={translateText("Публикация версии")}
+          close={() => publish(false)}
+        >
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -84,12 +91,12 @@ export function TemplateLibrary({
                     "POST",
                   );
                   publish(false);
-                  show("Версия добавлена в библиотеку");
+                  show(translateText("Версия добавлена в библиотеку"));
                 });
             }}
           >
             <label>
-              Сценарий
+              {translateText("Сценарий")}
               <select
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
@@ -102,19 +109,23 @@ export function TemplateLibrary({
               </select>
             </label>
             <p>
-              В библиотеке сохранится текущая версия графа. Исходники проекта и
-              настройки бота в шаблон не входят.
+              {translateText(
+                "В библиотеке сохранится текущая версия графа. Исходники проекта и настройки бота в шаблон не входят.",
+              )}
             </p>
             <button className="primary" disabled={busy}>
-              Опубликовать
+              {translateText("Опубликовать")}
             </button>
           </form>
         </Modal>
       )}
       {selected && (
         <Modal title={selected.name} close={() => open(null)}>
-          <p>{selected.description || "Версия " + selected.revision}</p>
-          <Suspense fallback={<p>Загрузка графа…</p>}>
+          <p>
+            {selected.description ||
+              translateText("Версия ") + selected.revision}
+          </p>
+          <Suspense fallback={<p>{translateText("Загрузка графа…")}</p>}>
             <Preview graph={selected.graph} statuses={{}} />
           </Suspense>
           <form
@@ -137,7 +148,7 @@ export function TemplateLibrary({
             }}
           >
             <label>
-              Название копии
+              {translateText("Название копии")}
               <input
                 name="name"
                 required
@@ -146,7 +157,7 @@ export function TemplateLibrary({
               />
             </label>
             <label>
-              Проект для копии
+              {translateText("Проект для копии")}
               <select
                 name="project_id"
                 defaultValue={project || projects[0]?.id}
@@ -160,7 +171,7 @@ export function TemplateLibrary({
               </select>
             </label>
             <button className="primary" disabled={busy || !projects.length}>
-              Создать из шаблона
+              {translateText("Создать из шаблона")}
             </button>
           </form>
         </Modal>

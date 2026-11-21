@@ -1,0 +1,456 @@
+import { create } from "zustand";
+export type Language = "ru" | "en";
+export const useLanguage = create<{
+  language: Language;
+  setLanguage: (language: Language) => void;
+}>((set) => ({
+  language: document.documentElement.lang === "en" ? "en" : "ru",
+  setLanguage(language) {
+    document.documentElement.lang = language;
+    try {
+      localStorage.setItem("centerai-language", language);
+    } catch {}
+    set({ language });
+  },
+}));
+const english: Record<string, string> = {
+  Главная: "Home",
+  Сессии: "Sessions",
+  Сценарии: "Workflows",
+  Запуски: "Runs",
+  Настройки: "Settings",
+  "Центр-инвест": "Center-invest",
+  "Основная навигация": "Main navigation",
+  "Загрузка…": "Loading…",
+  "На главную": "Back to home",
+  "Граф проверки: исходники, три анализатора и отчёт":
+    "Scan graph: source files, three analyzers, and a report",
+  Исходники: "Source files",
+  Отчёт: "Report",
+  "Полная проверка": "Full scan",
+  "Secrets, SCA и SAST": "Secrets, SCA, and SAST",
+  "Только зависимости": "Dependencies only",
+  "Версии библиотек Gradle и известные уязвимости":
+    "Gradle dependency versions and known vulnerabilities",
+  "Только секреты": "Secrets only",
+  "Пароли, токены и ключи в исходниках":
+    "Passwords, tokens, and keys in source files",
+  "Только код": "Code only",
+  "Статические правила для Kotlin и Spring":
+    "Static rules for Kotlin and Spring",
+  "Полная проверка с AI": "Full scan with AI",
+  "Три анализатора и пояснения модели": "Three analyzers and AI explanations",
+  "Опубликованный шаблон": "Published template",
+  "Выберите ZIP, RAR, 7Z, TAR, TAR.GZ или TGZ.":
+    "Choose a ZIP, RAR, 7Z, TAR, TAR.GZ, or TGZ archive.",
+  "Архив превышает 24 МБ.": "The archive exceeds 24 MB.",
+  "Проверить репозиторий": "Scan a repository",
+  "Загрузите архив или вставьте ссылку GitHub, затем выберите профиль проверки Kotlin-проекта.":
+    "Upload an archive or paste a GitHub link, then choose a scan profile for your Kotlin project.",
+  "Загрузить репозиторий": "Upload repository",
+  "Отпустите архив": "Drop the archive",
+  "Затем выберите профиль проверки": "Then choose a scan profile",
+  "Ошибка импорта": "Import failed",
+  "Источник репозитория": "Repository source",
+  Архив: "Archive",
+  "По ссылке": "From a URL",
+  "Выбрать архив": "Choose archive",
+  "ZIP, RAR, 7Z, TAR, TAR.GZ, TGZ · до 24 МБ":
+    "ZIP, RAR, 7Z, TAR, TAR.GZ, TGZ · up to 24 MB",
+  "Ссылка на публичный GitHub-репозиторий": "Public GitHub repository URL",
+  Загрузка: "Uploading",
+  "Профиль проверки": "Scan profile",
+  "Импортируем исходники и создаём запуск…":
+    "Importing source files and starting the scan…",
+  "Запустить проверку": "Start scan",
+  Сводка: "Summary",
+  "· сессии": "· sessions",
+  "· запуски": "· runs",
+  "Последние запуски": "Recent runs",
+  "Вся история": "Full history",
+  "Изменить проект": "Edit project",
+  "Новый проект": "New project",
+  "Проект сохранён": "Project saved",
+  Название: "Name",
+  "Например, Repair Desk": "e.g. Repair Desk",
+  Описание: "Description",
+  "Что проверяем в этом проекте": "What will be scanned in this project",
+  КБ: "KB",
+  "Выберите ZIP с проектом": "Choose a project ZIP",
+  "Gradle Kotlin DSL · до 24 МБ": "Gradle Kotlin DSL · up to 24 MB",
+  "Ссылка на учебный репозиторий": "Training repository URL",
+  "Проверяем исходники…": "Checking source files…",
+  "Сохраняем…": "Saving…",
+  Сохранить: "Save",
+  "Создать проект": "Create project",
+  "Исходники и история проверок каждого проекта.":
+    "Source files and scan history for each project.",
+  "Поиск проектов": "Search projects",
+  "Тип источника": "Source type",
+  "Все источники": "All sources",
+  Сессия: "Session",
+  "Последняя проверка": "Last scan",
+  "Серьёзные находки": "High and critical findings",
+  "Нет завершённых проверок": "No completed scans",
+  "Критические и высокие": "Critical and high",
+  "· серьёзные": "· high or critical",
+  "Сессии не найдены": "No matching sessions",
+  "Добавьте первую сессию": "Create your first session",
+  "Загрузите ZIP или подключите учебный репозиторий GitHub.":
+    "Upload a ZIP or connect a GitHub training repository.",
+  "Проект статического анализа": "Static analysis project",
+  Изменить: "Edit",
+  "Находки сессии": "Session findings",
+  Находки: "Findings",
+  Запуск: "Run",
+  "Выбранный запуск": "Selected run",
+  "Граф и журнал": "Graph and log",
+  "Загружаем находки…": "Loading findings…",
+  "Если проверка уже запущена, её ход виден в истории.":
+    "Open the history to follow a scan in progress.",
+  "Создать сценарий": "Create workflow",
+  "История запусков": "Run history",
+  "Источник и сценарии": "Source and workflows",
+  Источник: "Source",
+  "Файлы для проверки": "Files to scan",
+  "Последний запуск": "Last run",
+  "Сценарии сессии": "Session workflows",
+  "Удалить проект и его сценарии? История проверок сохранится.":
+    "Delete the project and its workflows? Scan history will be retained.",
+  Удалить: "Delete",
+  "Новый сценарий": "New workflow",
+  "Проверка исходного кода": "Source code scan",
+  Проект: "Project",
+  "Начальный граф": "Starting graph",
+  "Три анализатора и отчёт": "Three analyzers and a report",
+  "Три анализатора, AI и отчёт": "Three analyzers, AI, and a report",
+  "Только триггер": "Trigger only",
+  "По описанию с AI": "Generate from a description",
+  "Что проверить": "What to scan",
+  "По будням в 9 утра проверяй зависимости и присылай критические находки по почте":
+    "Scan dependencies on weekdays at 9 AM and email critical findings",
+  "Модель получит текст задания. Проверьте черновик в редакторе. Расписание включается вручную.":
+    "The model uses your description to draft a workflow. Review it in the editor and enable the schedule when ready.",
+  "Сначала добавьте проект": "Add a project first",
+  "Подготавливаем схему…": "Preparing the graph…",
+  "Открыть редактор": "Open editor",
+  "Графы анализа и правила передачи результатов.":
+    "Scan graphs and result routing rules.",
+  "Фильтр проекта": "Project filter",
+  "Все проекты": "All projects",
+  "узлов · v": "nodes · v",
+  Изменён: "Updated",
+  "· запуск": "· last run",
+  Скопировать: "Copy",
+  "(копия)": "(copy)",
+  "Удалить сценарий": "Delete workflow",
+  "Удалить сценарий?": "Delete this workflow?",
+  "Сценариев пока нет": "No workflows yet",
+  "Создайте граф из базовой проверки или начните с одного триггера.":
+    "Start with a basic scan or build a graph from a single trigger.",
+  "Внешний вид": "Appearance",
+  Тема: "Theme",
+  Светлая: "Light",
+  Тёмная: "Dark",
+  "Как в системе": "System",
+  Язык: "Language",
+  Назад: "Back",
+  Страница: "Page",
+  Далее: "Next",
+  "Проверки, версии сценариев и результаты выполнения.":
+    "Scans, workflow versions, and results.",
+  Статус: "Status",
+  "Все статусы": "All statuses",
+  Завершён: "Completed",
+  Ошибка: "Failed",
+  Выполняется: "Running",
+  "В очереди": "Queued",
+  "Подключение к журналу…": "Connecting to the run log…",
+  "Журнал подключён": "Run log connected",
+  "Переподключение к журналу…": "Reconnecting to the run log…",
+  "· версия": "· version",
+  "Завершается этап…": "Finishing the current step…",
+  "Отменить запуск": "Cancel run",
+  "Выполнение графа": "Workflow execution",
+  из: "of",
+  "узлов ·": "nodes ·",
+  "Журнал событий": "Event log",
+  "Результат проверки": "Scan result",
+  "находок в итоговом отчёте.": "findings in the final report.",
+  "Данные появятся после выполнения графа.":
+    "Results appear after the workflow runs.",
+  "Объяснения готовы": "Explanations ready",
+  "Нет находок для объяснения": "No findings to explain",
+  "Модель недоступна или ответ не прошёл проверку":
+    "The model is unavailable or its response failed validation",
+  "Не удалось подтвердить исходные данные": "Could not verify the source data",
+  "Проверьте настройки провайдера": "Check the provider settings",
+  "Результаты сессии": "Session results",
+  "Данные этапов": "Step outputs",
+  файлов: "files",
+  находок: "findings",
+  "Проверка перед экспортом": "Export validation",
+  "Структура JSON проверена": "JSON structure verified",
+  записей: "records",
+  "Запуск завершился досрочно. В отчёт вошли результаты завершённых узлов отчёта.":
+    "The run ended early. The report includes results from completed report steps.",
+  "Критические:": "Critical:",
+  "· Высокие:": "· High:",
+  "Порядок исправлений": "Fix order",
+  "Проверены поддерживаемые правила Kotlin и снимок базы Maven. Динамическое поведение приложения требует отдельной проверки.":
+    "The scan covers supported Kotlin rules and a Maven advisory snapshot. Runtime behavior requires separate verification.",
+  "Выход узла": "Node output",
+  Расположение: "Location",
+  "Факт анализатора": "Analyzer evidence",
+  Исправление: "Remediation",
+  "Объяснение AI ·": "AI explanation ·",
+  "Возможные последствия": "Potential impact",
+  "Шаги исправления": "Remediation steps",
+  "Оценка модели": "Model assessment",
+  "Открыть запуск": "Open run",
+  "Выберите сессию, чтобы открыть её находки.":
+    "Choose a session to see its findings.",
+  Критичность: "Severity",
+  "Все уровни": "All severities",
+  "· находки": "· findings",
+  "Нет сессий с находками": "No sessions with findings",
+  "Проверьте фильтр или запустите проверку.": "Check the filter or run a scan.",
+  "Результаты запуска пока недоступны": "Run results are not available yet",
+  "Все сессии с находками": "All sessions with findings",
+  "Результаты выбранного запуска.": "Results from the selected run.",
+  "Находки сессии по всем её запускам.":
+    "Findings from all runs in this session.",
+  "Критичность находок": "Finding severity",
+  "Показаны результаты, сохранённые до завершения запуска.":
+    "Showing results saved before the run ended.",
+  "Поиск находок": "Search findings",
+  "Путь, класс или advisory": "Path, class, or advisory",
+  Категория: "Category",
+  "Все анализаторы": "All analyzers",
+  Сортировка: "Sort",
+  "По критичности": "By severity",
+  "По пути": "By path",
+  Группировать: "Group results",
+  "Не удалось загрузить находки.": "Could not load findings.",
+  "Находка и расположение": "Finding and location",
+  Анализатор: "Analyzer",
+  Детали: "Details",
+  "Подробности находки": "Finding details",
+  "Находок нет": "No findings",
+  "Проверьте фильтры или запустите сценарий для проекта.":
+    "Check the filters or run a workflow for this project.",
+  "Закрыть сообщение": "Dismiss message",
+  "Ошибка операции": "Action failed",
+  Закрыть: "Close",
+  Ожидание: "Pending",
+  Пропущен: "Skipped",
+  Отменён: "Cancelled",
+  "Без запусков": "No runs",
+  "Сценарий / проект": "Workflow / project",
+  "Время запуска": "Run time",
+  Длительность: "Duration",
+  "История запусков пуста": "No run history yet",
+  "Здесь появятся этапы и результаты первой проверки.":
+    "The first scan’s steps and results will appear here.",
+  "Не удалось открыть раздел": "Could not open this page",
+  "Повторить загрузку": "Try again",
+  "Нет находок": "No findings",
+  Нет: "No",
+  Да: "Yes",
+  "Неизвестный узел": "Unknown node",
+  "Замените неподдерживаемый тип узла.": "Replace the unsupported node type.",
+  "Входящие связи": "Incoming connections",
+  "Удалить связь": "Remove connection",
+  "Вход из узла": "Input from node",
+  "Выберите узел": "Choose a node",
+  Ветвь: "Branch",
+  Соединить: "Connect",
+  "Сравнить число находок": "Compare finding count",
+  Порог: "Threshold",
+  "Включить уровни": "Include severities",
+  Модель: "Model",
+  "По умолчанию на сервере": "Server default",
+  "Выражение для пути": "Path pattern",
+  "Часовой пояс": "Time zone",
+  "Включить расписание": "Enable schedule",
+  "Версии сценария": "Workflow versions",
+  узлов: "nodes",
+  Загрузить: "Load",
+  Сохранено: "Saved",
+  "Сохранение…": "Saving…",
+  "Ошибка сохранения": "Save failed",
+  "Есть изменения": "Unsaved changes",
+  "Название сценария": "Workflow name",
+  "Настройки сценария": "Workflow settings",
+  Версии: "Versions",
+  "Граф сохранён": "Graph saved",
+  "Граф прошёл проверку": "Graph validated",
+  Проверить: "Validate",
+  Запустить: "Run",
+  Узлы: "Nodes",
+  связей: "connections",
+  "Весь граф": "Fit graph",
+  "Поиск узлов": "Search nodes",
+  "Найти узел": "Find a node",
+  "Инспектор узла": "Node inspector",
+  "Свернуть инспектор": "Collapse inspector",
+  Вход: "Input",
+  Выход: "Output",
+  "Удалить узел": "Delete node",
+  Готово: "Done",
+  "Библиотека шаблонов": "Template library",
+  "Опубликовать версию": "Publish version",
+  "Посмотреть шаблон": "View template",
+  "Опубликованных шаблонов пока нет": "No published templates yet",
+  "Сохраните версию сценария в библиотеку рабочего пространства, чтобы использовать её в другом проекте.":
+    "Publish a workflow version to reuse it in another project.",
+  "Публикация версии": "Publish version",
+  "Версия добавлена в библиотеку": "Version added to the library",
+  Сценарий: "Workflow",
+  "В библиотеке сохранится текущая версия графа. Исходники проекта и настройки бота в шаблон не входят.":
+    "The library saves the current graph version. Source files and bot settings stay with the project.",
+  Опубликовать: "Publish",
+  Версия: "Version",
+  "Загрузка графа…": "Loading graph…",
+  "Название копии": "Copy name",
+  "Проект для копии": "Target project",
+  "Создать из шаблона": "Create from template",
+  "Ручной запуск": "Manual trigger",
+  Расписание: "Schedule",
+  Триггеры: "Triggers",
+  Анализаторы: "Analyzers",
+  Вывод: "Output",
+  Логика: "Logic",
+  Фильтры: "Filters",
+  "AI-анализ": "AI analysis",
+  "Поиск встроенных учётных данных.": "Search for hardcoded credentials.",
+  "Проверка версий зависимостей Gradle.": "Check Gradle dependency versions.",
+  "Статический анализ структуры Kotlin.": "Statically analyze Kotlin code.",
+  "Запуск по команде оператора.": "Run on demand.",
+  "Календарный запуск в заданной зоне.":
+    "Run on a schedule in the selected time zone.",
+  "Снимок файлов проекта.": "Snapshot of the project files.",
+  "Сравнение числа находок с порогом.":
+    "Compare the finding count with a threshold.",
+  "Отбор по уровням риска.": "Filter by severity.",
+  "Отбор по пути к файлу.": "Filter by file path.",
+  "Объяснения и шаги исправления по находкам анализаторов.":
+    "Explain findings and suggest fixes.",
+  "Валидация и объединение находок.": "Validate and combine findings.",
+  "Отправка краткого отчёта.": "Send a report summary.",
+  "Отправка сводки по электронной почте.": "Email the report summary.",
+  "Запуск поставлен в очередь": "Run queued",
+  "Проверка отменена оператором": "Scan cancelled by the operator",
+  "Проверка началась": "Scan started",
+  "Условие ветви не выполнено": "Branch condition was not met",
+  "Проверка завершена": "Scan completed",
+  "Завершено · находок": "Completed · findings",
+  "Ошибка обработки данных на этапе проверки":
+    "Could not process data during the scan",
+  "Пароль в исходниках": "Hardcoded password",
+  "Встроенный ключ API": "Hardcoded API key",
+  "Токен в настройках": "Token in configuration",
+  "Секрет по умолчанию": "Default secret",
+  "Токен из строковых фрагментов": "Token assembled from string fragments",
+  "Закрытый ключ в проекте": "Private key in the project",
+  "Значение учётных данных может быть извлечено из файлов проекта.":
+    "Credentials can be recovered from the project files.",
+  "Замените значение в хранилище секретов и передавайте его через окружение.":
+    "Rotate the value in your secret store and inject it through the environment.",
+  "Значение скрыто ••••": "Value masked ••••",
+  "Динамический SQL": "Dynamic SQL",
+  "Строка запроса содержит подстановку данных.":
+    "The query string interpolates data.",
+  "Передавайте значение параметром подготовленного запроса.":
+    "Bind the value as a parameter in a prepared statement.",
+  "Проверка имени узла отключена": "Hostname verification disabled",
+  "HostnameVerifier принимает любое имя.":
+    "The hostname verifier accepts any hostname.",
+  "Используйте стандартную проверку имени узла при TLS-соединении.":
+    "Use standard TLS hostname verification.",
+  "CORS разрешает сторонние origin": "CORS allows third-party origins",
+  "В одной конфигурации совмещены wildcard-origin и credentials.":
+    "The configuration combines wildcard origins with credentials.",
+  "Укажите конкретные доверенные origin или отключите credentials.":
+    "Specify trusted origins or disable credentials.",
+  "Публичный маршрут с доступом к данным": "Public route with data access",
+  "Первое подходящее правило разрешает анонимный вызов обработчика, читающего записи.":
+    "The first matching rule allows anonymous access to a handler that reads records.",
+  "Проверьте назначение маршрута и ограничьте доступ нужной ролью.":
+    "Review the route and restrict access to the appropriate role.",
+  "Чтение объекта без проверки владельца":
+    "Object read without an ownership check",
+  "ID из маршрута передаётся в запрос. Запись содержит владельца, который отсутствует в предикате.":
+    "The route ID is passed to the query. The record has an owner, but the predicate does not check it.",
+  "Ограничьте запрос одновременно идентификатором объекта и текущим пользователем.":
+    "Restrict the query by both the object ID and the current user.",
+  "Версия входит в диапазон учебного справочника уязвимостей.":
+    "The version falls within an affected range in the advisory catalog.",
+  "Сверьте совместимость с исправленными версиями:":
+    "Check compatibility with the fixed versions:",
+  "Соединение прервано при загрузке проекта":
+    "The connection dropped while uploading the project",
+  "Ошибка загрузки проекта": "Project upload failed",
+  "Сервер вернул ошибку": "Server returned an error",
+  "Сервис модели недоступен. Проверьте подключение AI.":
+    "The model service is unavailable. Check the AI connection.",
+  "Дождитесь завершения проверки": "Wait for the scan to finish",
+  "Введите ссылку вида https://github.com/владелец/репозиторий":
+    "Enter a URL in this format: https://github.com/owner/repository",
+  "ZIP превышает 24 МБ": "The ZIP archive exceeds 24 MB",
+  "Архив превышает 24 МБ": "The archive exceeds 24 MB",
+  "Архив репозитория превышает 24 МБ": "The repository archive exceeds 24 MB",
+  "Не удалось загрузить архив с GitHub":
+    "Could not download the archive from GitHub",
+  "Выберите GitHub-репозиторий из серверного списка разрешённых":
+    "Choose a repository from the server allowlist",
+  "Превышен лимит объёма или числа файлов":
+    "The archive exceeds the size or file count limit",
+  "Недопустимая запись в ZIP": "Invalid ZIP entry",
+  "Недопустимая запись в архиве": "Invalid archive entry",
+  "Слишком большой или дублирующийся исходный файл":
+    "A source file is too large or duplicated",
+  "Ожидается исправный ZIP с исходниками в UTF-8":
+    "Provide a valid ZIP archive with UTF-8 source files",
+  "В архиве отсутствует проект Gradle Kotlin DSL":
+    "The archive does not contain a Gradle Kotlin DSL project",
+  "Проверьте формат архива, кодировку UTF-8 и отсутствие пароля":
+    "Check the archive format and UTF-8 encoding, and remove any password",
+  "Проверьте параметры узла": "Check the settings for node",
+  "Подключите вход узла": "Connect the input of node",
+  "Несовместимые порты:": "Incompatible ports:",
+  "Как собрать проверку": "How to build a scan",
+  "Ручной запуск и Исходники задают, когда начать и какой проект проверить.":
+    "Manual trigger and Source files define when the scan starts and which project it checks.",
+  "Добавьте анализатор. Стрелка передаёт результат следующему блоку. Фильтр помогает выбрать нужные находки.":
+    "Add an analyzer. Arrows pass results to the next node. Add a filter to select the findings you need.",
+  "Подключите находки к Отчёту. Чтобы получить объяснения, вставьте AI-анализ между анализатором и Отчётом.":
+    "Connect findings to Report. Add AI analysis between the analyzer and Report to get explanations.",
+  "Нажмите «Проверить», затем «Запустить». Для уведомления подключите Telegram после Отчёта.":
+    "Select Validate, then Run. Connect Telegram after Report to get a notification.",
+  "По будням в 9 утра проверяй зависимости и присылай критические находки в Telegram":
+    "Scan dependencies on weekdays at 9 AM and send critical findings to Telegram",
+  "AI соберёт черновик сценария из текста. Проверьте блоки и стрелки в редакторе. Расписание включается вручную.":
+    "AI drafts a workflow from your description. Check the nodes and connections in the editor and enable the schedule when ready.",
+  "Email временно отключён. Замените узел на Telegram.":
+    "Email is temporarily disabled. Replace the node with Telegram.",
+};
+
+const dynamicPrefixes = [
+  "Сверьте совместимость с исправленными версиями:",
+  "Завершено · находок",
+  "Проверьте параметры узла",
+  "Подключите вход узла",
+  "Несовместимые порты:",
+];
+
+export function t(text: string) {
+  if (useLanguage.getState().language === "ru") return text;
+  const trimmed = text.trim();
+  if (Object.hasOwn(english, trimmed))
+    return text.replace(trimmed, english[trimmed]);
+  const prefix = dynamicPrefixes.find((value) =>
+    trimmed.startsWith(value + " "),
+  );
+  return prefix ? text.replace(prefix, english[prefix]) : text;
+}

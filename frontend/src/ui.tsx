@@ -1,3 +1,4 @@
+import { t as translateText } from "./locale";
 import { Component, ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
@@ -37,8 +38,8 @@ export function Toast() {
     notice &&
     createPortal(
       <div role="status" className={"toast " + (notice.bad ? "bad" : "")}>
-        <span>{notice.text}</span>
-        <button aria-label="Закрыть сообщение" onClick={clear}>
+        <span>{translateText(notice.text)}</span>
+        <button aria-label={translateText("Закрыть сообщение")} onClick={clear}>
           <X size={16} />
         </button>
       </div>,
@@ -60,7 +61,10 @@ export function useAction() {
         await fn();
         await cache.invalidateQueries();
       } catch (e) {
-        show(e instanceof Error ? e.message : "Ошибка операции", true);
+        show(
+          e instanceof Error ? e.message : translateText("Ошибка операции"),
+          true,
+        );
       } finally {
         lock.current = false;
         setBusy(false);
@@ -128,7 +132,11 @@ export function Modal({
     >
       <div className="dialogHead">
         <h2>{title}</h2>
-        <button className="icon" aria-label="Закрыть" onClick={close}>
+        <button
+          className="icon"
+          aria-label={translateText("Закрыть")}
+          onClick={close}
+        >
           <X size={18} />
         </button>
       </div>
@@ -155,25 +163,37 @@ export function Status({ value }: { value: string | null }) {
       ) : (
         <i />
       )}
-      {value ? names[value] || value : "Без запусков"}
+      {value
+        ? translateText(names[value] || value)
+        : translateText("Без запусков")}
     </span>
   );
 }
 export function Severity({ value }: { value: string }) {
   return <span className={"severity " + value}>{value}</span>;
 }
-export function RunsTable({ rows }: { rows: Run[] }) {
+export function RunsTable({
+  rows,
+  compact = false,
+}: {
+  rows: Run[];
+  compact?: boolean;
+}) {
   return rows.length ? (
     <div className="scroll">
       <table>
         <thead>
           <tr>
-            <th>Сценарий / проект</th>
-            <th>Статус</th>
-            <th>Время запуска</th>
-            <th>Длительность</th>
-            <th>Находки</th>
-            <th />
+            <th>{translateText("Сценарий / проект")}</th>
+            <th>{translateText("Статус")}</th>
+            <th>{translateText("Время запуска")}</th>
+            {!compact && <th>{translateText("Длительность")}</th>}
+            <th>
+              {compact
+                ? translateText("Критичность")
+                : translateText("Находки")}
+            </th>
+            {!compact && <th />}
           </tr>
         </thead>
         <tbody>
@@ -181,7 +201,7 @@ export function RunsTable({ rows }: { rows: Run[] }) {
             <tr key={r.id}>
               <td>
                 <Link to={"/runs/" + r.id}>
-                  <b>{r.workflow_name}</b>
+                  <b>{translateText(r.workflow_name)}</b>
                 </Link>
                 <small>{r.project_name}</small>
               </td>
@@ -189,21 +209,44 @@ export function RunsTable({ rows }: { rows: Run[] }) {
                 <Status value={r.status} />
               </td>
               <td>{date(r.created)}</td>
-              <td className="mono">{duration(r)}</td>
-              <td className="mono">{r.count}</td>
-              <td>
-                <Link aria-label="Открыть запуск" to={"/runs/" + r.id}>
-                  <ChevronRight size={16} />
-                </Link>
+              {!compact && <td className="mono">{duration(r)}</td>}
+              <td className="mono">
+                {compact ? (
+                  <div className="run-risk">
+                    {["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"].flatMap(
+                      (level) =>
+                        r.levels?.[level]
+                          ? [
+                              <span key={level}>
+                                <Severity value={level} /> {r.levels[level]}
+                              </span>,
+                            ]
+                          : [],
+                    )}
+                    {!r.count && "—"}
+                  </div>
+                ) : (
+                  r.count
+                )}
               </td>
+              {!compact && (
+                <td>
+                  <Link
+                    aria-label={translateText("Открыть запуск")}
+                    to={"/runs/" + r.id}
+                  >
+                    <ChevronRight size={16} />
+                  </Link>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
       </table>
     </div>
   ) : (
-    <Empty title="История запусков пуста">
-      Здесь появятся этапы и результаты первой проверки.
+    <Empty title={translateText("История запусков пуста")}>
+      {translateText("Здесь появятся этапы и результаты первой проверки.")}
     </Empty>
   );
 }
@@ -226,9 +269,11 @@ export class Boundary extends Component<
   render() {
     return this.state.error ? (
       <section className="panel empty" role="alert">
-        <h2>Не удалось открыть раздел</h2>
+        <h2>{translateText("Не удалось открыть раздел")}</h2>
         <p>{this.state.error}</p>
-        <button onClick={() => location.reload()}>Повторить загрузку</button>
+        <button onClick={() => location.reload()}>
+          {translateText("Повторить загрузку")}
+        </button>
       </section>
     ) : (
       this.props.children

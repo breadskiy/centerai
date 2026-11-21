@@ -1,4 +1,5 @@
 import { useSuspenseQuery, QueryClient } from "@tanstack/react-query";
+import { t, useLanguage } from "./locale";
 
 export interface GraphNode {
   id: string;
@@ -38,6 +39,11 @@ export interface Project {
   created: number;
   runs: number;
   last_run: number | null;
+  latest_completed?: {
+    id: string;
+    finished: number | null;
+    levels: Record<string, number>;
+  } | null;
 }
 export interface Flow {
   description: string;
@@ -52,6 +58,7 @@ export interface Flow {
   last_status: string | null;
 }
 export interface Run {
+  levels?: Record<string, number>;
   cancel_requested: boolean;
   id: string;
   project_id: string;
@@ -68,6 +75,7 @@ export interface Run {
   error: string | null;
 }
 export interface RunDetails extends Run {
+  project_archived?: boolean;
   graph: Graph;
   nodes: {
     node_id: string;
@@ -146,11 +154,11 @@ export async function api<T>(
     body: form ? body : body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) {
-    let message = "Сервер вернул ошибку " + response.status;
+    let message = t("Сервер вернул ошибку") + " " + response.status;
     try {
       message = (await response.json()).detail || message;
     } catch {}
-    throw new Error(message);
+    throw new Error(t(message));
   }
   return response.json();
 }
@@ -160,14 +168,18 @@ export function useData<T>(path: string) {
 }
 export const date = (timestamp: number | null) =>
   timestamp
-    ? new Date(timestamp * 1000).toLocaleString("ru-RU", {
-        day: "2-digit",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+    ? new Date(timestamp * 1000).toLocaleString(
+        useLanguage.getState().language === "en" ? "en-GB" : "ru-RU",
+        {
+          day: "2-digit",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        },
+      )
     : "—";
 export const duration = (r: Run) =>
   r.started && r.finished
-    ? Math.max(0, r.finished - r.started).toFixed(1) + " с"
+    ? Math.max(0, r.finished - r.started).toFixed(1) +
+      (useLanguage.getState().language === "en" ? " s" : " с")
     : "—";

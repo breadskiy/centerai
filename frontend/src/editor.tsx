@@ -1,3 +1,4 @@
+import { t as translateText } from "./locale";
 import { DragEvent, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
@@ -78,11 +79,11 @@ function TileView({ data, selected }: NodeProps<Tile>) {
       className={"tile " + (selected ? "chosen " : "") + "cat" + spec.output}
     >
       {spec.input !== "—" && <Handle type="target" position={Position.Left} />}
-      <div className="tileMeta" title={spec.description}>
+      <div className="tileMeta" title={translateText(spec.description)}>
         <I size={15} />
-        {spec.category}
+        {translateText(spec.category)}
       </div>
-      <b>{spec.title}</b>
+      <b>{translateText(spec.title)}</b>
       {data.status === "success" && data.risk ? (
         <div className="risk-badges">
           {levels.some((level) => data.risk?.[level]) ? (
@@ -94,7 +95,7 @@ function TileView({ data, selected }: NodeProps<Tile>) {
               ) : null,
             )
           ) : (
-            <small>Нет находок</small>
+            <small>{translateText("Нет находок")}</small>
           )}
         </div>
       ) : (
@@ -104,7 +105,7 @@ function TileView({ data, selected }: NodeProps<Tile>) {
       {data.kind === "if_else"
         ? ["true", "false"].map((v, i) => (
             <div key={v} className={"branch branch" + i}>
-              {i ? "Нет" : "Да"}
+              {i ? translateText("Нет") : translateText("Да")}
               <Handle id={v} type="source" position={Position.Right} />
             </div>
           ))
@@ -130,8 +131,8 @@ function translate(
         kind: n.type,
         spec: registry.types[n.type] ?? {
           title: n.type,
-          category: "Неизвестный узел",
-          description: "Замените неподдерживаемый тип узла.",
+          category: translateText("Неизвестный узел"),
+          description: translateText("Замените неподдерживаемый тип узла."),
           input: "?",
           output: "?",
           defaults: {},
@@ -147,7 +148,11 @@ function translate(
       target: e.target,
       sourceHandle: e.branch || null,
       label:
-        e.branch === "true" ? "Да" : e.branch === "false" ? "Нет" : undefined,
+        e.branch === "true"
+          ? translateText("Да")
+          : e.branch === "false"
+            ? translateText("Нет")
+            : undefined,
       type: "smoothstep",
     })),
   };
@@ -206,14 +211,17 @@ function Connections({
   if (picked.data.spec.input === "—") return null;
   return (
     <details>
-      <summary>Входящие связи</summary>
+      <summary>{translateText("Входящие связи")}</summary>
       {incoming.map((e) => (
         <div className="linkline" key={e.id}>
           <small>
-            {nodes.find((n) => n.id === e.source)?.data.spec.title} {e.label}
+            {translateText(
+              nodes.find((n) => n.id === e.source)?.data.spec.title || "",
+            )}{" "}
+            {e.label}
           </small>
           <button
-            aria-label="Удалить связь"
+            aria-label={translateText("Удалить связь")}
             onClick={() => setEdges((es) => es.filter((v) => v.id !== e.id))}
           >
             <Trash2 />
@@ -221,22 +229,22 @@ function Connections({
         </div>
       ))}
       <label>
-        Вход из узла
+        {translateText("Вход из узла")}
         <select value={parent} onChange={(e) => setParent(e.target.value)}>
-          <option value="">Выберите узел</option>
+          <option value="">{translateText("Выберите узел")}</option>
           {candidates.map((n) => (
             <option key={n.id} value={n.id}>
-              {n.data.spec.title} · {n.id.slice(-6)}
+              {translateText(n.data.spec.title)} · {n.id.slice(-6)}
             </option>
           ))}
         </select>
       </label>
       {choice?.data.kind === "if_else" && (
         <label>
-          Ветвь
+          {translateText("Ветвь")}
           <select value={branch} onChange={(e) => setBranch(e.target.value)}>
-            <option value="true">Да</option>
-            <option value="false">Нет</option>
+            <option value="true">{translateText("Да")}</option>
+            <option value="false">{translateText("Нет")}</option>
           </select>
         </label>
       )}
@@ -251,7 +259,12 @@ function Connections({
                 source: parent,
                 target: picked.id,
                 sourceHandle: h,
-                label: h === "true" ? "Да" : h === "false" ? "Нет" : undefined,
+                label:
+                  h === "true"
+                    ? translateText("Да")
+                    : h === "false"
+                      ? translateText("Нет")
+                      : undefined,
                 type: "smoothstep",
               },
               es,
@@ -260,7 +273,7 @@ function Connections({
           setParent("");
         }}
       >
-        Соединить
+        {translateText("Соединить")}
       </button>
     </details>
   );
@@ -279,7 +292,7 @@ function Config({
       {node.data.kind === "if_else" && (
         <>
           <label>
-            Сравнить число находок
+            {translateText("Сравнить число находок")}
             <select
               value={String(c.operator)}
               onChange={(e) => set("operator", e.target.value)}
@@ -290,7 +303,7 @@ function Config({
             </select>
           </label>
           <label>
-            Порог
+            {translateText("Порог")}
             <input
               type="number"
               min="0"
@@ -302,7 +315,7 @@ function Config({
       )}
       {node.data.kind === "severity_filter" && (
         <fieldset>
-          <legend>Включить уровни</legend>
+          <legend>{translateText("Включить уровни")}</legend>
           {levels.map((l) => (
             <label className="check" key={l}>
               <input
@@ -324,18 +337,18 @@ function Config({
       )}
       {node.data.kind === "ai_analysis" && (
         <label>
-          Модель
+          {translateText("Модель")}
           <input
             value={String(c.model || "")}
             maxLength={160}
-            placeholder="По умолчанию на сервере"
+            placeholder={translateText("По умолчанию на сервере")}
             onChange={(e) => set("model", e.target.value)}
           />
         </label>
       )}
       {node.data.kind === "regex_filter" && (
         <label>
-          Выражение для пути
+          {translateText("Выражение для пути")}
           <input
             value={String(c.pattern)}
             maxLength={200}
@@ -353,7 +366,7 @@ function Config({
             />
           </label>
           <label>
-            Часовой пояс
+            {translateText("Часовой пояс")}
             <input
               value={String(c.timezone)}
               onChange={(e) => set("timezone", e.target.value)}
@@ -365,7 +378,7 @@ function Config({
               checked={Boolean(c.enabled)}
               onChange={(e) => set("enabled", e.target.checked)}
             />
-            Включить расписание
+            {translateText("Включить расписание")}
           </label>
         </>
       )}
@@ -385,7 +398,7 @@ function Versions({
     "/workflows/" + flow + "/versions",
   );
   return (
-    <Modal title="Версии сценария" close={close}>
+    <Modal title={translateText("Версии сценария")} close={close}>
       {versions.map((v) => (
         <div className="version" key={v.revision}>
           <div>
@@ -393,7 +406,8 @@ function Versions({
               v{v.revision} · {v.name}
             </b>
             <small>
-              {date(v.created)} · {v.graph.nodes.length} узлов
+              {date(v.created)} · {v.graph.nodes.length}{" "}
+              {translateText("узлов")}
             </small>
           </div>
           <button
@@ -402,7 +416,7 @@ function Versions({
               close();
             }}
           >
-            Загрузить
+            {translateText("Загрузить")}
           </button>
         </div>
       ))}
@@ -421,7 +435,7 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
   const [selected, select] = useState<string | null>(null);
   const [palette, setPalette] = useState(true);
   const [versions, history] = useState(false);
-  const [message, note] = useState("Сохранено");
+  const [message, note] = useState(translateText("Сохранено"));
   const [error, setError] = useState("");
   const revision = useRef(flow.revision);
   const nav = useNavigate();
@@ -480,7 +494,7 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
       .then(async () => {
         const value = latest.current;
         if (saved.current === value) return;
-        note("Сохранение…");
+        note(translateText("Сохранение…"));
         try {
           const updated = await api<Flow>("/workflows/" + flow.id, "PUT", {
             ...JSON.parse(value),
@@ -488,10 +502,10 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
           });
           revision.current = updated.revision;
           saved.current = value;
-          note("Сохранено");
+          note(translateText("Сохранено"));
           setError("");
         } catch (e) {
-          note("Ошибка сохранения");
+          note(translateText("Ошибка сохранения"));
           setError((e as Error).message);
           throw e;
         }
@@ -501,7 +515,7 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
   }
   useEffect(() => {
     if (serialized === saved.current) return;
-    note("Есть изменения");
+    note(translateText("Есть изменения"));
     const t = setTimeout(() => {
       void save().catch(() => {});
     }, 800);
@@ -550,9 +564,9 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
           type: "smoothstep",
           label:
             c.sourceHandle === "true"
-              ? "Да"
+              ? translateText("Да")
               : c.sourceHandle === "false"
-                ? "Нет"
+                ? translateText("Нет")
                 : undefined,
         },
         es,
@@ -573,13 +587,13 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
     <section className="editor">
       <Link className="back" to="/workflows">
         <ChevronLeft size={15} />
-        Сценарии
+        {translateText("Сценарии")}
       </Link>
       <div className="editorbar">
         <div>
           <input
             className="nameInput"
-            aria-label="Название сценария"
+            aria-label={translateText("Название сценария")}
             value={name}
             maxLength={100}
             onChange={(e) => setName(e.target.value)}
@@ -589,23 +603,26 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
           </small>
         </div>
         <div className="toolbar">
-          <button title="Настройки сценария" onClick={() => settings(true)}>
+          <button
+            title={translateText("Настройки сценария")}
+            onClick={() => settings(true)}
+          >
             <Settings2 />
           </button>
           <button
-            aria-label="Версии"
-            title="Версии"
+            aria-label={translateText("Версии")}
+            title={translateText("Версии")}
             onClick={() => history(true)}
           >
             <History />
           </button>
           <button
-            title="Сохранить"
+            title={translateText("Сохранить")}
             disabled={busy}
             onClick={() =>
               void act(async () => {
                 await save();
-                show("Граф сохранён");
+                show(translateText("Граф сохранён"));
               })
             }
           >
@@ -616,12 +633,12 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
             onClick={() =>
               void act(async () => {
                 await validate();
-                show("Граф прошёл проверку");
+                show(translateText("Граф прошёл проверку"));
               })
             }
           >
             <CheckCheck />
-            Проверить
+            {translateText("Проверить")}
           </button>
           <button
             className="primary"
@@ -643,7 +660,7 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
             }
           >
             <Play />
-            Запустить
+            {translateText("Запустить")}
           </button>
         </div>
       </div>
@@ -653,25 +670,42 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
         </p>
       )}
       <details className="panel padded">
-        <summary>Как собрать проверку</summary>
+        <summary>{translateText("Как собрать проверку")}</summary>
         <ol>
-          <li>Ручной запуск и Исходники задают, когда начать и какой проект проверить.</li>
-          <li>Добавьте анализатор. Стрелка передаёт результат следующему блоку. Фильтр помогает выбрать нужные находки.</li>
-          <li>Подключите находки к Отчёту. Чтобы получить объяснения, вставьте AI-анализ между анализатором и Отчётом.</li>
-          <li>Нажмите «Проверить», затем «Запустить». Для уведомления подключите Telegram после Отчёта.</li>
+          <li>
+            {translateText(
+              "Ручной запуск и Исходники задают, когда начать и какой проект проверить.",
+            )}
+          </li>
+          <li>
+            {translateText(
+              "Добавьте анализатор. Стрелка передаёт результат следующему блоку. Фильтр помогает выбрать нужные находки.",
+            )}
+          </li>
+          <li>
+            {translateText(
+              "Подключите находки к Отчёту. Чтобы получить объяснения, вставьте AI-анализ между анализатором и Отчётом.",
+            )}
+          </li>
+          <li>
+            {translateText(
+              "Нажмите «Проверить», затем «Запустить». Для уведомления подключите Telegram после Отчёта.",
+            )}
+          </li>
         </ol>
       </details>
       <div className="editorframe">
         <div className="canvasbar">
           <button onClick={() => setPalette(!palette)} aria-expanded={palette}>
             <PanelLeft />
-            Узлы
+            {translateText("Узлы")}
           </button>
           <span>
-            {nodes.length} узлов · {edges.length} связей
+            {nodes.length} {translateText("узлов ·")} {edges.length}{" "}
+            {translateText("связей")}
           </span>
           <button onClick={() => screen.fitView({ padding: 0.12 })}>
-            Весь граф
+            {translateText("Весь граф")}
           </button>
         </div>
         <div className="graphlayout">
@@ -679,8 +713,8 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
             <aside className="palette">
               <input
                 className="nodeSearch"
-                aria-label="Поиск узлов"
-                placeholder="Найти узел"
+                aria-label={translateText("Поиск узлов")}
+                placeholder={translateText("Найти узел")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -700,7 +734,7 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
                         )
                       }
                     >
-                      {group}
+                      {translateText(group)}
                     </button>
                   </h3>
                   {!collapsed.includes(group) &&
@@ -714,7 +748,7 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
                       .map(([key, spec]) => (
                         <button
                           key={key}
-                          title={spec.description}
+                          title={translateText(spec.description)}
                           draggable
                           onDragStart={(e) =>
                             e.dataTransfer.setData("centerai/node", key)
@@ -722,7 +756,7 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
                           onClick={() => add(key)}
                         >
                           <GripVertical size={13} />
-                          {spec.title}
+                          {translateText(spec.title)}
                           <Plus size={13} />
                         </button>
                       ))}
@@ -764,24 +798,24 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
           </div>
           {picked && (
             <aside className="inspector">
-              <small>Инспектор узла</small>
+              <small>{translateText("Инспектор узла")}</small>
               <button
                 className="closeInspector"
-                aria-label="Свернуть инспектор"
+                aria-label={translateText("Свернуть инспектор")}
                 onClick={() => select(null)}
               >
                 ×
               </button>
-              <h2>{picked.data.spec.title}</h2>
-              <p>{picked.data.spec.description}</p>
+              <h2>{translateText(picked.data.spec.title)}</h2>
+              <p>{translateText(picked.data.spec.description)}</p>
               <code>{picked.data.kind}</code>
               {graphError.includes(picked.id) && (
                 <p className="errorline">{graphError}</p>
               )}
               <dl>
-                <dt>Вход</dt>
+                <dt>{translateText("Вход")}</dt>
                 <dd>{picked.data.spec.input}</dd>
-                <dt>Выход</dt>
+                <dt>{translateText("Выход")}</dt>
                 <dd>{picked.data.spec.output}</dd>
               </dl>
               <Connections
@@ -816,23 +850,28 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
                 }}
               >
                 <Trash2 />
-                Удалить узел
+                {translateText("Удалить узел")}
               </button>
             </aside>
           )}
         </div>
       </div>
       {options && (
-        <Modal title="Настройки сценария" close={() => settings(false)}>
+        <Modal
+          title={translateText("Настройки сценария")}
+          close={() => settings(false)}
+        >
           <label>
-            Описание
+            {translateText("Описание")}
             <textarea
               value={description}
               maxLength={2000}
               onChange={(e) => describe(e.target.value)}
             />
           </label>
-          <button onClick={() => settings(false)}>Готово</button>
+          <button onClick={() => settings(false)}>
+            {translateText("Готово")}
+          </button>
         </Modal>
       )}
       {versions && (
