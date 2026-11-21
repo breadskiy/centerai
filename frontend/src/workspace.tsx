@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Link,
   useNavigate,
@@ -16,7 +16,6 @@ import {
   FileOutput,
   Folder,
   FolderGit2,
-  GitBranch,
   KeyRound,
   Layers3,
   Network,
@@ -45,7 +44,7 @@ import {
 import { Button } from "./components/button";
 import { ScheduleSettings } from "./schedules";
 import { TemplateLibrary } from "./templates";
-import { uploadProject } from "./upload";
+import { uploadForm, uploadProject } from "./upload";
 import {
   Empty,
   Heading,
@@ -99,69 +98,265 @@ export function Dashboard() {
     levels: Record<string, number>;
     recent: Run[];
   }>("/dashboard");
-  const flows = useData<Flow[]>("/workflows");
-  const [quick, setQuick] = useState(false);
+  const [dialog, setDialog] = useState(false);
+  const [importError, setImportError] = useState("");
+  const [mode, setMode] = useState("archive");
+  const [archive, setArchive] = useState<File>();
+  const [repository, setRepository] = useState("");
+  const [profile, setProfile] = useState("full");
+  const [progress, setProgress] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
   const nav = useNavigate();
   const { act, busy } = useAction();
+  const templates = useData<
+    {
+      workflow_id: string;
+      revision: number;
+      name: string;
+      description: string;
+    }[]
+  >("/templates");
+  const profiles = [
+    { id: "full", name: "Полная проверка", description: "Secrets, SCA и SAST" },
+    {
+      id: "sca",
+      name: "Только зависимости",
+      description: "Версии библиотек Gradle и известные уязвимости",
+    },
+    {
+      id: "secrets",
+      name: "Только секреты",
+      description: "Пароли, токены и ключи в исходниках",
+    },
+    {
+      id: "sast",
+      name: "Только код",
+      description: "Статические правила для Kotlin и Spring",
+    },
+    {
+      id: "ai",
+      name: "Полная проверка с AI",
+      description: "Три анализатора и пояснения модели",
+    },
+    ...templates.map((t) => ({
+      id: t.workflow_id + ":" + t.revision,
+      name: t.name + " · v" + t.revision,
+      description: t.description || "Опубликованный шаблон",
+    })),
+  ];
+  useEffect(() => {
+    const isFile = (e: DragEvent) => e.dataTransfer?.types.includes("Files");
+    const enter = (e: DragEvent) => {
+      if (!isFile(e)) return;
+      e.preventDefault();
+      if (!busy) {
+        dragDepth.current++;
+        setDragging(true);
+      }
+    };
+    const over = (e: DragEvent) => {
+      if (isFile(e)) e.preventDefault();
+    };
+    const leave = () => {
+      dragDepth.current = Math.max(0, dragDepth.current - 1);
+      if (!dragDepth.current) setDragging(false);
+    };
+    const reset = () => {
+      dragDepth.current = 0;
+      setDragging(false);
+    };
+    const drop = (e: DragEvent) => {
+      reset();
+      if (!isFile(e)) return;
+      e.preventDefault();
+      if (busy || !e.dataTransfer?.files.length) return;
+      setArchive(e.dataTransfer.files[0]);
+      setMode("archive");
+      setDialog(true);
+    };
+    window.addEventListener("dragenter", enter);
+    window.addEventListener("dragover", over);
+    window.addEventListener("dragleave", leave);
+    window.addEventListener("drop", drop);
+    window.addEventListener("blur", reset);
+    return () => {
+      window.removeEventListener("dragenter", enter);
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("dragleave", leave);
+      window.removeEventListener("drop", drop);
+      window.removeEventListener("blur", reset);
+    };
+  }, [busy]);
+  const fileError =
+    archive &&
+    (!/\.(zip|rar|7z|tar|tar\.gz|tgz)$/i.test(archive.name)
+      ? "Выберите ZIP, RAR, 7Z, TAR, TAR.GZ или TGZ."
+      : archive.size > 24 * 1024 * 1024
+        ? "Архив превышает 24 МБ."
+        : "");
   return (
     <>
-      <Heading
-        title="Обзор проверок"
-        sub="Проекты, сценарии и результаты статического анализа."
-        action={
-          flows.length > 0 && (
-            <Button onClick={() => setQuick(true)}>
-              <Play />
-              Запустить проверку
-            </Button>
-          )
-        }
-      />
-      {quick && (
-        <Modal title="Запустить проверку" close={() => setQuick(false)}>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const key = new FormData(e.currentTarget).get("flow");
-              void act(async () => {
-                const r = await api<Run>("/workflows/" + key + "/runs", "POST");
-                nav("/runs/" + r.id);
-              });
-            }}
-          >
-            <label>
-              Сценарий
-              <select name="flow">
-                {flows.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name} · v{f.revision}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button disabled={busy}>Запустить</Button>
-          </form>
-        </Modal>
-      )}
-      <section className="hero">
+      <Heading title="Главная" />
+      <section className="hero import-hero">
         <div className="heroText">
-          <div className="heroLabel">
-            <GitBranch size={15} /> Базовый сценарий
-          </div>
-          <h2>Проверка исходного кода</h2>
+          <h2>Проверить репозиторий</h2>
           <p>
-            Поиск секретов, проверка зависимостей и анализ Kotlin в одном графе.
+            Загрузите архив или вставьте ссылку GitHub, затем выберите профиль
+            проверки Kotlin-проекта.
           </p>
-          <Link
-            className="button light"
-            to={data.projects ? "/workflows?new=1" : "/projects?new=1"}
-          >
-            <Plus size={16} />
-            {data.projects ? "Создать сценарий" : "Добавить проект"}
-          </Link>
+          <Button className="button light" onClick={() => setDialog(true)}>
+            <Upload size={16} />
+            Загрузить репозиторий
+          </Button>
         </div>
         <Pipeline />
       </section>
+      {dragging && !dialog && (
+        <div className="repo-drop">
+          <Upload size={36} />
+          <strong>Отпустите архив</strong>
+          <span>Затем выберите профиль проверки</span>
+        </div>
+      )}
+      {dialog && (
+        <Modal
+          title="Загрузить репозиторий"
+          close={() => {
+            if (!busy) setDialog(false);
+          }}
+        >
+          {dragging && (
+            <div className="repo-drop">
+              <Upload size={36} />
+              <strong>Отпустите архив</strong>
+            </div>
+          )}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const values = new FormData();
+              if (mode === "archive" && archive) values.set("archive", archive);
+              if (mode === "link") values.set("repository", repository.trim());
+              values.set("profile", profile);
+              setProgress(0);
+              setImportError("");
+              void act(async () => {
+                try {
+                  const run = await uploadForm<Run>(
+                    "/api/v1/quick-scan",
+                    values,
+                    setProgress,
+                  );
+                  nav("/runs/" + run.id);
+                } catch (error) {
+                  setImportError(
+                    error instanceof Error ? error.message : "Ошибка импорта",
+                  );
+                }
+              });
+            }}
+          >
+            <div className="seg" aria-label="Источник репозитория">
+              <button
+                type="button"
+                disabled={busy}
+                aria-pressed={mode === "archive"}
+                className={mode === "archive" ? "on" : ""}
+                onClick={() => setMode("archive")}
+              >
+                Архив
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                aria-pressed={mode === "link"}
+                className={mode === "link" ? "on" : ""}
+                onClick={() => setMode("link")}
+              >
+                По ссылке
+              </button>
+            </div>
+            {mode === "archive" ? (
+              <>
+                <label className="repo-file">
+                  <Archive size={18} />
+                  <span>
+                    {archive?.name || "Выбрать архив"}
+                    <small>ZIP, RAR, 7Z, TAR, TAR.GZ, TGZ · до 24 МБ</small>
+                  </span>
+                  <input
+                    aria-label="Выбрать архив"
+                    type="file"
+                    disabled={busy}
+                    accept=".zip,.rar,.7z,.tar,.gz,.tgz"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) setArchive(e.target.files[0]);
+                    }}
+                  />
+                </label>
+                {fileError && (
+                  <p role="alert" className="errorline">
+                    {fileError}
+                  </p>
+                )}
+              </>
+            ) : (
+              <label>
+                Ссылка на публичный GitHub-репозиторий
+                <input
+                  disabled={busy}
+                  required
+                  type="url"
+                  value={repository}
+                  placeholder="https://github.com/owner/repository"
+                  onChange={(e) => setRepository(e.target.value)}
+                />
+              </label>
+            )}
+            <fieldset className="repo-profiles" disabled={busy}>
+              <legend>Профиль проверки</legend>
+              {profiles.map((p) => (
+                <label className="repo-profile" key={p.id}>
+                  <input
+                    type="radio"
+                    name="profile"
+                    checked={profile === p.id}
+                    onChange={() => setProfile(p.id)}
+                  />
+                  <span>
+                    <strong>{p.name}</strong>
+                    <small>{p.description}</small>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+            {importError && (
+              <p role="alert" className="errorline">
+                {importError}
+              </p>
+            )}
+            {busy && (
+              <p role="status">
+                {mode === "archive" && progress < 100
+                  ? "Загрузка " + progress + "%"
+                  : "Импортируем исходники и создаём запуск…"}
+              </p>
+            )}
+            <Button
+              disabled={
+                busy ||
+                (mode === "archive"
+                  ? !archive || !!fileError
+                  : !repository.trim())
+              }
+            >
+              <Play size={16} />
+              Запустить проверку
+            </Button>
+          </form>
+        </Modal>
+      )}
       <div className="metrics">
         {[
           [data.projects, "Проекты", "/projects", Folder],
@@ -373,6 +568,7 @@ export function Projects() {
         >
           <option value="">Все источники</option>
           <option>ZIP</option>
+          <option>Архив</option>
           <option>GitHub</option>
         </select>
       </div>

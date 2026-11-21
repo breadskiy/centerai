@@ -74,6 +74,7 @@ export interface RunDetails extends Run {
     status: string;
     output: {
       count?: number;
+      levels?: Record<string, number>;
       files?: number;
       branch?: string;
       ai?: {

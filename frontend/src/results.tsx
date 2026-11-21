@@ -187,6 +187,11 @@ export function Monitor() {
         </div>
         <ReadonlyGraph
           graph={r.graph}
+          risks={Object.fromEntries(
+            r.nodes.flatMap((n) =>
+              n.output.levels ? [[n.node_id, n.output.levels]] : [],
+            ),
+          )}
           statuses={Object.fromEntries(
             r.nodes.map((n) => [n.node_id, n.status]),
           )}

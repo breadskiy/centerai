@@ -1381,3 +1381,22 @@ fieldset {
     font-size: 14px;
   }
 }
+.import-hero .heroText h2 { margin-top: 0; }
+.repo-drop {
+  position: fixed; z-index: 200; inset: 14px; pointer-events: none;
+  display: grid; place-content: center; justify-items: center; gap: 12px;
+  background: #163f3bf5; color: white; border: 2px dashed #a6d5c7; border-radius: 14px;
+}
+dialog .repo-drop { position: absolute; inset: 8px; }
+.repo-drop strong { font-size: clamp(24px, 4vw, 54px); }
+.repo-file { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid #a8bcb6; border-radius: 8px; cursor: pointer; overflow-wrap: anywhere; }
+.repo-file:focus-within { outline: 2px solid #137366; }
+.repo-file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.repo-profiles { display: grid; gap: 0; padding: 0; border: 0; margin: 12px 0; }
+.repo-profiles legend { margin-bottom: 6px; font-weight: 600; }
+.repo-profiles .repo-profile { display: flex; align-items: start; gap: 10px; padding: 7px 9px; border-top: 1px solid #dde6e2; cursor: pointer; }
+.repo-profile input { width: auto; min-height: 0; accent-color: #17665a; }
+.repo-profile:has(input:checked) { background: #e2f1ea; }
+.repo-profile small, .repo-file small { display: block; }
+.tile .risk-badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.tile .risk-badges .severity { font-size: 9px; padding: 1px 3px; }

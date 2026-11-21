@@ -48,7 +48,7 @@ import {
   Run,
   useData,
 } from "./api";
-import { icons, Modal, Status, useAction, useNotice } from "./ui";
+import { icons, Modal, Severity, Status, useAction, useNotice } from "./ui";
 
 type Tile = Node<
   {
@@ -56,6 +56,7 @@ type Tile = Node<
     kind: string;
     config: Record<string, unknown>;
     status?: string;
+    risk?: Record<string, number>;
   },
   "tile"
 >;
@@ -82,7 +83,24 @@ function TileView({ data, selected }: NodeProps<Tile>) {
         {spec.category}
       </div>
       <b>{spec.title}</b>
-      {data.status && <Status value={data.status} />}
+      {data.status === "success" && data.risk ? (
+        <div className="risk-badges">
+          {levels.some((level) => data.risk?.[level]) ? (
+            levels.map((level) =>
+              data.risk?.[level] ? (
+                <span key={level}>
+                  <Severity value={level} /> {data.risk[level]}
+                </span>
+              ) : null,
+            )
+          ) : (
+            <small>Нет находок</small>
+          )}
+        </div>
+      ) : (
+        data.status &&
+        data.status !== "success" && <Status value={data.status} />
+      )}
       {data.kind === "if_else"
         ? ["true", "false"].map((v, i) => (
             <div key={v} className={"branch branch" + i}>
@@ -101,6 +119,7 @@ function translate(
   graph: Graph,
   registry: Registry,
   statuses: Record<string, string> = {},
+  risks: Record<string, Record<string, number>> = {},
 ): { nodes: Tile[]; edges: Edge[] } {
   return {
     nodes: graph.nodes.map((n) => ({
@@ -119,6 +138,7 @@ function translate(
         },
         config: { ...registry.types[n.type]?.defaults, ...n.config },
         status: statuses[n.id],
+        risk: risks[n.id],
       },
     })),
     edges: graph.edges.map((e, i) => ({
@@ -135,12 +155,14 @@ function translate(
 export function ReadonlyGraph({
   graph,
   statuses,
+  risks,
 }: {
   graph: Graph;
   statuses: Record<string, string>;
+  risks?: Record<string, Record<string, number>>;
 }) {
   const registry = useData<Registry>("/registry");
-  const data = translate(graph, registry, statuses);
+  const data = translate(graph, registry, statuses, risks);
   return (
     <div className="readgraph">
       <ReactFlow

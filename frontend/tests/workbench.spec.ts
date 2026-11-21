@@ -7,9 +7,7 @@ test("ZIP → editable workflow → live execution → report and settings", asy
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: "Обзор проверок" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Главная" })).toBeVisible();
   await page.screenshot({
     path: resolve("../.qa/dashboard.png"),
     fullPage: true,
@@ -61,14 +59,68 @@ test("ZIP → editable workflow → live execution → report and settings", asy
   await page.getByRole("link", { name: "Настройки", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Telegram" })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("link", { name: "Обзор", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "Обзор проверок" }),
-  ).toBeVisible();
+  await page.getByRole("link", { name: "Главная", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Главная" })).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
   expect(errors).toEqual([]);
+});
+
+test("Главная принимает архив перетаскиванием и запускает выбранный профиль", async ({
+  page,
+}) => {
+  const { readFileSync } = await import("node:fs");
+  const bytes = [...readFileSync(resolve("../.qa/e2e-fixture.zip"))];
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", { name: "Загрузить репозиторий" }),
+  ).toBeVisible();
+  const transfer = await page.evaluateHandle((bytes) => {
+    const data = new DataTransfer();
+    data.items.add(new File([new Uint8Array(bytes)], "drag.zip"));
+    return data;
+  }, bytes);
+  await page
+    .locator("main")
+    .dispatchEvent("dragenter", { dataTransfer: transfer });
+  await expect(page.getByText("Отпустите архив")).toBeVisible();
+  await page.locator("main").dispatchEvent("drop", { dataTransfer: transfer });
+  await expect(page.getByRole("dialog")).toContainText("drag.zip");
+  await page.getByRole("radio", { name: /Только зависимости/ }).check();
+  await page.getByRole("button", { name: "Запустить проверку" }).click();
+  await expect(page.getByText("1 находок в итоговом отчёте.")).toBeVisible({
+    timeout: 20000,
+  });
+  await expect(page.locator(".risk-badges").first()).toBeVisible();
+  await expect(
+    page.locator(".react-flow__node").filter({ hasText: "Завершён" }),
+  ).toHaveCount(0);
+});
+
+test("Главная сохраняет выбранный профиль после ошибки ссылки", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Загрузить репозиторий" }).click();
+  await page.getByRole("button", { name: "По ссылке" }).click();
+  await page
+    .getByLabel("Ссылка на публичный GitHub-репозиторий")
+    .fill("https://example.test/owner/repo");
+  await page.getByRole("radio", { name: /Только секреты/ }).check();
+  await page.getByRole("button", { name: "Запустить проверку" }).click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
+  await expect(
+    page.getByRole("radio", { name: /Только секреты/ }),
+  ).toBeChecked();
+  await page.getByRole("button", { name: "Архив", exact: true }).click();
+  await page
+    .getByLabel("Выбрать архив")
+    .setInputFiles(resolve("../.qa/e2e-fixture.zip"));
+  await page.getByRole("button", { name: "Запустить проверку" }).click();
+  await expect(page.getByText("1 находок в итоговом отчёте.")).toBeVisible({
+    timeout: 20000,
+  });
 });

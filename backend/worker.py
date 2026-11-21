@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import time
+from collections import Counter
 
 from celery import Celery
 from sqlalchemy import select, update
@@ -148,6 +149,11 @@ def execute(run_id):
                         for key, row in output.findings.items()
                         if key not in data.findings
                     ]
+                if node.type in SCANNERS or node.type == "report_generator":
+                    rows = current.output.get("findings", output.findings.values())
+                    current.output["levels"] = dict(
+                        Counter(row["severity"] for row in rows)
+                    )
                 if node.type == "repository_source":
                     current.output = {"files": len(files)}
                 if node.type == "report_generator":

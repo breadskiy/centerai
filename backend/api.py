@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import time
+from collections import Counter
 from contextlib import asynccontextmanager
 from threading import Event as Stop, Thread
 from urllib.parse import urlsplit
@@ -41,7 +42,7 @@ from .db import (
     engine,
 )
 from .graph import Graph, LEVELS, REGISTRY, default_graph, next_due, validate
-from .sources import MAX_UPLOAD, fetch_repository, unpack
+from .sources import MAX_UPLOAD, fetch_repository, unpack_archive
 from .worker import enqueue, local_worker, request_cancellation
 from .migrate import upgrade
 from .workflow_draft import draft
@@ -90,7 +91,9 @@ async def request_guard(request: Request, call_next):
         ):
             return JSONResponse({"detail": "Недопустимый источник запроса"}, 403)
         limit = (
-            MAX_UPLOAD + 65536 if request.url.path.endswith("/projects") else 256 * 1024
+            MAX_UPLOAD + 65536
+            if request.url.path.endswith(("/projects", "/quick-scan"))
+            else 256 * 1024
         )
         if int(request.headers.get("content-length", 0)) > limit:
             return JSONResponse({"detail": "Превышен лимит запроса"}, 413)
@@ -295,11 +298,21 @@ def create_project(
     archive: UploadFile | None = File(None),
     repository: str = Form("", max_length=500),
 ):
+    row = import_project(db, name, description, archive, repository)
+    db.commit()
+    return project_out(db, row)
+
+
+def import_project(db, name, description, archive, repository, *, public=False):
     if bool(archive) == bool(repository):
         raise ValueError("Выберите один источник проекта")
     files = (
-        unpack(archive.file.read(MAX_UPLOAD + 1))
+        unpack_archive(
+            archive.file.read(MAX_UPLOAD + 1), archive.filename or "project.zip"
+        )
         if archive
+        else fetch_repository(repository, public=True)
+        if public
         else fetch_repository(repository)
     )
     if not name.strip():
@@ -308,13 +321,74 @@ def create_project(
         name=name.strip(),
         description=description,
         source=(archive.filename or "project.zip") if archive else repository,
-        source_type="ZIP" if archive else "GitHub",
+        source_type=(
+            "ZIP"
+            if (archive.filename or "project.zip").lower().endswith(".zip")
+            else "Архив"
+        )
+        if archive
+        else "GitHub",
         file_count=len(files),
         snapshot=cipher().encrypt(json.dumps(files, ensure_ascii=False).encode()),
     )
     db.add(row)
+    db.flush()
+    return row
+
+
+@api.post("/quick-scan", status_code=202)
+def quick_scan(
+    db: DB,
+    profile: str = Form(max_length=120),
+    archive: UploadFile | None = File(None),
+    repository: str = Form("", max_length=500),
+):
+    options = {
+        "full": "Полная проверка",
+        "ai": "Полная проверка с AI",
+        "sca": "Только зависимости",
+        "secrets": "Только секреты",
+        "sast": "Только код",
+    }
+    if profile in options:
+        title = options[profile]
+        graph = default_graph(with_ai=profile == "ai")
+        if profile in ("sca", "secrets", "sast"):
+            omitted = {
+                f"{key}_scanner" for key in ("sca", "secrets", "sast") if key != profile
+            }
+            graph["nodes"] = [n for n in graph["nodes"] if n["id"] not in omitted]
+            graph["edges"] = [
+                e
+                for e in graph["edges"]
+                if e["source"] not in omitted and e["target"] not in omitted
+            ]
+    else:
+        parts = profile.split(":")
+        if len(parts) != 2 or not parts[1].isascii() or not parts[1].isdigit():
+            raise ValueError("Выберите профиль проверки")
+        snapshot = get(db, Version, (parts[0], int(parts[1])))
+        if snapshot.published_at is None:
+            raise HTTPException(404, "Шаблон не опубликован")
+        title = snapshot.name
+        graph = Graph.model_validate(snapshot.graph).model_dump()
+        for node in graph["nodes"]:
+            if node["type"] == "schedule_trigger":
+                node["config"]["enabled"] = False
+    validate(graph)
+    name = (
+        (archive.filename or "Проект")
+        if archive
+        else repository.rstrip("/").rsplit("/", 1)[-1]
+    )
+    project = import_project(db, name[:100], "", archive, repository, public=True)
+    flow = Workflow(name=title, description="", project_id=project.id, graph=graph)
+    db.add(flow)
+    db.flush()
+    version(db, flow)
+    run = enqueue(db, flow, "manual")
     db.commit()
-    return project_out(db, row)
+    return run_out(run)
 
 
 @api.get("/projects/{key}")
@@ -545,18 +619,43 @@ def cancel(key: str, db: DB):
 def run(key: str, db: DB):
     row = get(db, Run, key)
     nodes = db.scalars(select(NodeRun).where(NodeRun.run_id == key)).all()
+    severities = {
+        finding_id: severity
+        for finding_id, severity in db.execute(
+            select(Finding.fingerprint, Finding.severity).where(Finding.run_id == key)
+        )
+    }
+    for node in nodes:
+        severities.update(
+            (f["id"], f["severity"]) for f in node.output.get("findings", [])
+        )
+    kinds = {n["id"]: n["type"] for n in row.graph["nodes"]}
+    outputs = []
+    for node in nodes:
+        output = {k: v for k, v in node.output.items() if k not in ("ids", "findings")}
+        if node.status == "success" and "levels" not in output:
+            if "findings" in node.output:
+                output["levels"] = dict(
+                    Counter(f["severity"] for f in node.output["findings"])
+                )
+            elif kinds.get(node.node_id) == "report_generator":
+                output["levels"] = dict(
+                    Counter(
+                        severities[i]
+                        for i in node.output.get("ids", [])
+                        if i in severities
+                    )
+                )
+        outputs.append(
+            {
+                **fields(node, "node_id", "status", "started", "finished"),
+                "output": output,
+            }
+        )
     return {
         **run_out(row),
         "graph": row.graph,
-        "nodes": [
-            {
-                **fields(n, "node_id", "status", "started", "finished"),
-                "output": {
-                    k: v for k, v in n.output.items() if k not in ("ids", "findings")
-                },
-            }
-            for n in nodes
-        ],
+        "nodes": outputs,
         "events": [
             event_out(e)
             for e in db.scalars(

@@ -34,15 +34,23 @@ import {
   Workflows,
   SettingsPage,
 } from "./workspace";
-const HistoryPage = React.lazy(() => import("./results").then(m => ({default:m.HistoryPage})));
-const Monitor = React.lazy(() => import("./results").then(m => ({default:m.Monitor})));
-const FindingsPage = React.lazy(() => import("./results").then(m => ({default:m.FindingsPage})));
-const EditorPage = React.lazy(() => import("./editor").then(m => ({default:m.EditorPage})));
+const HistoryPage = React.lazy(() =>
+  import("./results").then((m) => ({ default: m.HistoryPage })),
+);
+const Monitor = React.lazy(() =>
+  import("./results").then((m) => ({ default: m.Monitor })),
+);
+const FindingsPage = React.lazy(() =>
+  import("./results").then((m) => ({ default: m.FindingsPage })),
+);
+const EditorPage = React.lazy(() =>
+  import("./editor").then((m) => ({ default: m.EditorPage })),
+);
 import "./utilities.css";
 import "./style.css";
 
 const nav = [
-  ["/", "Обзор", LayoutDashboard],
+  ["/", "Главная", LayoutDashboard],
   ["/projects", "Проекты", Folder],
   ["/workflows", "Сценарии", Workflow],
   ["/runs", "Запуски", History],
