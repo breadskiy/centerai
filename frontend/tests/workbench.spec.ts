@@ -32,20 +32,12 @@ test("Тема следует системе и сохраняет ручной 
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(root).toHaveCSS("background-color", "rgb(17, 19, 22)");
   await page.getByRole("link", { name: "Личный кабинет" }).click();
-  const toggle = page.getByRole("button", { name: "Тёмная тема" });
-  await expect(toggle.locator(".lucide-moon")).toBeVisible();
-  await page.emulateMedia({ colorScheme: "light" });
-  await expect(toggle.locator(".lucide-sun")).toBeVisible();
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-pressed", "true");
-  await expect(toggle.locator(".lucide-moon")).toBeVisible();
-  await expect(root).toHaveCSS("background-color", "rgb(17, 19, 22)");
-  await page.reload();
-  await expect(toggle.locator(".lucide-moon")).toBeVisible();
-  await toggle.click();
-  await expect(toggle.locator(".lucide-sun")).toBeVisible();
-  await page.getByRole("link", { name: "Настройки", exact: true }).click();
-  await expect(theme).toHaveValue("light");
+  await expect(
+    page.getByRole("heading", { name: "Личный кабинет" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Тёмная тема" })).toHaveCount(
+    0,
+  );
 });
 
 test("ZIP → editable workflow → live execution → report and settings", async ({

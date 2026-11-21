@@ -2,21 +2,46 @@ import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 
 test("Тема переключается с экрана регистрации и входа", async ({ page }) => {
-  await page.emulateMedia({ colorScheme: "dark" });
+  await page.emulateMedia({
+    colorScheme: "dark",
+    reducedMotion: "no-preference",
+  });
   await page.goto("/");
   const toggle = page.getByRole("button", { name: "Тёмная тема" });
   await expect(toggle.locator(".lucide-moon")).toBeVisible();
   const bounds = await toggle.boundingBox();
   expect(bounds?.y).toBeLessThan(40);
   expect(bounds?.x).toBeGreaterThan((page.viewportSize()?.width ?? 0) - 96);
+  await toggle.focus();
+  await expect(toggle).toHaveCSS("outline-style", "none");
+  await expect(toggle).toHaveCSS("border-top-width", "0px");
+  const root = page.locator("html");
   await toggle.click();
+  await expect(root).toHaveClass(/theme-revealing/);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        document
+          .getAnimations()
+          .some(
+            (animation) =>
+              animation instanceof CSSAnimation &&
+              animation.animationName === "theme-reveal",
+          ),
+      ),
+    )
+    .toBe(true);
   await expect(toggle.locator(".lucide-sun")).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await page.reload();
-  await page.getByRole("button", { name: "Вход в аккаунт", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Вход в аккаунт", exact: true })
+    .click();
   await expect(toggle.locator(".lucide-sun")).toBeVisible();
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await toggle.click();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  await expect(root).not.toHaveClass(/theme-revealing/);
 });
 
 test("Язык регистрации переключается и сохраняется", async ({ page }) => {

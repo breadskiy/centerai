@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Eye, EyeOff, LogOut, Moon, Sun, UserRound } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -24,6 +25,38 @@ function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const systemDark = useSystemDark();
   const dark = theme === "dark" || (theme === "system" && systemDark);
+  function switchTheme(button: HTMLButtonElement) {
+    const next = dark ? "light" : "dark";
+    if (
+      !document.startViewTransition ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      setTheme(next);
+      return;
+    }
+
+    const root = document.documentElement;
+    if (root.classList.contains("theme-revealing")) return;
+    const { left, top, width, height } = button.getBoundingClientRect();
+    const x = left + width / 2;
+    const y = top + height / 2;
+    const radius = Math.hypot(
+      Math.max(x, innerWidth - x),
+      Math.max(y, innerHeight - y),
+    );
+    root.style.setProperty("--theme-reveal-origin", `${x}px ${y}px`);
+    root.style.setProperty("--theme-reveal-radius", `${radius}px`);
+    root.classList.add("theme-revealing");
+    const transition = document.startViewTransition(() => {
+      flushSync(() => setTheme(next));
+    });
+    const cleanup = () => {
+      root.classList.remove("theme-revealing");
+      root.style.removeProperty("--theme-reveal-origin");
+      root.style.removeProperty("--theme-reveal-radius");
+    };
+    void transition.finished.then(cleanup, cleanup);
+  }
   return (
     <button
       type="button"
@@ -31,7 +64,7 @@ function ThemeToggle() {
       aria-label={t("Тёмная тема")}
       aria-pressed={dark}
       title={t(dark ? "Включить светлую тему" : "Включить тёмную тему")}
-      onClick={() => setTheme(dark ? "light" : "dark")}
+      onClick={(event) => switchTheme(event.currentTarget)}
     >
       {dark ? <Moon aria-hidden="true" /> : <Sun aria-hidden="true" />}
     </button>
@@ -456,9 +489,8 @@ export function AccountPage({
   };
   return (
     <>
-      <div className="heading account-heading">
+      <div className="heading">
         <h1>{t("Личный кабинет")}</h1>
-        <ThemeToggle />
       </div>
       <div className="account-layout" data-guest={viewer.guest}>
         <aside className="panel account-summary">

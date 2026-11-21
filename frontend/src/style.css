@@ -1635,9 +1635,29 @@ button:focus-visible > svg.lucide-chevron-left {
 .access-language select { width: auto; }
 .access-language select:focus { outline: none; }
 .access-language select:focus-visible { background: var(--surface-hover); }
-.account-heading.heading { align-items: center; flex-wrap: nowrap; gap: 12px; }
-.theme-toggle.icon { flex: 0 0 auto; justify-content: center; width: 40px; height: 40px; }
+.theme-toggle.icon {
+  flex: 0 0 auto;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: 0;
+  outline: none;
+}
 .theme-toggle.icon svg { width: 20px; height: 20px; }
+.theme-toggle.icon:hover, .theme-toggle.icon:focus-visible { color: var(--teal); }
+:root.theme-revealing::view-transition-old(root),
+:root.theme-revealing::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+:root.theme-revealing::view-transition-new(root) {
+  animation: theme-reveal 440ms cubic-bezier(.32, .65, .35, 1) both;
+}
+@keyframes theme-reveal {
+  from { clip-path: circle(0 at var(--theme-reveal-origin)); }
+  to { clip-path: circle(var(--theme-reveal-radius) at var(--theme-reveal-origin)); }
+}
 .account-link {
   margin-top: auto;
   display: flex;
