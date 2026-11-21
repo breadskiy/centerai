@@ -22,7 +22,6 @@ import {
   Run,
   RunDetails,
   RunEvent,
-  StageSummary,
   useData,
 } from "./api";
 import {
@@ -188,27 +187,30 @@ export function Monitor() {
   );
   const revealingId = sequenced ? stageEvents[revealed]?.node_id : undefined;
   const waitingForStages = hidden.size > 0;
-  const nodesById = new Map(r.nodes.map((node) => [node.node_id, node]));
+  const reportIds = new Set(
+    r.graph.nodes
+      .filter((node) => node.type === "report_generator")
+      .map((node) => node.id),
+  );
   const stageStatus = Object.fromEntries(
-    r.nodes.map((node) => [
-      node.node_id,
-      hidden.has(node.node_id)
-        ? node.node_id === revealingId
-          ? "running"
-          : "pending"
-        : node.status,
-    ]),
+    r.nodes.map((node) => {
+      const id = node.node_id;
+      if (hidden.has(id))
+        return [id, id === revealingId ? "running" : "pending"];
+      if (waitingForStages && reportIds.has(id) && node.status === "success")
+        return [id, "pending"];
+      return [id, stageById.has(id) ? "success" : node.status];
+    }),
   );
-  const graphById = new Map(r.graph.nodes.map((node) => [node.id, node]));
-  const analyzerIds = (
-    r.stage_order || r.graph.nodes.map((node) => node.id)
-  ).filter((nodeId) =>
-    ["secrets_scanner", "sca_scanner", "sast_scanner"].includes(
-      graphById.get(nodeId)?.type || "",
-    ),
+  const risks = Object.fromEntries(
+    r.nodes.flatMap((node) => {
+      if (stageStatus[node.node_id] !== "success") return [];
+      const counts = stageById.get(node.node_id)?.levels ?? node.output.levels;
+      return counts ? [[node.node_id, counts]] : [];
+    }),
   );
-  const complete = r.nodes.filter((n) =>
-    ["success", "failed", "skipped", "cancelled"].includes(n.status),
+  const complete = Object.values(stageStatus).filter((status) =>
+    ["success", "failed", "skipped", "cancelled"].includes(status),
   ).length;
   return (
     <>
@@ -261,102 +263,20 @@ export function Monitor() {
         </div>
         <ReadonlyGraph
           graph={r.graph}
-          risks={Object.fromEntries(
-            r.nodes.flatMap((n) =>
-              n.output.levels &&
-              !hidden.has(n.node_id) &&
-              !(
-                waitingForStages &&
-                graphById.get(n.node_id)?.type === "report_generator"
-              )
-                ? [[n.node_id, n.output.levels]]
-                : [],
-            ),
-          )}
+          risks={risks}
           statuses={stageStatus}
+          animate={sequenced}
+          animatedResults={
+            new Set(
+              stageEvents.flatMap((event) =>
+                event.node_id && !hidden.has(event.node_id)
+                  ? [event.node_id]
+                  : [],
+              ),
+            )
+          }
         />
       </section>
-      {analyzerIds.length > 0 && (
-        <section className="panel">
-          <div className="sectionHead">
-            <h2>{translateText("Обнаружено по блокам")}</h2>
-          </div>
-          <ol className="scan-stages" aria-live="polite">
-            {analyzerIds.map((nodeId) => {
-              const node = nodesById.get(nodeId);
-              const kind = graphById.get(nodeId)?.type || "";
-              const counts = node?.output.levels || {};
-              const stored = stageById.get(nodeId);
-              const result: StageSummary | null = hidden.has(nodeId)
-                ? null
-                : stored ||
-                  (node?.status === "success"
-                    ? {
-                        count: Object.values(counts).reduce(
-                          (total, count) => total + count,
-                          0,
-                        ),
-                        levels: counts,
-                        preview: [],
-                      }
-                    : null);
-              return (
-                <li
-                  key={nodeId}
-                  className="scan-stage"
-                  data-state={result ? "revealed" : "waiting"}
-                >
-                  <div className="scan-stage-head">
-                    <h3>
-                      {translateText(registry.types[kind]?.title || nodeId)}
-                    </h3>
-                    {result ? (
-                      <strong>
-                        {translateText("Обнаружено")}: {result.count}
-                      </strong>
-                    ) : (
-                      <Status value={stageStatus[nodeId] || "pending"} />
-                    )}
-                  </div>
-                  {result && (
-                    <div className="scan-stage-result">
-                      <div className="run-risk">
-                        {levels
-                          .filter((level) => result.levels[level])
-                          .map((level) => (
-                            <span key={level}>
-                              <Severity value={level} /> {result.levels[level]}
-                            </span>
-                          ))}
-                      </div>
-                      {result.preview.length > 0 && (
-                        <ul>
-                          {result.preview.map((entry) => (
-                            <li key={entry.id}>
-                              <b>{translateText(entry.title)}</b>
-                              <code>
-                                {entry.path}:{entry.line}
-                              </code>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      {result.count > 0 && (
-                        <button
-                          className="textbtn"
-                          onClick={() => inspect(nodeId)}
-                        >
-                          {translateText("Данные этапа")}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-        </section>
-      )}
       <div className="monitorgrid">
         <section className="panel">
           <div className="sectionHead">

@@ -86,7 +86,7 @@ test("ZIP → editable workflow → live execution → report and settings", asy
     const counts: number[] = [];
     const observer = new MutationObserver(() => {
       const count = document.querySelectorAll(
-        ".scan-stage[data-state=revealed]",
+        ".readgraph .risk-badges[data-result-reveal=true]",
       ).length;
       if (count > (counts.at(-1) ?? 0)) counts.push(count);
       if (count === 3) observer.disconnect();
@@ -106,7 +106,10 @@ test("ZIP → editable workflow → live execution → report and settings", asy
   expect(await stageCounts.jsonValue()).toEqual([1, 2, 3]);
   await expect(
     page.getByRole("heading", { name: "Обнаружено по блокам" }),
-  ).toBeVisible();
+  ).toHaveCount(0);
+  await expect(
+    page.locator(".readgraph [data-result-reveal=true]").first(),
+  ).toHaveCSS("animation-name", "graph-result-reveal");
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: "JSON", exact: true }).click();
   expect((await download).suggestedFilename()).toMatch(/\.json$/);

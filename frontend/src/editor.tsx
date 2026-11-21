@@ -58,6 +58,7 @@ type Tile = Node<
     config: Record<string, unknown>;
     status?: string;
     risk?: Record<string, number>;
+    animateResult?: boolean;
   },
   "tile"
 >;
@@ -77,6 +78,7 @@ function TileView({ data, selected }: NodeProps<Tile>) {
   return (
     <div
       className={"tile " + (selected ? "chosen " : "") + "cat" + spec.output}
+      data-status={data.status}
     >
       {spec.input !== "—" && <Handle type="target" position={Position.Left} />}
       <div className="tileMeta" title={translateText(spec.description)}>
@@ -85,7 +87,10 @@ function TileView({ data, selected }: NodeProps<Tile>) {
       </div>
       <b>{translateText(spec.title)}</b>
       {data.status === "success" && data.risk ? (
-        <div className="risk-badges">
+        <div
+          className="risk-badges"
+          data-result-reveal={data.animateResult || undefined}
+        >
           {levels.some((level) => data.risk?.[level]) ? (
             levels.map((level) =>
               data.risk?.[level] ? (
@@ -161,18 +166,32 @@ export function ReadonlyGraph({
   graph,
   statuses,
   risks,
+  animate = false,
+  animatedResults,
 }: {
   graph: Graph;
   statuses: Record<string, string>;
   risks?: Record<string, Record<string, number>>;
+  animate?: boolean;
+  animatedResults?: ReadonlySet<string>;
 }) {
   const registry = useData<Registry>("/registry");
   const data = translate(graph, registry, statuses, risks);
   return (
     <div className="readgraph">
       <ReactFlow
-        nodes={data.nodes}
-        edges={data.edges}
+        nodes={data.nodes.map((node) =>
+          animate && animatedResults?.has(node.id)
+            ? { ...node, data: { ...node.data, animateResult: true } }
+            : node,
+        )}
+        edges={data.edges.map((edge) =>
+          animate &&
+          statuses[edge.source] === "success" &&
+          statuses[edge.target] === "running"
+            ? { ...edge, animated: true }
+            : edge,
+        )}
         nodeTypes={nodeTypes}
         fitView
         minZoom={0.2}
