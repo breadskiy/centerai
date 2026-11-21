@@ -437,15 +437,21 @@ export function AccountPage({
       <div className="heading">
         <h1>{t("Личный кабинет")}</h1>
       </div>
-      <div className="account-layout">
+      <div className="account-layout" data-guest={viewer.guest}>
         <aside className="panel account-summary">
           <span className="account-avatar">
             {viewer.avatar ? (
               <img src={viewer.avatar} alt="" />
             ) : (
-              <UserRound size={24} />
+              <UserRound aria-hidden="true" />
             )}
           </span>
+          <div className="account-identity">
+            <h2>
+              {viewer.nickname || t(viewer.guest ? "Гость" : "Пользователь")}
+            </h2>
+            {viewer.email && <p>{viewer.email}</p>}
+          </div>
           {!viewer.guest && (
             <div className="account-actions">
               <label className="avatar-picker">
@@ -485,14 +491,9 @@ export function AccountPage({
               )}
             </div>
           )}
-          <div>
-            <h2>
-              {viewer.nickname || t(viewer.guest ? "Гость" : "Пользователь")}
-            </h2>
-            {viewer.email && <p>{viewer.email}</p>}
-          </div>
           <button
             type="button"
+            className="account-sign-out"
             disabled={pending}
             onClick={() => logOut(viewer.guest)}
           >
