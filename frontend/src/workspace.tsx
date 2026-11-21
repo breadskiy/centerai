@@ -363,7 +363,7 @@ export function Dashboard() {
       )}
       <div className="metrics">
         {[
-          [data.projects, "Проекты", "/projects", Folder],
+          [data.projects, "Сессии", "/projects", Folder],
           [data.workflows, "Сценарии", "/workflows", Workflow],
           [data.runs, "Запуски", "/runs", Activity],
           [data.findings, "Находки", "/findings", ShieldCheck],
@@ -546,7 +546,7 @@ export function Projects() {
   return (
     <>
       <Heading
-        title="Проекты"
+        title="Сессии"
         sub="Исходники и история проверок каждого проекта."
         action={
           <button className="primary" onClick={() => toggle(true)}>
@@ -595,7 +595,7 @@ export function Projects() {
         ) : (
           <Empty
             title={
-              list.length ? "Проекты не найдены" : "Добавьте первый проект"
+              list.length ? "Сессии не найдены" : "Добавьте первую сессию"
             }
           >
             Загрузите ZIP или подключите учебный репозиторий GitHub.
@@ -649,7 +649,10 @@ export function ProjectDetail() {
           Создать сценарий
         </Link>
         <Link className="button" to={"/workflows?project=" + id}>
-          Сценарии проекта
+          Сценарии сессии
+        </Link>
+        <Link className="button" to={"/findings/" + p.id}>
+          Открыть находки
         </Link>
         <button
           className="danger"
@@ -671,7 +674,7 @@ export function ProjectDetail() {
       </div>
       <section className="panel">
         <div className="sectionHead">
-          <h2>Проверки проекта</h2>
+          <h2>Проверки сессии</h2>
         </div>
         <RunsTable rows={runs} />
       </section>

@@ -49,7 +49,7 @@ import "./style.css";
 
 const nav = [
   ["/", "Главная", LayoutDashboard],
-  ["/projects", "Проекты", Folder],
+  ["/projects", "Сессии", Folder],
   ["/workflows", "Сценарии", Workflow],
   ["/runs", "Запуски", History],
   ["/findings", "Находки", ScanLine],
@@ -92,6 +92,7 @@ function Shell() {
                 <Route path="/runs" element={<HistoryPage />} />
                 <Route path="/runs/:id" element={<Monitor />} />
                 <Route path="/findings" element={<FindingsPage />} />
+                <Route path="/findings/:sessionId" element={<FindingsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<Link to="/">На главную</Link>} />
               </Routes>

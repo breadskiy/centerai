@@ -1378,3 +1378,25 @@ dialog .repo-drop { position: absolute; inset: 8px; }
     background-image: none;
   }
 }
+
+.finding-session {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto 16px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  color: inherit;
+}
+.finding-session + .finding-session {
+  border-top: 1px solid var(--line);
+}
+.finding-session strong {
+  overflow-wrap: anywhere;
+}
+.finding-session svg:first-child {
+  color: var(--teal);
+}
+.finding-session:hover {
+  background: var(--surface-hover);
+  text-decoration: none;
+}

@@ -173,7 +173,7 @@ test("Ошибки импорта, поиск, история версий, пу
   page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "Удалить", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Проекты", exact: true }),
+    page.getByRole("heading", { name: "Сессии", exact: true }),
   ).toBeVisible();
   expect(errors).toEqual([]);
 });

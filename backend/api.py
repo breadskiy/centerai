@@ -714,10 +714,40 @@ async def events(key: str, request: Request):
     )
 
 
+@api.get("/findings/sessions")
+def finding_sessions(
+    db: DB,
+    severity: str | None = None,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+):
+    query = (
+        select(Project.id, Project.name, func.count().label("count"))
+        .join(Run, Run.project_id == Project.id)
+        .join(Finding, Finding.run_id == Run.id)
+        .group_by(Project.id, Project.name)
+        .order_by(func.max(Run.created).desc(), Project.id)
+    )
+    if severity:
+        query = query.where(Finding.severity == severity)
+    return [
+        dict(row) for row in db.execute(query.offset(offset).limit(limit)).mappings()
+    ]
+
+
+@api.get("/findings/sessions/{key}")
+def finding_session(key: str, db: DB):
+    row = db.get(Project, key)
+    if row is None:
+        raise HTTPException(404, "Сессия не найдена")
+    return fields(row, "id", "name")
+
+
 @api.get("/findings")
 def findings(
     db: DB,
     run_id: str | None = None,
+    project_id: str | None = None,
     severity: str | None = None,
     category: str | None = None,
     q: str = "",
@@ -728,6 +758,7 @@ def findings(
     query = select(Finding, Run.created).join(Run, Finding.run_id == Run.id)
     for column, value in [
         (Finding.run_id, run_id),
+        (Run.project_id, project_id),
         (Finding.severity, severity),
         (Finding.category, category),
     ]:

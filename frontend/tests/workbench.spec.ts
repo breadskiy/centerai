@@ -46,7 +46,7 @@ test("ZIP → editable workflow → live execution → report and settings", asy
   });
   await page
     .getByRole("navigation")
-    .getByRole("link", { name: "Проекты", exact: true })
+    .getByRole("link", { name: "Сессии", exact: true })
     .click();
   await page.getByRole("button", { name: "Новый проект", exact: true }).click();
   await page
@@ -155,4 +155,54 @@ test("Главная сохраняет выбранный профиль пос
   await expect(page.getByText("1 находок в итоговом отчёте.")).toBeVisible({
     timeout: 20000,
   });
+});
+
+test("Находки разделены по сессиям, ссылки из сессии и запуска открывают её папку", async ({
+  page,
+  request,
+}) => {
+  const { readFileSync } = await import("node:fs");
+  const buffer = readFileSync(resolve("../.qa/e2e-fixture.zip"));
+  const create = async (name: string, profile: string) => {
+    const response = await request.post("/api/v1/quick-scan", {
+      multipart: {
+        profile,
+        archive: { name, mimeType: "application/zip", buffer },
+      },
+    });
+    expect(response.status()).toBe(202);
+    const run = await response.json();
+    await expect
+      .poll(
+        async () =>
+          (await (await request.get("/api/v1/runs/" + run.id)).json()).status,
+      )
+      .toBe("success");
+    return run;
+  };
+  const sca = await create("session-sca.zip", "sca");
+  await create("session-secrets.zip", "secrets");
+  await page.goto("/findings");
+  await expect(
+    page.getByRole("link", { name: /session-sca.zip/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /session-secrets.zip/ }),
+  ).toBeVisible();
+  await expect(page.getByRole("table")).toHaveCount(0);
+  await page.goto("/projects/" + sca.project_id);
+  await page.getByRole("link", { name: "Открыть находки" }).click();
+  await expect(page).toHaveURL(new RegExp("/findings/" + sca.project_id + "$"));
+  await expect(
+    page.getByRole("heading", { name: "session-sca.zip" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("table").getByText("SCA", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("table").getByText("SECRET", { exact: true }),
+  ).toHaveCount(0);
+  await page.goto("/runs/" + sca.id);
+  await page.getByRole("link", { name: "Открыть находки" }).click();
+  await expect(page).toHaveURL(new RegExp("/findings/" + sca.project_id + "$"));
 });

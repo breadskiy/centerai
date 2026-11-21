@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Download,
   FileText,
+  Folder,
   Search,
 } from "lucide-react";
 import {
@@ -265,7 +266,7 @@ export function Monitor() {
                     </p>
                   );
                 })}
-              <Link className="button primary" to={"/findings?run_id=" + id}>
+              <Link className="button primary" to={"/findings/" + r.project_id}>
                 Открыть находки
               </Link>
               <ReportPreview run={r.id} />
@@ -422,6 +423,87 @@ function Detail({ f, close }: { f: Finding; close: () => void }) {
   );
 }
 export function FindingsPage() {
+  const { sessionId } = useParams();
+  const [params] = useSearchParams();
+  if (sessionId) return <SessionFindings sessionId={sessionId} />;
+  if (params.has("run_id")) return <FindingTable />;
+  return <FindingSessions key={params.get("severity") || ""} />;
+}
+
+function FindingSessions() {
+  const [params, setParams] = useSearchParams();
+  const level = params.get("severity") || "";
+  const [offset, setOffset] = useState(0);
+  const args = new URLSearchParams({ offset: String(offset), limit: "50" });
+  if (level) args.set("severity", level);
+  const sessions = useData<{ id: string; name: string; count: number }[]>(
+    "/findings/sessions?" + args,
+  );
+  return (
+    <>
+      <Heading
+        title="Находки"
+        sub="Выберите сессию, чтобы открыть её находки."
+      />
+      <div className="filters">
+        <select
+          aria-label="Критичность"
+          value={level}
+          onChange={(e) => {
+            const value = e.target.value;
+            setParams(value ? { severity: value } : {});
+          }}
+        >
+          <option value="">Все уровни</option>
+          {levels.map((l) => (
+            <option key={l}>{l}</option>
+          ))}
+        </select>
+      </div>
+      <section className="panel">
+        {sessions.length ? (
+          sessions.map((session) => (
+            <Link
+              className="finding-session"
+              key={session.id}
+              to={
+                "/findings/" + session.id + (level ? "?severity=" + level : "")
+              }
+            >
+              <Folder size={20} aria-hidden />
+              <strong>{session.name}</strong>
+              <small>{session.count} · находки</small>
+              <ChevronRight size={16} aria-hidden />
+            </Link>
+          ))
+        ) : (
+          <Empty title="Нет сессий с находками">
+            Проверьте фильтр или запустите проверку.
+          </Empty>
+        )}
+      </section>
+      <Pages
+        offset={offset}
+        set={setOffset}
+        length={sessions.length}
+        size={50}
+      />
+    </>
+  );
+}
+
+function SessionFindings({ sessionId }: { sessionId: string }) {
+  const session = useData<{ name: string }>("/findings/sessions/" + sessionId);
+  return <FindingTable sessionId={sessionId} title={session.name} />;
+}
+
+function FindingTable({
+  sessionId,
+  title,
+}: {
+  sessionId?: string;
+  title?: string;
+}) {
   const [params] = useSearchParams();
   const [level, setLevel] = useState(params.get("severity") || "");
   const [kind, setKind] = useState("");
@@ -439,18 +521,23 @@ export function FindingsPage() {
   if (level) args.set("severity", level);
   if (kind) args.set("category", kind);
   if (params.get("run_id")) args.set("run_id", params.get("run_id")!);
+  if (sessionId) args.set("project_id", sessionId);
   const rows = useData<Finding[]>("/findings?" + args);
   const groups = group
     ? Array.from(new Set(rows.map((f) => f.category)))
     : [""];
   return (
     <>
+      <Link className="back" to="/findings">
+        <ChevronLeft size={14} />
+        Все сессии с находками
+      </Link>
       <Heading
-        title="Находки"
+        title={title || "Находки"}
         sub={
           params.has("run_id")
             ? "Результаты выбранного запуска."
-            : "Подтверждённые правилами результаты статических проверок."
+            : "Находки сессии по всем её запускам."
         }
       />
       <div className="filters">
