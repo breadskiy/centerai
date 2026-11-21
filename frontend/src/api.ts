@@ -1,5 +1,5 @@
 import { useSuspenseQuery, QueryClient } from "@tanstack/react-query";
-import { useLanguage } from "./locale";
+import { t, useLanguage } from "./locale";
 
 export interface GraphNode {
   id: string;
@@ -154,11 +154,11 @@ export async function api<T>(
     body: form ? body : body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) {
-    let message = "Сервер вернул ошибку " + response.status;
+    let message = t("Сервер вернул ошибку") + " " + response.status;
     try {
       message = (await response.json()).detail || message;
     } catch {}
-    throw new Error(message);
+    throw new Error(t(message));
   }
   return response.json();
 }
@@ -180,5 +180,6 @@ export const date = (timestamp: number | null) =>
     : "—";
 export const duration = (r: Run) =>
   r.started && r.finished
-    ? Math.max(0, r.finished - r.started).toFixed(1) + " с"
+    ? Math.max(0, r.finished - r.started).toFixed(1) +
+      (useLanguage.getState().language === "en" ? " s" : " с")
     : "—";

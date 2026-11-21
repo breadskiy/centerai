@@ -326,11 +326,116 @@ const english: Record<string, string> = {
   "Поиск встроенных учётных данных.": "Search for hardcoded credentials.",
   "Проверка версий зависимостей Gradle.": "Check Gradle dependency versions.",
   "Статический анализ структуры Kotlin.": "Statically analyze Kotlin code.",
+  "Запуск по команде оператора.": "Run on demand.",
+  "Календарный запуск в заданной зоне.":
+    "Run on a schedule in the selected time zone.",
+  "Снимок файлов проекта.": "Snapshot of the project files.",
+  "Сравнение числа находок с порогом.":
+    "Compare the finding count with a threshold.",
+  "Отбор по уровням риска.": "Filter by severity.",
+  "Отбор по пути к файлу.": "Filter by file path.",
+  "Объяснения и шаги исправления по находкам анализаторов.":
+    "Explain findings and suggest fixes.",
+  "Валидация и объединение находок.": "Validate and combine findings.",
+  "Отправка краткого отчёта.": "Send a report summary.",
+  "Отправка сводки по электронной почте.": "Email the report summary.",
+  "Запуск поставлен в очередь": "Run queued",
+  "Проверка отменена оператором": "Scan cancelled by the operator",
+  "Проверка началась": "Scan started",
+  "Условие ветви не выполнено": "Branch condition was not met",
+  "Проверка завершена": "Scan completed",
+  "Завершено · находок": "Completed · findings",
+  "Ошибка обработки данных на этапе проверки":
+    "Could not process data during the scan",
+  "Пароль в исходниках": "Hardcoded password",
+  "Встроенный ключ API": "Hardcoded API key",
+  "Токен в настройках": "Token in configuration",
+  "Секрет по умолчанию": "Default secret",
+  "Токен из строковых фрагментов": "Token assembled from string fragments",
+  "Закрытый ключ в проекте": "Private key in the project",
+  "Значение учётных данных может быть извлечено из файлов проекта.":
+    "Credentials can be recovered from the project files.",
+  "Замените значение в хранилище секретов и передавайте его через окружение.":
+    "Rotate the value in your secret store and inject it through the environment.",
+  "Значение скрыто ••••": "Value masked ••••",
+  "Динамический SQL": "Dynamic SQL",
+  "Строка запроса содержит подстановку данных.":
+    "The query string interpolates data.",
+  "Передавайте значение параметром подготовленного запроса.":
+    "Bind the value as a parameter in a prepared statement.",
+  "Проверка имени узла отключена": "Hostname verification disabled",
+  "HostnameVerifier принимает любое имя.":
+    "The hostname verifier accepts any hostname.",
+  "Используйте стандартную проверку имени узла при TLS-соединении.":
+    "Use standard TLS hostname verification.",
+  "CORS разрешает сторонние origin": "CORS allows third-party origins",
+  "В одной конфигурации совмещены wildcard-origin и credentials.":
+    "The configuration combines wildcard origins with credentials.",
+  "Укажите конкретные доверенные origin или отключите credentials.":
+    "Specify trusted origins or disable credentials.",
+  "Публичный маршрут с доступом к данным": "Public route with data access",
+  "Первое подходящее правило разрешает анонимный вызов обработчика, читающего записи.":
+    "The first matching rule allows anonymous access to a handler that reads records.",
+  "Проверьте назначение маршрута и ограничьте доступ нужной ролью.":
+    "Review the route and restrict access to the appropriate role.",
+  "Чтение объекта без проверки владельца":
+    "Object read without an ownership check",
+  "ID из маршрута передаётся в запрос. Запись содержит владельца, который отсутствует в предикате.":
+    "The route ID is passed to the query. The record has an owner, but the predicate does not check it.",
+  "Ограничьте запрос одновременно идентификатором объекта и текущим пользователем.":
+    "Restrict the query by both the object ID and the current user.",
+  "Версия входит в диапазон учебного справочника уязвимостей.":
+    "The version falls within an affected range in the advisory catalog.",
+  "Сверьте совместимость с исправленными версиями:":
+    "Check compatibility with the fixed versions:",
+  "Соединение прервано при загрузке проекта":
+    "The connection dropped while uploading the project",
+  "Ошибка загрузки проекта": "Project upload failed",
+  "Сервер вернул ошибку": "Server returned an error",
+  "Сервис модели недоступен. Проверьте подключение AI.":
+    "The model service is unavailable. Check the AI connection.",
+  "Дождитесь завершения проверки": "Wait for the scan to finish",
+  "Введите ссылку вида https://github.com/владелец/репозиторий":
+    "Enter a URL in this format: https://github.com/owner/repository",
+  "ZIP превышает 24 МБ": "The ZIP archive exceeds 24 MB",
+  "Архив превышает 24 МБ": "The archive exceeds 24 MB",
+  "Архив репозитория превышает 24 МБ": "The repository archive exceeds 24 MB",
+  "Не удалось загрузить архив с GitHub":
+    "Could not download the archive from GitHub",
+  "Выберите GitHub-репозиторий из серверного списка разрешённых":
+    "Choose a repository from the server allowlist",
+  "Превышен лимит объёма или числа файлов":
+    "The archive exceeds the size or file count limit",
+  "Недопустимая запись в ZIP": "Invalid ZIP entry",
+  "Недопустимая запись в архиве": "Invalid archive entry",
+  "Слишком большой или дублирующийся исходный файл":
+    "A source file is too large or duplicated",
+  "Ожидается исправный ZIP с исходниками в UTF-8":
+    "Provide a valid ZIP archive with UTF-8 source files",
+  "В архиве отсутствует проект Gradle Kotlin DSL":
+    "The archive does not contain a Gradle Kotlin DSL project",
+  "Проверьте формат архива, кодировку UTF-8 и отсутствие пароля":
+    "Check the archive format and UTF-8 encoding, and remove any password",
+  "Проверьте параметры узла": "Check the settings for node",
+  "Подключите вход узла": "Connect the input of node",
+  "Несовместимые порты:": "Incompatible ports:",
 };
+
+const dynamicPrefixes = [
+  "Сверьте совместимость с исправленными версиями:",
+  "Завершено · находок",
+  "Проверьте параметры узла",
+  "Подключите вход узла",
+  "Несовместимые порты:",
+];
+
 export function t(text: string) {
   if (useLanguage.getState().language === "ru") return text;
   const trimmed = text.trim();
-  return Object.hasOwn(english, trimmed)
-    ? text.replace(trimmed, english[trimmed])
-    : text;
+  if (Object.hasOwn(english, trimmed))
+    return text.replace(trimmed, english[trimmed]);
+  const prefix = dynamicPrefixes.find((value) =>
+    trimmed.startsWith(value + " "),
+  );
+  return prefix ? text.replace(prefix, english[prefix]) : text;
 }

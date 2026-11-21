@@ -1490,12 +1490,12 @@ dialog .repo-drop { position: absolute; inset: 8px; }
 .settings-stack .theme-settings { padding: 16px; }
 .finding-toolbar {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(0, 280px) auto;
   align-items: center;
   gap: 8px 16px;
 }
 .finding-toolbar:has(> select) {
-  grid-template-columns: minmax(180px, 1fr) auto auto;
+  grid-template-columns: minmax(0, 280px) auto auto;
 }
 .finding-filters {
   display: flex;
@@ -1509,7 +1509,8 @@ dialog .repo-drop { position: absolute; inset: 8px; }
   background: transparent;
   border-color: transparent;
 }
-.finding-toolbar .search input { width: 100%; }
+.finding-toolbar .search { width: 100%; max-width: 280px; }
+.finding-toolbar .search input { width: 100%; min-width: 0; }
 .finding-toolbar .search:focus-within { border-bottom-color: var(--control-border); }
 .finding-toolbar .search input:focus-visible,
 .finding-toolbar select:focus-visible,
@@ -1530,4 +1531,18 @@ dialog .repo-drop { position: absolute; inset: 8px; }
   .finding-toolbar:has(> select) {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.session-row:hover > svg,
+.session-row:focus-visible > svg,
+.finding-session:hover > svg:last-child,
+td a[aria-label]:hover,
+button.icon:hover,
+button.textbtn:hover,
+.session-severity button:hover,
+.finding-toolbar select:hover {
+  color: var(--accent);
+}
+.finding-toolbar label:focus-within > svg {
+  color: var(--accent);
 }

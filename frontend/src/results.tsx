@@ -159,7 +159,7 @@ export function Monitor() {
         {translateText("История запусков")}
       </Link>
       <Heading
-        title={r.workflow_name}
+        title={translateText(r.workflow_name)}
         sub={
           r.project_name +
           translateText(" · версия ") +
@@ -189,7 +189,7 @@ export function Monitor() {
       />
       {r.error && (
         <p className="errorline" role="alert">
-          {r.error}
+          {translateText(r.error)}
         </p>
       )}
       <section className="panel">
@@ -223,18 +223,20 @@ export function Monitor() {
             {r.events.map((e) => (
               <li key={e.id}>
                 <time>
-                  {new Date(e.created * 1000).toLocaleTimeString("ru-RU")}
+                  {new Date(e.created * 1000).toLocaleTimeString(
+                    document.documentElement.lang === "en" ? "en-GB" : "ru-RU",
+                  )}
                 </time>
                 <div>
-                  <b>{e.message}</b>
+                  <b>{translateText(e.message)}</b>
                   {e.node_id && (
                     <small>
-                      {
+                      {translateText(
                         registry.types[
                           r.graph.nodes.find((n) => n.id === e.node_id)?.type ||
                             ""
-                        ]?.title
-                      }{" "}
+                        ]?.title || "",
+                      )}{" "}
                       · {e.node_id}
                     </small>
                   )}
@@ -369,7 +371,7 @@ function ReportPreview({ run }: { run: string }) {
             {data.priorities.map((f) => (
               <li key={f.id}>
                 <button className="textbtn" onClick={() => choose(f)}>
-                  {f.title}
+                  {translateText(f.title)}
                 </button>{" "}
                 <Severity value={f.severity} />
               </li>
@@ -407,7 +409,7 @@ function Stage({
 }
 function Detail({ f, close }: { f: Finding; close: () => void }) {
   return (
-    <Modal title={f.title} close={close}>
+    <Modal title={translateText(f.title)} close={close}>
       <div className="toolbar">
         <Severity value={f.severity} />
         <span className="tag">{f.category}</span>
@@ -417,15 +419,15 @@ function Detail({ f, close }: { f: Finding; close: () => void }) {
         {f.path}:{f.line}
       </code>
       <h3>{translateText("Факт анализатора")}</h3>
-      <p>{f.description}</p>
-      <code className="block">{f.evidence}</code>
+      <p>{translateText(f.description)}</p>
+      <code className="block">{translateText(f.evidence)}</code>
       {f.advisoryId && (
         <p>
           {f.advisoryId} · {f.aliases?.join(", ")}
         </p>
       )}
       <h3>{translateText("Исправление")}</h3>
-      <p>{f.remediation}</p>
+      <p>{translateText(f.remediation)}</p>
       {f.ai && (
         <section>
           <h3>
@@ -761,7 +763,7 @@ function FindingTable({
                         </td>
                         <td>
                           <button className="textbtn" onClick={() => select(f)}>
-                            {f.title}
+                            {translateText(f.title)}
                           </button>
                           <small className="mono">
                             {f.path}:{f.line}

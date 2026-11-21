@@ -341,7 +341,7 @@ export function Dashboard() {
             </fieldset>
             {importError && (
               <p role="alert" className="errorline">
-                {importError}
+                {translateText(importError)}
               </p>
             )}
             {busy && (
@@ -656,7 +656,8 @@ export function ProjectDetail() {
                   )}
                   {completed.map((r) => (
                     <option key={r.id} value={r.id}>
-                      {date(r.finished || r.created)} · {r.workflow_name}
+                      {date(r.finished || r.created)} ·{" "}
+                      {translateText(r.workflow_name)}
                     </option>
                   ))}
                 </select>
@@ -699,7 +700,7 @@ export function ProjectDetail() {
         <section className="detailgrid">
           <div>
             <small>{translateText("Источник")}</small>
-            <b>{p.source_type}</b>
+            <b>{translateText(p.source_type)}</b>
             <code>{p.source}</code>
           </div>
           <div>

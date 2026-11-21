@@ -215,7 +215,10 @@ function Connections({
       {incoming.map((e) => (
         <div className="linkline" key={e.id}>
           <small>
-            {nodes.find((n) => n.id === e.source)?.data.spec.title} {e.label}
+            {translateText(
+              nodes.find((n) => n.id === e.source)?.data.spec.title || "",
+            )}{" "}
+            {e.label}
           </small>
           <button
             aria-label={translateText("Удалить связь")}

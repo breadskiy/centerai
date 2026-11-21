@@ -38,7 +38,7 @@ export function Toast() {
     notice &&
     createPortal(
       <div role="status" className={"toast " + (notice.bad ? "bad" : "")}>
-        <span>{notice.text}</span>
+        <span>{translateText(notice.text)}</span>
         <button aria-label={translateText("Закрыть сообщение")} onClick={clear}>
           <X size={16} />
         </button>
@@ -201,7 +201,7 @@ export function RunsTable({
             <tr key={r.id}>
               <td>
                 <Link to={"/runs/" + r.id}>
-                  <b>{r.workflow_name}</b>
+                  <b>{translateText(r.workflow_name)}</b>
                 </Link>
                 <small>{r.project_name}</small>
               </td>

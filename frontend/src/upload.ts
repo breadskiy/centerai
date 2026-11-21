@@ -1,3 +1,4 @@
+import { t } from "./locale";
 import type { Project } from "./api";
 
 export function uploadProject(
@@ -20,10 +21,11 @@ export function uploadForm<T>(
       if (e.lengthComputable) progress(Math.round((e.loaded * 100) / e.total));
     };
     xhr.onerror = () =>
-      reject(new Error("Соединение прервано при загрузке проекта"));
+      reject(new Error(t("Соединение прервано при загрузке проекта")));
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response as T);
-      else reject(new Error(xhr.response?.detail || "Ошибка загрузки проекта"));
+      else
+        reject(new Error(t(xhr.response?.detail || "Ошибка загрузки проекта")));
     };
     xhr.send(values);
   });

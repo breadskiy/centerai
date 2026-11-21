@@ -37,14 +37,12 @@ SKIP = {
 
 def unpack(blob: bytes):
     if len(blob) > MAX_UPLOAD:
-        raise ValueError("ZIP РїСЂРµРІС‹С€Р°РµС‚ 24 РњР‘")
+        raise ValueError("ZIP превышает 24 МБ")
     try:
         with zipfile.ZipFile(io.BytesIO(blob)) as archive:
             entries = archive.infolist()
             if len(entries) > 4000 or sum(e.file_size for e in entries) > MAX_TOTAL:
-                raise ValueError(
-                    "РџСЂРµРІС‹С€РµРЅ Р»РёРјРёС‚ РѕР±СЉС‘РјР° РёР»Рё С‡РёСЃР»Р° С„Р°Р№Р»РѕРІ"
-                )
+                raise ValueError("Превышен лимит объёма или числа файлов")
             files = {}
             for entry in entries:
                 name = entry.orig_filename
@@ -56,20 +54,16 @@ def unpack(blob: bytes):
                     or stat.S_ISLNK(entry.external_attr >> 16)
                     or entry.flag_bits & 1
                 ):
-                    raise ValueError("РќРµРґРѕРїСѓСЃС‚РёРјР°СЏ Р·Р°РїРёСЃСЊ РІ ZIP")
+                    raise ValueError("Недопустимая запись в ZIP")
                 if entry.is_dir() or SKIP.intersection(path.parts):
                     continue
                 if path.suffix not in SUFFIXES and path.name != ".env":
                     continue
                 if entry.file_size > MAX_FILE or str(path) in files:
-                    raise ValueError(
-                        "РЎР»РёС€РєРѕРј Р±РѕР»СЊС€РѕР№ РёР»Рё РґСѓР±Р»РёСЂСѓСЋС‰РёР№СЃСЏ РёСЃС…РѕРґРЅС‹Р№ С„Р°Р№Р»"
-                    )
+                    raise ValueError("Слишком большой или дублирующийся исходный файл")
                 files[str(path)] = archive.read(entry).decode("utf-8-sig")
     except (zipfile.BadZipFile, UnicodeError, NotImplementedError, RuntimeError) as exc:
-        raise ValueError(
-            "РћР¶РёРґР°РµС‚СЃСЏ РёСЃРїСЂР°РІРЅС‹Р№ ZIP СЃ РёСЃС…РѕРґРЅРёРєР°РјРё РІ UTF-8"
-        ) from exc
+        raise ValueError("Ожидается исправный ZIP с исходниками в UTF-8") from exc
     return project_files(files)
 
 
@@ -159,9 +153,7 @@ def project_files(files):
             if PurePosixPath(p).name == "build.gradle.kts"
         ]
     if not roots:
-        raise ValueError(
-            "Р’ Р°СЂС…РёРІРµ РѕС‚СЃСѓС‚СЃС‚РІСѓРµС‚ РїСЂРѕРµРєС‚ Gradle Kotlin DSL"
-        )
+        raise ValueError("В архиве отсутствует проект Gradle Kotlin DSL")
     root = min(roots, key=lambda p: (len(p.parts), str(p)))
     return {
         str(PurePosixPath(p).relative_to(root)): value
@@ -181,9 +173,7 @@ def fetch_repository(url, *, public=False):
     if not match:
         raise ValueError("Введите ссылку вида https://github.com/владелец/репозиторий")
     if not public and "/".join(match.groups()).lower() not in allowed:
-        raise ValueError(
-            "Р’С‹Р±РµСЂРёС‚Рµ GitHub-СЂРµРїРѕР·РёС‚РѕСЂРёР№ РёР· СЃРµСЂРІРµСЂРЅРѕРіРѕ СЃРїРёСЃРєР° СЂР°Р·СЂРµС€С‘РЅРЅС‹С…"
-        )
+        raise ValueError("Выберите GitHub-репозиторий из серверного списка разрешённых")
     owner, repo = match.groups()
     try:
         with httpx.stream(
@@ -197,11 +187,7 @@ def fetch_repository(url, *, public=False):
             for chunk in response.iter_bytes(65536):
                 content.extend(chunk)
                 if len(content) > MAX_UPLOAD:
-                    raise ValueError(
-                        "РђСЂС…РёРІ СЂРµРїРѕР·РёС‚РѕСЂРёСЏ РїСЂРµРІС‹С€Р°РµС‚ 24 РњР‘"
-                    )
+                    raise ValueError("Архив репозитория превышает 24 МБ")
     except httpx.HTTPError as exc:
-        raise ValueError(
-            "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ Р°СЂС…РёРІ СЃ GitHub"
-        ) from exc
+        raise ValueError("Не удалось загрузить архив с GitHub") from exc
     return unpack(bytes(content))

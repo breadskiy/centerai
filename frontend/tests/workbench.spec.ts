@@ -225,4 +225,18 @@ test("Сессия показывает один запуск, монитор о
   await expect(page).toHaveURL(
     new RegExp("/projects/" + sca.project_id + "[?]run_id=" + sca.id + "$"),
   );
+  await expect
+    .poll(async () => (await search.boundingBox())?.width || 0)
+    .toBeLessThanOrEqual(280);
+  await page.goto("/settings");
+  await page.getByRole("combobox", { name: "Язык" }).selectOption("en");
+  await page.goto("/projects");
+  const row = page.getByRole("link", { name: /session-secrets.zip/ });
+  await row.hover();
+  await expect(row.locator("svg")).toHaveCSS("color", "rgb(38, 181, 76)");
+  await row.click();
+  await page.getByRole("button", { name: "Hardcoded API key" }).click();
+  await expect(page.getByRole("dialog")).toContainText(
+    "Credentials can be recovered from the project files.",
+  );
 });
