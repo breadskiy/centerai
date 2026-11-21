@@ -63,7 +63,9 @@ function Pipeline() {
         <FolderGit2 />
         <span>Исходники</span>
       </div>
-      <div className="fork leftFork" />
+      <div className="fork leftFork" aria-hidden="true">
+        <span />
+      </div>
       <div className="pipes">
         {[
           [KeyRound, "Secrets"],
@@ -79,7 +81,9 @@ function Pipeline() {
           );
         })}
       </div>
-      <div className="fork rightFork" />
+      <div className="fork rightFork" aria-hidden="true">
+        <span />
+      </div>
       <div className="pipeEnd">
         <FileOutput />
         <span>Отчёт</span>
@@ -1000,6 +1004,37 @@ function CISettings({ flows }: { flows: Flow[] }) {
   );
 }
 
+function ThemeSettings() {
+  const [theme, setTheme] = useState(
+    document.documentElement.dataset.theme || "system",
+  );
+  return (
+    <section className="panel padded theme-settings">
+      <h2>Внешний вид</h2>
+      <label>
+        Тема
+        <select
+          value={theme}
+          onChange={(event) => {
+            const preference = event.target.value;
+            setTheme(preference);
+            if (preference === "system")
+              delete document.documentElement.dataset.theme;
+            else document.documentElement.dataset.theme = preference;
+            try {
+              localStorage.setItem("centerai-theme", preference);
+            } catch {}
+          }}
+        >
+          <option value="light">Светлая</option>
+          <option value="dark">Тёмная</option>
+          <option value="system">Как в системе</option>
+        </select>
+      </label>
+    </section>
+  );
+}
+
 export function SettingsPage() {
   const s = useData<Settings>("/settings");
   const flows = useData<Flow[]>("/workflows");
@@ -1011,6 +1046,7 @@ export function SettingsPage() {
         title="Настройки"
         sub="Подключите Telegram для отправки отчётов."
       />
+      <ThemeSettings />
       <div className="settingsgrid">
         <section className="panel padded">
           <Send />
