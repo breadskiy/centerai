@@ -1,7 +1,7 @@
 import { expect, test } from "./session";
 import { resolve } from "node:path";
 
-test("Фокус кнопок и загрузки архива использует нейтральную обводку", async ({
+test("Фокус кнопок и загрузки архива выделен фоном без обводки", async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: "dark" });
@@ -9,20 +9,23 @@ test("Фокус кнопок и загрузки архива использу�
   await page.keyboard.press("Tab");
   const upload = page.getByRole("button", { name: "Загрузить репозиторий" });
   await upload.focus();
-  await expect(upload).toHaveCSS("outline-color", "rgb(169, 181, 195)");
+  await expect(upload).toHaveCSS("outline-style", "none");
+  await expect(upload).toHaveCSS("background-color", "rgb(131, 216, 153)");
   await upload.press("Enter");
   const close = page.getByRole("button", { name: "Закрыть", exact: true });
   await close.focus();
-  await expect(close).toHaveCSS("outline-color", "rgb(169, 181, 195)");
+  await expect(close).toHaveCSS("outline-style", "none");
+  await expect(close).toHaveCSS("background-color", "rgb(53, 68, 82)");
   await page.getByRole("dialog").locator('input[type="file"]').focus();
+  await expect(page.locator(".repo-file")).toHaveCSS("outline-style", "none");
   await expect(page.locator(".repo-file")).toHaveCSS(
-    "outline-color",
-    "rgb(169, 181, 195)",
+    "background-color",
+    "rgb(53, 68, 82)",
   );
   await page.emulateMedia({ colorScheme: "light" });
   await expect(page.locator(".repo-file")).toHaveCSS(
-    "outline-color",
-    "rgb(82, 97, 116)",
+    "background-color",
+    "rgb(214, 223, 232)",
   );
 });
 
