@@ -12,6 +12,7 @@ import {
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
   Folder,
+  GitBranch,
   History,
   LayoutDashboard,
   Settings2,
@@ -28,6 +29,7 @@ import { cache } from "./api";
 import { Boundary, Toast } from "./ui";
 import { AccountGate, AccountPage } from "./account";
 import type { SetViewer, Viewer } from "./account";
+import { RepositoriesPage } from "./repositories";
 import {
   Dashboard,
   Projects,
@@ -47,6 +49,9 @@ const FindingsPage = React.lazy(() =>
 const EditorPage = React.lazy(() =>
   import("./editor").then((m) => ({ default: m.EditorPage })),
 );
+const RepositoryEditorPage = React.lazy(() =>
+  import("./editor").then((m) => ({ default: m.RepositoryEditorPage })),
+);
 import "./utilities.css";
 import "./style.css";
 
@@ -55,7 +60,6 @@ const nav = [
   ["/projects", "Сессии", Folder],
   ["/workflows", "Сценарии", Workflow],
   ["/runs", "Запуски", History],
-  ["/settings", "Настройки", Settings2],
 ] as const;
 function Shell({ viewer, change }: { viewer: Viewer; change: SetViewer }) {
   const location = useLocation();
@@ -78,6 +82,16 @@ function Shell({ viewer, change }: { viewer: Viewer; change: SetViewer }) {
               <span>{translateText(text)}</span>
             </NavLink>
           ))}
+          {viewer.github_login && (
+            <NavLink to="/repositories">
+              <GitBranch size={18} />
+              <span>{translateText("Мои репозитории")}</span>
+            </NavLink>
+          )}
+          <NavLink to="/settings">
+            <Settings2 size={18} />
+            <span>{translateText("Настройки")}</span>
+          </NavLink>
         </nav>
         <NavLink
           to="/account"
@@ -115,6 +129,12 @@ function Shell({ viewer, change }: { viewer: Viewer; change: SetViewer }) {
                 <Route path="/findings" element={<FindingsPage />} />
                 <Route path="/findings/:sessionId" element={<FindingsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                {viewer.github_login && (
+                  <>
+                    <Route path="/repositories" element={<RepositoriesPage />} />
+                    <Route path="/repositories/:id/scenario" element={<RepositoryEditorPage />} />
+                  </>
+                )}
                 <Route
                   path="/account"
                   element={<AccountPage viewer={viewer} change={change} />}

@@ -1,4 +1,4 @@
-"""GitHub identity flow. Provider tokens exist only during the callback."""
+"""GitHub identity flow and encrypted access to the public repository list."""
 
 import base64
 import hashlib
@@ -25,12 +25,30 @@ from .auth import (
     token_digest,
     viewer,
 )
-from .db import Account, Session, cipher
+from .db import Account, Credential, RepositoryWatch, Session, cipher
 
 router = APIRouter(prefix="/api/v1/auth/github", tags=["account"])
 COOKIE = "centerai_github_flow"
 PATH = "/api/v1/auth/github"
 TTL = 600
+
+
+def repository_token(db, account_id):
+    credential = db.get(Credential, f"github:{account_id}")
+    if credential is not None:
+        try:
+            return cipher().decrypt(credential.encrypted).decode()
+        except (InvalidToken, UnicodeDecodeError):
+            return None
+
+
+def save_repository_token(db, account, token):
+    db.merge(
+        Credential(
+            provider=f"github:{account.id}",
+            encrypted=cipher().encrypt(token.encode()),
+        )
+    )
 
 
 def configuration():
@@ -48,7 +66,7 @@ def status():
     return {"available": all(configuration())}
 
 
-def start_flow(request, response, intent):
+def start_flow(request, response, intent, *, return_to_repositories=False):
     client_id, secret, callback = configuration()
     if not client_id or not secret:
         raise HTTPException(503, "Подключение GitHub пока не настроено")
@@ -64,6 +82,7 @@ def start_flow(request, response, intent):
         "verifier": verifier,
         "session": token_digest(request),
         "intent": intent,
+        "return_to_repositories": return_to_repositories,
     }
     response.set_cookie(
         COOKIE,
@@ -89,9 +108,11 @@ def start_flow(request, response, intent):
 
 
 @router.post("/link")
-def link(request: Request, response: Response, db: DB):
-    member(db)
-    return start_flow(request, response, "link")
+def link(request: Request, response: Response, db: DB, return_to_repositories: bool = False):
+    account = member(db)
+    if return_to_repositories and not account.github_id:
+        raise HTTPException(403, "Привяжите GitHub в личном кабинете")
+    return start_flow(request, response, "link", return_to_repositories=return_to_repositories)
 
 
 @router.post("/login")
@@ -109,6 +130,14 @@ def unlink(db: DB):
     account = member(db)
     if account.github_id is not None and not account.password_hash:
         raise HTTPException(409, "GitHub используется как единственный способ входа")
+    db.execute(
+        update(RepositoryWatch)
+        .where(RepositoryWatch.account_id == account.id)
+        .values(enabled=False)
+    )
+    credential = db.get(Credential, f"github:{account.id}")
+    if credential is not None:
+        db.delete(credential)
     account.github_id = account.github_login = None
     db.commit()
     return {"ok": True}
@@ -176,10 +205,10 @@ def get_identity(code, verifier, need_email=False):
                     email = normalize_email(raw)
                 except HTTPException:
                     pass
-        return str(user_id), login, email
+        return str(user_id), login, email, token
 
 
-def complete_flow(db, request, response, intent, github_id, login, email):
+def complete_flow(db, request, response, intent, github_id, login, email, token):
     if intent in ("login", "register"):
         account = db.scalar(
             select(Account).where(Account.github_id == github_id).with_for_update()
@@ -197,6 +226,7 @@ def complete_flow(db, request, response, intent, github_id, login, email):
         if account.email is None:
             return "unlinked"
         account.github_login = login
+        save_repository_token(db, account, token)
         retire_session(db, token_digest(request))
         open_session(db, account, request, response)
         return "signed-in"
@@ -213,6 +243,7 @@ def complete_flow(db, request, response, intent, github_id, login, email):
     )
     if not updated.rowcount:
         return "conflict"
+    save_repository_token(db, account, token)
     db.commit()
     return "linked"
 
@@ -253,6 +284,8 @@ def oauth_callback(request: Request, code: str = "", state: str = ""):
         pass
     if result == "signed-in":
         response.headers["Location"] = "/"
+    elif result == "linked" and flow.get("return_to_repositories"):
+        response.headers["Location"] = "/repositories"
     else:
         mode = "&mode=register" if intent == "register" else ""
         response.headers["Location"] = f"{destination}?github={result}{mode}"

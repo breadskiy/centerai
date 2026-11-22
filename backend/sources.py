@@ -162,7 +162,9 @@ def project_files(files):
     }
 
 
-def fetch_repository(url, *, public=False):
+def fetch_repository(url, *, public=False, commit=None):
+    if commit is not None and not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise ValueError("Некорректный идентификатор коммита")
     match = re.fullmatch(
         r"https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?", url
     )
@@ -178,7 +180,7 @@ def fetch_repository(url, *, public=False):
     try:
         with httpx.stream(
             "GET",
-            f"https://codeload.github.com/{owner}/{repo}/zip/HEAD",
+            f"https://codeload.github.com/{owner}/{repo}/zip/{commit or 'HEAD'}",
             timeout=25,
             follow_redirects=False,
         ) as response:

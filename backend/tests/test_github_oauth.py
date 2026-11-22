@@ -3,12 +3,13 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 
 from backend import github_oauth
+from backend.db import Credential, Session
 
 PATH = "/api/v1/auth/github"
 
 
-def state(client, intent="link"):
-    response = client.post(PATH + "/" + intent)
+def state(client, intent="link", **params):
+    response = client.post(PATH + "/" + intent, params=params)
     assert response.status_code == 200, response.text
     query = parse_qs(urlparse(response.json()["url"]).query)
     assert query["code_challenge_method"] == ["S256"]
@@ -27,28 +28,50 @@ def callback(client, state):
 def test_link_and_unlink_github(client, monkeypatch):
     monkeypatch.setenv("GITHUB_CLIENT_ID", "test-id")
     monkeypatch.setenv("GITHUB_CLIENT_SECRET", "test-secret")
-    monkeypatch.setattr(github_oauth, "get_identity", lambda *_: ("42", "example-user", None))
+    monkeypatch.setattr(github_oauth, "get_identity", lambda *_: ("42", "example-user", None, "fixture-token"))
     assert callback(client, state(client) + "wrong") == "/account?github=failed"
     assert client.get("/api/v1/auth/session").json()["github_login"] is None
     assert callback(client, state(client)) == "/account?github=linked"
-    assert client.get("/api/v1/auth/session").json()["github_login"] == "example-user"
+    account = client.get("/api/v1/auth/session").json()
+    assert account["github_login"] == "example-user"
+    assert "fixture-token" not in str(account)
+    with Session() as db:
+        saved = db.get(Credential, f"github:{account['id']}")
+        assert b"fixture-token" not in saved.encrypted
+        assert github_oauth.repository_token(db, account["id"]) == "fixture-token"
     assert client.delete(PATH + "/link").status_code == 200
     assert client.get("/api/v1/auth/session").json()["github_login"] is None
+    with Session() as db:
+        assert github_oauth.repository_token(db, account["id"]) is None
+
+
+def test_renew_repository_access_without_signing_out(client, monkeypatch):
+    monkeypatch.setenv("GITHUB_CLIENT_ID", "test-id")
+    monkeypatch.setenv("GITHUB_CLIENT_SECRET", "test-secret")
+    monkeypatch.setattr(github_oauth, "get_identity", lambda *_: ("42", "example-user", None, "fixture-token"))
+    assert client.post(PATH + "/link", params={"return_to_repositories": True}).status_code == 403
+    assert callback(client, state(client)) == "/account?github=linked"
+    monkeypatch.setattr(github_oauth, "get_identity", lambda *_: ("42", "example-user", None, "renewed-token"))
+    assert callback(client, state(client, return_to_repositories=True)) == "/repositories"
+    account = client.get("/api/v1/auth/session").json()
+    assert account["github_login"] == "example-user"
+    with Session() as db:
+        assert github_oauth.repository_token(db, account["id"]) == "renewed-token"
 
 
 def test_github_sign_in_restores_only_linked_account(client, monkeypatch):
     monkeypatch.setenv("GITHUB_CLIENT_ID", "test-id")
     monkeypatch.setenv("GITHUB_CLIENT_SECRET", "test-secret")
-    monkeypatch.setattr(github_oauth, "get_identity", lambda *_: ("42", "original", None))
+    monkeypatch.setattr(github_oauth, "get_identity", lambda *_: ("42", "original", None, "fixture-token"))
     owner = client.patch(
         "/api/v1/auth/profile", json={"nickname": "Saved", "telegram_username": ""}
     ).json()
     assert callback(client, state(client)) == "/account?github=linked"
     assert client.post("/api/v1/auth/logout").status_code == 200
-    monkeypatch.setattr(github_oauth, "get_identity", lambda *_: ("43", "original", None))
+    monkeypatch.setattr(github_oauth, "get_identity", lambda *_: ("43", "original", None, "fixture-token"))
     assert callback(client, state(client, "login")) == "/?github=unlinked"
     assert client.get("/api/v1/auth/session").json() is None
-    monkeypatch.setattr(github_oauth, "get_identity", lambda *_: ("42", "renamed", None))
+    monkeypatch.setattr(github_oauth, "get_identity", lambda *_: ("42", "renamed", None, "fixture-token"))
     assert callback(client, state(client, "login")) == "/"
     restored = client.get("/api/v1/auth/session").json()
     assert restored["id"] == owner["id"]
@@ -61,7 +84,7 @@ def test_signup_with_verified_github_email(anonymous, monkeypatch):
     monkeypatch.setenv("GITHUB_CLIENT_SECRET", "test-secret")
     monkeypatch.setattr(
         github_oauth, "get_identity",
-        lambda _, __, need_email: ("89", "new-owner", "oauth@example.com" if need_email else None),
+        lambda _, __, need_email: ("89", "new-owner", "oauth@example.com" if need_email else None, "fixture-token"),
     )
     assert callback(anonymous, state(anonymous, "register")) == "/"
     user = anonymous.get("/api/v1/auth/session").json()
@@ -78,11 +101,11 @@ def test_signup_rejects_missing_email_or_existing_password_account(client, monke
     monkeypatch.setenv("GITHUB_CLIENT_ID", "test-id")
     monkeypatch.setenv("GITHUB_CLIENT_SECRET", "test-secret")
     assert client.post("/api/v1/auth/logout").is_success
-    monkeypatch.setattr(github_oauth, "get_identity", lambda *_: ("400", "other", None))
+    monkeypatch.setattr(github_oauth, "get_identity", lambda *_: ("400", "other", None, "fixture-token"))
     assert callback(client, state(client, "register")) == "/?github=email-unavailable&mode=register"
     assert client.get("/api/v1/auth/session").json() is None
     monkeypatch.setattr(
-        github_oauth, "get_identity", lambda *_: ("400", "other", "developer@example.com")
+        github_oauth, "get_identity", lambda *_: ("400", "other", "developer@example.com", "fixture-token")
     )
     assert callback(client, state(client, "register")) == "/?github=existing-email&mode=register"
     assert client.get("/api/v1/auth/session").json() is None
@@ -113,9 +136,9 @@ def test_signup_reads_only_verified_primary_email(monkeypatch):
         lambda **kwargs: original_client(transport=httpx.MockTransport(provider), **kwargs),
     )
     assert github_oauth.get_identity("code", "verifier", True) == (
-        "42", "profile", "primary@example.com",
+        "42", "profile", "primary@example.com", "fixture-token",
     )
     assert paths == ["/login/oauth/access_token", "/user", "/user/emails"]
     paths.clear()
-    assert github_oauth.get_identity("code", "verifier") == ("42", "profile", None)
+    assert github_oauth.get_identity("code", "verifier") == ("42", "profile", None, "fixture-token")
     assert paths == ["/login/oauth/access_token", "/user"]
