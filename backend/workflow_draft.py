@@ -9,11 +9,55 @@ from .graph import validate
 from .node_config import EmailConfig
 
 ADDRESS_TEXT = re.compile(r"[^\s<>(),;:\"“”«»]+@[^\s<>(),;:\"“”«»]*")
+MAIL_DESTINATION = r"(?:(?:мою|свою|подтвержд[её]нную|электронную)\s+)*почту"
 ADDRESS_TARGET = re.compile(
-    r"\b(?:на|to)\s+(?:(?:(?:электронную\s+)?почту|e-?mail|адрес|address)\s*:?\s*)?"
+    rf"\b(?:на|to)\s+(?:(?:{MAIL_DESTINATION}|e-?mail|адрес|address)\s*:?\s*)?"
     r"[\"<«]?(?P<address>[^\s<>(),;:\"“”«»]+@[^\s<>(),;:\"“”«»]*)",
     re.I,
 )
+SCANNER_TERMS = {
+    "secrets": r"(?:secrets|секрет\w*|парол\w*|токен\w*)",
+    "sca": r"(?:sca|зависимост\w*|библиотек\w*|gradle)",
+    "sast": r"(?:sast|статическ\w*\s+анализ|авторизаци\w*)",
+}
+SEVERITY_TERMS = {
+    "CRITICAL": r"(?:critical|критическ\w*)",
+    "HIGH": r"(?:high|высок\w*)",
+    "MEDIUM": r"(?:medium|средн\w*)",
+    "LOW": r"(?:low|низк\w*)",
+    "INFO": r"(?:info|информационн\w*)",
+}
+
+
+def apply_scanner_request(plan, text):
+    excluded = set()
+    for scanner, term in SCANNER_TERMS.items():
+        negative = (
+            rf"\b(?:без|кроме|исключи\w*|пропусти\w*|"
+            rf"не(?:\s+(?:проверяй|добавляй|используй|запускай))?|without|except|skip)\s+{term}\b"
+        )
+        if re.search(negative, text):
+            excluded.add(scanner)
+            text = re.sub(negative, "", text)
+
+    requested = [scanner for scanner, term in SCANNER_TERMS.items() if re.search(rf"\b{term}\b", text)]
+    all_scanners = re.search(
+        r"\b(?:все (?:три|анализатор\w*|виды|категории|проверки)|all (?:three|scanners))\b",
+        text,
+    )
+    full_scan = re.search(
+        r"\b(?:полность(?:ю)?|полн\w*\s+проверк\w*|комплексн\w*\s+проверк\w*|"
+        r"весь\s+(?:проект|репозиторий|код)|full\s+scan|complete\s+scan)\b",
+        text,
+    )
+    negated_full = re.search(r"\b(?:не\s+полностью|не\s+(?:делай|запускай)\s+полн\w*|not a full scan)\b", text)
+    if (all_scanners or (full_scan and not requested)) and not negated_full:
+        candidates = list(SCANNER_TERMS)
+    else:
+        candidates = requested or plan.scanners
+    plan.scanners = [scanner for scanner in dict.fromkeys(candidates) if scanner not in excluded]
+    if not plan.scanners and excluded:
+        plan.scanners = [scanner for scanner in SCANNER_TERMS if scanner not in excluded]
 
 
 class Plan(BaseModel):
@@ -100,35 +144,27 @@ def compile_plan(plan, recipient=""):
 def apply_explicit_filters(plan, description):
     """Preserve unambiguous positive scanner and risk requests in compact-model drafts."""
     text = description.casefold()
-    if not re.search(
-        r"\b(?:critical|high|medium|low|info|severity|критическ\w*|высок\w*|"
-        r"средн\w*|низк\w*|информационн\w*|критичност\w*|серьёзност\w*|серьезност\w*|важн\w*)\b",
-        text,
-    ):
+    levels = [level for level, term in SEVERITY_TERMS.items() if re.search(rf"\b{term}\b", text)]
+    severity_context = re.search(r"\b(?:только|если|покаж\w*|остав\w*|фильтр\w*|находк\w*|критичност\w*|severity|findings|only|filter)\b", text)
+    excluded_level = re.search(r"\b(?:кроме|без|исключи\w*|except|without)\s+(?:" + "|".join(SEVERITY_TERMS.values()) + r")\b", text)
+    if levels and severity_context and not excluded_level:
+        plan.levels = levels
+    elif not re.search(r"\b(?:критичност\w*|серь[её]зност\w*|важн\w*|severity)\b", text) and not levels:
         plan.levels = []
     if not re.search(r"\b(?:regex|regexp|path|files?|folder\w*|director\w*|пут\w*|файл\w*|папк\w*|каталог\w*)\b|\w/\w|\.(?:kt|kts|java)\b", text):
         plan.path_regex = ""
-    if not re.search(r"\b(?:объясн\w*|поясн\w*|порекоменд\w*|рекомендац\w*|explain\w*|recommend\w*|ai|ии)\b", text):
+    ai = r"(?:ai|ии|нейросет\w*|нейронк\w*|искусственн\w*\s+интеллект\w*)"
+    if re.search(rf"\b(?:без\s+{ai}|without\s+ai|не\s+(?:объясняй|поясняй))\b", text):
         plan.explanations = False
-    if re.search(r"\b(не|без|кроме|исключ\w*|except|without|not)\b", text):
-        return
-    matches = {
-        "sca": r"\b(?:sca|зависимост\w*|библиотек\w*)\b",
-        "secrets": r"\b(?:secrets|секрет\w*|парол\w*|токен\w*)\b",
-        "sast": r"\b(?:sast|статическ\w*\s+анализ|авторизаци\w*)\b",
-    }
-    requested = [name for name, pattern in matches.items() if re.search(pattern, text)]
-    if requested and not re.search(r"все (?:три|анализатор|виды|категории)", text):
-        plan.scanners = requested
-    if (
-        re.search(r"\b(?:critical|критическ\w*)\b", text)
-        and not re.search(
-            r"\b(?:high|medium|low|info|высок\w*|средн\w*|низк\w*|информационн\w*)\b",
-            text,
-        )
-        and re.search(r"(?:только|оставь|если есть)\s+(?:critical|критическ)", text)
+    elif re.search(
+        rf"\b(?:с\s+(?:помощью\s+)?{ai}|with\s+ai|(?:ai|ии)[-\s]+анализ\w*|"
+        r"объясни\w*|поясни\w*|порекомендуй\w*|explain|recommend)\b",
+        text,
     ):
-        plan.levels = ["CRITICAL"]
+        plan.explanations = True
+    elif not re.search(rf"\b(?:объясн\w*|поясн\w*|порекоменд\w*|рекомендац\w*|explain\w*|recommend\w*|{ai})\b", text):
+        plan.explanations = False
+    apply_scanner_request(plan, text)
 
 
 def apply_explicit_schedule(plan, description):
@@ -139,6 +175,11 @@ def apply_explicit_schedule(plan, description):
     weekdays = re.search(r"\b(?:по будням|каждый будний день|weekdays)\b", text)
     daily = re.search(r"\b(?:каждый день|ежедневно|every day|daily)\b", text)
     times = re.findall(r"(?<!\d)([01]?\d|2[0-3]):([0-5]\d)(?!\d)", text)
+    if not times:
+        times = [
+            (int(hour) % 12 + (12 if period in {"дня", "вечера"} else 0), 0)
+            for hour, period in re.findall(r"\bв\s+(1[0-2]|[1-9])\s+(утра|дня|вечера|ночи)\b", text)
+        ]
     if (weekdays or daily) and len(times) == 1 and not re.search(
         r"\bне\s+(?:каждый день|ежедневно|по будням)", text
     ):
@@ -148,6 +189,7 @@ def apply_explicit_schedule(plan, description):
 
 def draft(description, *, account_email=None, report_email=None, telegram_enabled=False):
     provider = configured_provider()
+    model_description = ADDRESS_TEXT.sub("[email address]", description)
     messages = [
         {
             "role": "system",
@@ -157,7 +199,9 @@ def draft(description, *, account_email=None, report_email=None, telegram_enable
                 "«По будням» и «каждый будний день» означают дни недели 1-5. "
                 '«Вручную» означает cron пустой. Каналы уведомлений: Telegram и email. '
                 "Do not add SAST merely because the code is mentioned as the source for another scan. "
-                "Use all three only for a general scan. Default levels=[], cron='', timezone='Europe/Moscow', "
+                "Use all three for a full project scan or an explicit request for all three. "
+                "Read every clause and include each requested scanner, filter, condition, and delivery channel. "
+                "Default levels=[], cron='', timezone='Europe/Moscow', "
                 "path_regex='', explanations=false, notify=[], only_if_findings=false. "
                 "Use five-field cron only if requested. "
                 "Include filters and explanation stages only when explicitly requested. "
@@ -180,15 +224,15 @@ def draft(description, *, account_email=None, report_email=None, telegram_enable
             "role": "assistant",
             "content": '{"scanners":["sca"],"levels":["HIGH"],"cron":"0 10 * * 1-5","timezone":"Europe/Moscow","path_regex":"","explanations":false,"notify":["telegram"],"only_if_findings":true}',
         },
-        {"role": "user", "content": ADDRESS_TEXT.sub("[email address]", description)},
+        {"role": "user", "content": model_description},
     ]
     for attempt in range(2):
         try:
             plan = Plan.model_validate_json(
                 provider.complete(messages, Plan.model_json_schema())
             )
-            apply_explicit_filters(plan, description)
-            apply_explicit_schedule(plan, description)
+            apply_explicit_filters(plan, model_description)
+            apply_explicit_schedule(plan, model_description)
             warnings = []
             plan.notify = []
             no_delivery = re.search(r"\bбез (?:уведомлен\w*|рассылк\w*)\b", description, re.I)
@@ -205,7 +249,8 @@ def draft(description, *, account_email=None, report_email=None, telegram_enable
                 for match in ADDRESS_TARGET.finditer(description)
             }
             email_requested = re.search(
-                r"\b(?:на (?:электронную )?почту|по (?:электронной )?почте|на e-?mail|"
+                rf"\b(?:на\s+{MAIL_DESTINATION}|"
+                r"по (?:электронной )?почте|на e-?mail|"
                 r"send\w* .{0,60}\b(?:e-?mail|inbox)|e-?mail (?:the )?report)\b",
                 description, re.I,
             )
@@ -239,8 +284,12 @@ def draft(description, *, account_email=None, report_email=None, telegram_enable
                     plan.notify.append("email")
                 else:
                     warnings.append("Почта не настроена для этого аккаунта. Отчёт будет доступен в CenterAI.")
-            if not re.search(r"\b(?:только если|если (?:есть|найден\w*|обнаружен\w*))\b", description, re.I):
-                plan.only_if_findings = False
+            plan.only_if_findings = bool(re.search(
+                r"\b(?:если\s+(?:есть|найд\w*|обнаруж\w*|будут?\s+находк\w*)|"
+                r"при\s+наличии\s+находок|only\s+if\s+(?:there\s+are\s+)?findings)\b",
+                model_description,
+                re.I,
+            ))
             return {**compile_plan(plan, recipient), "warnings": warnings}
         except (ValueError, TypeError, KeyError, IndexError):
             if attempt:
