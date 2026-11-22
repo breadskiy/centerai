@@ -1,6 +1,31 @@
 import { expect, test } from "./session";
 import { resolve } from "node:path";
 
+test("Фокус кнопок и загрузки архива использует нейтральную обводку", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  await page.keyboard.press("Tab");
+  const upload = page.getByRole("button", { name: "Загрузить репозиторий" });
+  await upload.focus();
+  await expect(upload).toHaveCSS("outline-color", "rgb(169, 181, 195)");
+  await upload.press("Enter");
+  const close = page.getByRole("button", { name: "Закрыть", exact: true });
+  await close.focus();
+  await expect(close).toHaveCSS("outline-color", "rgb(169, 181, 195)");
+  await page.getByRole("dialog").locator('input[type="file"]').focus();
+  await expect(page.locator(".repo-file")).toHaveCSS(
+    "outline-color",
+    "rgb(169, 181, 195)",
+  );
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator(".repo-file")).toHaveCSS(
+    "outline-color",
+    "rgb(82, 97, 116)",
+  );
+});
+
 test("Тема следует системе и сохраняет ручной выбор", async ({ page }) => {
   const root = page.locator("html");
   await page.emulateMedia({ colorScheme: "dark" });
