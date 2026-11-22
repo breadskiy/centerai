@@ -1,6 +1,11 @@
 import { t as translateText } from "./locale";
 import { DragEvent, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import {
   addEdge,
   applyEdgeChanges,
@@ -40,6 +45,7 @@ import {
 } from "lucide-react";
 import {
   api,
+  cache,
   date,
   Flow,
   Graph,
@@ -442,7 +448,29 @@ function Versions({
     </Modal>
   );
 }
-function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
+type EditableFlow = Pick<
+  Flow,
+  "id" | "name" | "description" | "revision" | "graph"
+> & {
+  repository?: string;
+};
+
+function Editor({
+  flow,
+  registry,
+  repositoryPage,
+}: {
+  flow: EditableFlow;
+  registry: Registry;
+  repositoryPage?: string;
+}) {
+  const repositoryMode = repositoryPage !== undefined;
+  const resource = repositoryMode
+    ? "/github-repositories/" + flow.id + "/scenario"
+    : "/workflows/" + flow.id;
+  const query = repositoryMode
+    ? "?page=" + encodeURIComponent(repositoryPage)
+    : "";
   const initial = useRef(translate(flow.graph, registry));
   const [nodes, setNodes] = useState<Tile[]>(initial.current.nodes);
   const [edges, setEdges] = useState<Edge[]>(initial.current.edges);
@@ -484,11 +512,7 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
   useEffect(() => {
     let current = true;
     const timer = setTimeout(() => {
-      api(
-        "/workflows/" + flow.id + "/validate",
-        "POST",
-        JSON.parse(topology),
-      ).then(
+      api(resource + "/validate", "POST", JSON.parse(topology)).then(
         () => {
           if (current) checked({ graph: topology, error: "" });
         },
@@ -501,7 +525,7 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
       current = false;
       clearTimeout(timer);
     };
-  }, [flow.id, topology]);
+  }, [resource, topology]);
   const graphError = validation.graph === topology ? validation.error : "";
   const saved = useRef(serialized);
   const latest = useRef(serialized);
@@ -515,12 +539,18 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
         if (saved.current === value) return;
         note(translateText("Сохранение…"));
         try {
-          const updated = await api<Flow>("/workflows/" + flow.id, "PUT", {
+          const updated = await api<EditableFlow>(resource + query, "PUT", {
             ...JSON.parse(value),
             revision: revision.current,
           });
           revision.current = updated.revision;
           saved.current = value;
+          if (repositoryMode) {
+            cache.setQueryData([resource + query], updated);
+            void cache.invalidateQueries({
+              queryKey: ["/github-repositories/watches"],
+            });
+          }
           note(translateText("Сохранено"));
           setError("");
         } catch (e) {
@@ -535,14 +565,15 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
   useEffect(() => {
     if (serialized === saved.current) return;
     note(translateText("Есть изменения"));
+    if (repositoryMode) return;
     const t = setTimeout(() => {
       void save().catch(() => {});
     }, 800);
     return () => clearTimeout(t);
-  }, [serialized]);
+  }, [serialized, repositoryMode]);
   useEffect(
     () => () => {
-      if (latest.current !== saved.current)
+      if (!repositoryMode && latest.current !== saved.current)
         void save().catch((e) => show(e.message, true));
     },
     [],
@@ -593,9 +624,13 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
     );
   }
   async function validate() {
-    await save();
+    if (!repositoryMode) await save();
     try {
-      await api("/workflows/" + flow.id + "/validate", "POST");
+      await api(
+        resource + "/validate",
+        "POST",
+        repositoryMode ? graph : undefined,
+      );
       setError("");
     } catch (e) {
       setError((e as Error).message);
@@ -604,10 +639,30 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
   }
   return (
     <section className="editor">
-      <Link className="back" to="/workflows">
+      <Link
+        className="back"
+        to={
+          repositoryMode
+            ? "/repositories" + (repositoryPage === "1" ? "" : query)
+            : "/workflows"
+        }
+      >
         <ChevronLeft size={15} />
-        {translateText("Сценарии")}
+        {translateText(repositoryMode ? "Мои репозитории" : "Сценарии")}
       </Link>
+      {repositoryMode && (
+        <p>
+          {flow.repository && (
+            <>
+              <strong>{flow.repository}</strong>
+              {" · "}
+            </>
+          )}
+          {translateText(
+            "Сохранённый граф будет выполняться при автопроверке этого репозитория после коммита.",
+          )}
+        </p>
+      )}
       <div className="editorbar">
         <div>
           <input
@@ -628,16 +683,23 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
           >
             <Settings2 />
           </button>
+          {!repositoryMode && (
+            <button
+              aria-label={translateText("Версии")}
+              title={translateText("Версии")}
+              onClick={() => history(true)}
+            >
+              <History />
+            </button>
+          )}
           <button
-            aria-label={translateText("Версии")}
-            title={translateText("Версии")}
-            onClick={() => history(true)}
-          >
-            <History />
-          </button>
-          <button
+            className={repositoryMode ? "primary" : undefined}
             title={translateText("Сохранить")}
-            disabled={busy}
+            disabled={
+              busy ||
+              (repositoryMode &&
+                (!name.trim() || validation.graph !== topology || !!graphError))
+            }
             onClick={() =>
               void act(async () => {
                 await save();
@@ -646,6 +708,7 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
             }
           >
             <Save />
+            {repositoryMode && translateText("Сохранить")}
           </button>
           <button
             disabled={busy}
@@ -659,28 +722,30 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
             <CheckCheck />
             {translateText("Проверить")}
           </button>
-          <button
-            className="primary"
-            disabled={
-              busy ||
-              !name.trim() ||
-              validation.graph !== topology ||
-              !!graphError
-            }
-            onClick={() =>
-              void act(async () => {
-                await validate();
-                const r = await api<Run>(
-                  "/workflows/" + flow.id + "/runs",
-                  "POST",
-                );
-                nav("/runs/" + r.id, { state: { presentStages: true } });
-              })
-            }
-          >
-            <Play />
-            {translateText("Запустить")}
-          </button>
+          {!repositoryMode && (
+            <button
+              className="primary"
+              disabled={
+                busy ||
+                !name.trim() ||
+                validation.graph !== topology ||
+                !!graphError
+              }
+              onClick={() =>
+                void act(async () => {
+                  await validate();
+                  const r = await api<Run>(
+                    "/workflows/" + flow.id + "/runs",
+                    "POST",
+                  );
+                  nav("/runs/" + r.id, { state: { presentStages: true } });
+                })
+              }
+            >
+              <Play />
+              {translateText("Запустить")}
+            </button>
+          )}
         </div>
       </div>
       {(error || graphError) && (
@@ -693,7 +758,9 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
         <ol>
           <li>
             {translateText(
-              "Ручной запуск и Исходники задают, когда начать и какой проект проверить.",
+              repositoryMode
+                ? "При автопроверке граф запускается после коммита в отслеживаемой ветке GitHub."
+                : "Ручной запуск и Исходники задают, когда начать и какой проект проверить.",
             )}
           </li>
           <li>
@@ -708,7 +775,9 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
           </li>
           <li>
             {translateText(
-              "Нажмите «Проверить», затем «Запустить». Для уведомления подключите Telegram после Отчёта.",
+              repositoryMode
+                ? "Нажмите «Проверить», затем «Сохранить». Для уведомления подключите Telegram после Отчёта."
+                : "Нажмите «Проверить», затем «Запустить». Для уведомления подключите Telegram после Отчёта.",
             )}
           </li>
         </ol>
@@ -917,6 +986,21 @@ export function EditorPage() {
   return (
     <ReactFlowProvider>
       <Editor key={id} flow={flow} registry={registry} />
+    </ReactFlowProvider>
+  );
+}
+
+export function RepositoryEditorPage() {
+  const { id } = useParams();
+  const [search] = useSearchParams();
+  const page = search.get("page") ?? "1";
+  const flow = useData<EditableFlow>(
+    "/github-repositories/" + id + "/scenario?page=" + encodeURIComponent(page),
+  );
+  const registry = useData<Registry>("/registry");
+  return (
+    <ReactFlowProvider>
+      <Editor key={id} flow={flow} registry={registry} repositoryPage={page} />
     </ReactFlowProvider>
   );
 }

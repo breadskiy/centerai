@@ -19,6 +19,51 @@ const english: Record<string, string> = {
   Сценарии: "Workflows",
   Запуски: "Runs",
   Настройки: "Settings",
+  "Мои репозитории": "My repositories",
+  "CenterAI проверяет новые коммиты основной ветки публичных репозиториев, пока сервер запущен.":
+    "CenterAI checks new commits on the default branch of public repositories while the server is running.",
+  "Публичных репозиториев на этой странице нет.":
+    "No public repositories on this page.",
+  Автопроверка: "Automatic scanning",
+  "Последний результат": "Latest result",
+  "Последний коммит": "Latest commit",
+  Проверено: "Scanned",
+  "Настроить сценарий": "Configure workflow",
+  "Сохранённый граф будет выполняться при автопроверке этого репозитория после коммита.":
+    "The saved graph will run automatically after a commit to this repository.",
+  "При автопроверке граф запускается после коммита в отслеживаемой ветке GitHub.":
+    "Automatic scans run the graph after a commit to the watched GitHub branch.",
+  "Нажмите «Проверить», затем «Сохранить». Для уведомления подключите Telegram после Отчёта.":
+    "Click Validate, then Save. To send a notification, connect Telegram after the report.",
+  "Шаблон не опубликован или недоступен":
+    "The template is unpublished or unavailable",
+  "Открыть отчёт": "Open report",
+  "Идёт проверка": "Scan in progress",
+  Новые: "New",
+  Исправленные: "Fixed",
+  "Проверка не завершилась": "Scan did not complete",
+  "Ожидаем проверку": "Waiting for scan",
+  "Проверок пока нет": "No scans yet",
+  "Не удалось получить данные GitHub": "Could not fetch GitHub data",
+  "Репозиторий или ветка недоступны на GitHub":
+    "The repository or branch is unavailable on GitHub",
+  "Репозиторий пока пуст. Добавьте первый коммит, чтобы запустить проверку.":
+    "The repository is empty. Add the first commit to start scanning.",
+  "Достигнут лимит GitHub. Проверка возобновится автоматически.":
+    "GitHub rate limit reached. Scanning will resume automatically.",
+  "Можно отслеживать до пяти репозиториев":
+    "You can watch up to five repositories",
+  "Выберите публичный репозиторий, где вы владелец или соавтор":
+    "Choose a public repository you own or collaborate on",
+  "Войдите через GitHub заново, чтобы обновить доступ":
+    "Sign in with GitHub again to renew access",
+  "Подтвердите доступ GitHub, чтобы увидеть репозитории, где вы соавтор.":
+    "Confirm GitHub access to see repositories you collaborate on.",
+  "Подтвердить доступ GitHub": "Confirm GitHub access",
+  Обновить: "Refresh",
+  "Обновляем…": "Refreshing…",
+  Владелец: "Owner",
+  Соавтор: "Collaborator",
   "Центр-инвест": "Center-invest",
   "Основная навигация": "Main navigation",
   "Загрузка…": "Loading…",
@@ -508,10 +553,20 @@ const english: Record<string, string> = {
   "Отвязать GitHub": "Unlink GitHub",
   "Привязать GitHub": "Link GitHub",
   "Войти через GitHub": "Sign in with GitHub",
+  "Зарегистрироваться через GitHub": "Sign up with GitHub",
+  "Не удалось продолжить через GitHub": "Could not continue with GitHub",
+  "Для регистрации подтвердите основной email в GitHub.":
+    "Verify your primary email in GitHub to sign up.",
+  "Для этой почты уже есть аккаунт CenTRap. Войдите с почтой и привяжите GitHub в личном кабинете.":
+    "A CenTRap account already uses this email. Sign in with email and link GitHub in My account.",
+  "GitHub используется как единственный способ входа":
+    "GitHub is your only sign-in method",
   "Не удалось войти через GitHub": "Could not sign in with GitHub",
   "Сначала войдите с почтой и привяжите GitHub в личном кабинете":
     "Sign in with your email first and link GitHub in My account",
   "Подключение GitHub пока не настроено": "GitHub is not configured yet",
+  "Для входа через GitHub администратору нужно настроить OAuth на сервере CenTRap.":
+    "To enable GitHub sign-in, configure OAuth on the CenTRap server.",
   "Выбрать фото": "Choose photo",
   "Удалить фото": "Remove photo",
   "Фото должно занимать не больше 2 МБ":

@@ -140,6 +140,36 @@ class Run(Base):
     count: Mapped[int] = mapped_column(default=0)
 
 
+class RepositoryWatch(Base):
+    __tablename__ = "repository_watches"
+    account_id: Mapped[str] = mapped_column(ForeignKey("accounts.id"), primary_key=True)
+    repository_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    github_id: Mapped[str] = mapped_column(String(32))
+    full_name: Mapped[str]
+    branch: Mapped[str]
+    enabled: Mapped[bool]
+    due: Mapped[float] = mapped_column(Float)
+    sha: Mapped[str | None] = mapped_column(String(40))
+    head_sha: Mapped[str | None] = mapped_column(String(40))
+    head_committed_at: Mapped[float | None] = mapped_column(Float)
+    profile: Mapped[str] = mapped_column(
+        String(120), default="full", server_default="full"
+    )
+    scan_profile: Mapped[str] = mapped_column(
+        String(120), default="full", server_default="full"
+    )
+    scenario: Mapped[dict | None] = mapped_column(JSON)
+    scenario_revision: Mapped[int] = mapped_column(default=0, server_default="0")
+    scan_scenario_revision: Mapped[int] = mapped_column(default=0, server_default="0")
+    run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("runs.id", ondelete="SET NULL")
+    )
+    baseline_id: Mapped[str | None] = mapped_column(
+        ForeignKey("runs.id", ondelete="SET NULL")
+    )
+    error: Mapped[str | None]
+
+
 class NodeRun(Base):
     __tablename__ = "node_runs"
     run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), primary_key=True)

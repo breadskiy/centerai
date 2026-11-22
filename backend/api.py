@@ -49,6 +49,8 @@ from .db import (
 from .github_oauth import router as github_router
 from .graph import LEVELS, REGISTRY, Graph, default_graph, next_due, validate
 from .migrate import upgrade
+from .repository_watches import router as repository_router, watch_worker
+from .scan_profiles import ProfileUnavailable, resolve_scan_profile
 from .sources import MAX_UPLOAD, fetch_repository, unpack_archive
 from .worker import enqueue, local_worker, request_cancellation
 from .workflow_draft import draft
@@ -64,13 +66,22 @@ async def lifespan(app):
     cipher()
     stop = Stop()
     worker = None
-    if os.getenv("WORKER_MODE", "local") == "local":
+    mode = os.getenv("WORKER_MODE", "local")
+    if mode == "local":
         worker = Thread(target=local_worker, args=(stop,), daemon=True)
         worker.start()
+    watcher = None
+    if mode != "test":
+        watcher = Thread(
+            target=watch_worker, args=(stop, prepare_repository_scan), daemon=True
+        )
+        watcher.start()
     yield
     stop.set()
     if worker:
         await asyncio.to_thread(worker.join, 15)
+    if watcher:
+        await asyncio.to_thread(watcher.join, 15)
     engine.dispose()
 
 
@@ -381,26 +392,51 @@ def import_project(db, name, description, archive, repository, *, public=False):
         if public
         else fetch_repository(repository)
     )
+    source = (archive.filename or "project.zip") if archive else repository
+    source_type = "GitHub"
+    if archive:
+        source_type = "ZIP" if source.lower().endswith(".zip") else "Архив"
+    return save_snapshot(db, name, description, source, source_type, files)
+
+
+def save_snapshot(db, name, description, source, source_type, files):
     if not name.strip():
         raise ValueError("Укажите название проекта")
     row = Project(
         owner_id=db.info["account"].id,
         name=name.strip(),
         description=description,
-        source=(archive.filename or "project.zip") if archive else repository,
-        source_type=(
-            "ZIP"
-            if (archive.filename or "project.zip").lower().endswith(".zip")
-            else "Архив"
-        )
-        if archive
-        else "GitHub",
+        source=source,
+        source_type=source_type,
         file_count=len(files),
         snapshot=cipher().encrypt(json.dumps(files, ensure_ascii=False).encode()),
     )
     db.add(row)
     db.flush()
     return row
+
+
+def prepare_repository_scan(full_name, sha, title, graph):
+    repository = f"https://github.com/{full_name}"
+    files = fetch_repository(repository, public=True, commit=sha)
+
+    def queue(db):
+        project = save_snapshot(
+            db, f"{full_name[:87]} · {sha[:7]}", "", repository, "GitHub", files
+        )
+        return queue_snapshot(
+            db, project, f"Автопроверка GitHub · {title}", graph, "github"
+        )
+
+    return queue
+
+
+def queue_snapshot(db, project, title, graph, trigger):
+    flow = Workflow(name=title, description="", project_id=project.id, graph=graph)
+    db.add(flow)
+    db.flush()
+    version(db, flow)
+    return enqueue(db, flow, trigger)
 
 
 @api.post("/quick-scan", status_code=202)
@@ -410,50 +446,17 @@ def quick_scan(
     archive: UploadFile | None = File(None),
     repository: str = Form("", max_length=500),
 ):
-    options = {
-        "full": "Полная проверка",
-        "ai": "Полная проверка с AI",
-        "sca": "Только зависимости",
-        "secrets": "Только секреты",
-        "sast": "Только код",
-    }
-    if profile in options:
-        title = options[profile]
-        graph = default_graph(with_ai=profile == "ai")
-        if profile in ("sca", "secrets", "sast"):
-            omitted = {
-                f"{key}_scanner" for key in ("sca", "secrets", "sast") if key != profile
-            }
-            graph["nodes"] = [n for n in graph["nodes"] if n["id"] not in omitted]
-            graph["edges"] = [
-                e
-                for e in graph["edges"]
-                if e["source"] not in omitted and e["target"] not in omitted
-            ]
-    else:
-        parts = profile.split(":")
-        if len(parts) != 2 or not parts[1].isascii() or not parts[1].isdigit():
-            raise ValueError("Выберите профиль проверки")
-        snapshot = get(db, Version, (parts[0], int(parts[1])), include_archived=True)
-        if snapshot.published_at is None:
-            raise HTTPException(404, "Шаблон не опубликован")
-        title = snapshot.name
-        graph = Graph.model_validate(snapshot.graph).model_dump()
-        for node in graph["nodes"]:
-            if node["type"] == "schedule_trigger":
-                node["config"]["enabled"] = False
-    validate(graph)
+    try:
+        title, graph = resolve_scan_profile(db, db.info["account"].id, profile)
+    except ProfileUnavailable as exc:
+        raise HTTPException(404, str(exc)) from exc
     name = (
         (archive.filename or "Проект")
         if archive
         else repository.rstrip("/").rsplit("/", 1)[-1]
     )
     project = import_project(db, name[:100], "", archive, repository, public=True)
-    flow = Workflow(name=title, description="", project_id=project.id, graph=graph)
-    db.add(flow)
-    db.flush()
-    version(db, flow)
-    run = enqueue(db, flow, "manual")
+    run = queue_snapshot(db, project, title, graph, "manual")
     db.commit()
     return run_out(run)
 
@@ -1044,6 +1047,7 @@ def telegram_remove(db: DB):
 
 app.include_router(auth_router)
 app.include_router(github_router)
+app.include_router(repository_router)
 app.include_router(api)
 
 

@@ -1,7 +1,12 @@
 [CmdletBinding()]
-param([ValidateRange(1,65535)][int]$Port = 8000)
+param(
+    [ValidateRange(1,65535)][int]$Port = 8000,
+    [switch]$ConfigureGitHub,
+    [switch]$SkipGitHub
+)
 
 $ErrorActionPreference = 'Stop'
+if ($ConfigureGitHub -and $SkipGitHub) { throw 'Choose either -ConfigureGitHub or -SkipGitHub.' }
 Set-Location -LiteralPath (Split-Path -Parent $PSScriptRoot)
 $url = "http://127.0.0.1:$Port"
 $pythonPath = Join-Path (Get-Location) '.venv\Scripts\python.exe'
@@ -17,6 +22,9 @@ try {
     $running = $null
 }
 if ($running.info.title -in @('CenTRap Security Workflow', 'CenterAI Security Workflow')) {
+    if ($ConfigureGitHub -or $SkipGitHub) {
+        throw 'Stop the running CenTRap window with Ctrl+C before changing GitHub settings.'
+    }
     try {
         $current = Invoke-RestMethod "$url/api/v1/build" -TimeoutSec 2
     } catch {
@@ -29,6 +37,10 @@ if ($running.info.title -in @('CenTRap Security Workflow', 'CenterAI Security Wo
     Start-Process "$url/?build=$release"
     exit 0
 }
+. (Join-Path $PSScriptRoot 'local_services.ps1')
+Initialize-CenterAIGitHub -Port $Port -Configure:$ConfigureGitHub -Skip:$SkipGitHub
+Initialize-CenterAIOllama
+
 & $pythonPath -m pip --version 2>$null | Out-Null
 if ($LASTEXITCODE) {
     python -m pip --python $pythonPath install pip

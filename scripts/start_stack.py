@@ -69,6 +69,10 @@ def build_id():
     paths += list((ROOT / "frontend" / "src").rglob("*"))
     paths += list((ROOT / "frontend" / "public").rglob("*"))
     paths += list((ROOT / "backend").rglob("*"))
+    paths += [
+        ROOT / "scripts" / name
+        for name in ("start.ps1", "local_services.ps1", "start_stack.py")
+    ]
     digest = hashlib.sha256()
     for path in sorted(paths):
         if not path.is_file() or "__pycache__" in path.parts or "tests" in path.parts:
