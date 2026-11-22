@@ -190,6 +190,60 @@ def test_draft_preserves_combined_request_when_qwen_omits_parts(monkeypatch):
     assert not any(source == "empty_report" for source, _, _ in links)
 
 
+def test_requested_stages_survive_drafting_saving_and_delivery(client, project, monkeypatch):
+    mail = smtp_fixture(monkeypatch)
+    assert confirm(client, request_token(client, mail)).is_success
+    provider = MagicMock()
+    provider.complete.return_value = json.dumps(dict(
+        scanners=["sast"], levels=[], cron="", timezone="Europe/Moscow",
+        path_regex="", explanations=False, notify=[], only_if_findings=False,
+    ))
+    monkeypatch.setattr(workflow_draft, "configured_provider", lambda: provider)
+    for prompt in (
+        "Сделай проверку sac, secrets, ai анализ и отправь отчёт по почте",
+        "SAC, Secrets, AI‑анализ, Email",
+        "Проверь зависимости и секреты, сделай разбор через Qwen, вышли результат письмом",
+    ):
+        response = client.post(API + "/workflow-drafts", json={"description": prompt})
+        assert response.is_success, response.text
+        graph = response.json()
+        assert graph["warnings"] == []
+        assert {(edge["source"], edge["target"]) for edge in graph["edges"]} == {
+            ("manual_trigger", "repository_source"), ("repository_source", "sca_scanner"),
+            ("repository_source", "secrets_scanner"), ("sca_scanner", "ai_analysis"),
+            ("secrets_scanner", "ai_analysis"), ("ai_analysis", "report_generator"),
+            ("report_generator", "email_notification"),
+        }
+    flow = client.post(API + "/workflows", json={
+        "name": "AI and email", "project_id": project["id"],
+        "graph": {"nodes": graph["nodes"], "edges": graph["edges"]},
+    })
+    assert flow.status_code == 201, flow.text
+    explain = MagicMock(side_effect=lambda rows, files, cfg: (rows, {"status": "ok"}))
+    monkeypatch.setattr("backend.graph.explain", explain)
+    mail.reset_mock()
+    run = client.post(API + f"/workflows/{flow.json()['id']}/runs").json()
+    execute(run["id"])
+    explain.assert_called_once()
+    process_report_emails()
+    mail.assert_called_once()
+    assert str(mail.call_args.args[0]["To"]) == "developer@example.com"
+    assert client.get(API + f"/runs/{run['id']}").json()["report_email"]["status"] == "accepted"
+
+    provider.complete.return_value = json.dumps({
+        **json.loads(provider.complete.return_value), "explanations": True,
+    })
+    for prompt, expected in (
+        ("Secrets без AI, отправь отчёт по почте", {"email_notification"}),
+        ("Secrets с AI, не отправляй отчёт по почте", {"ai_analysis"}),
+        ("Secrets без отправки в Telegram, отчёт по почте", {"email_notification"}),
+        ("Secrets, AI-анализ не нужен, по почте не отправляй", set()),
+    ):
+        graph = client.post(API + "/workflow-drafts", json={"description": prompt}).json()
+        nodes = {node["type"] for node in graph["nodes"]}
+        assert nodes & {"ai_analysis", "notification", "email_notification"} == expected
+
+
 def test_draft_keeps_explicit_schedule_and_removes_unrequested_steps(
     client, monkeypatch
 ):
@@ -423,16 +477,16 @@ def test_prompt_recipient_must_be_confirmed_and_can_be_revoked(
         graph = draft(f"Проверь зависимости и отправь отчёт на {destination}.")
         assert email_node(graph)["config"] == {"recipient": address}
         assert address not in provider.complete.call_args.args[0][-1]["content"]
-    for rejected in (
-        "Проверь зависимости и отправь отчёт на почту",
-        description.rstrip(".") + ", other@example.com",
-    ):
-        assert (
-            client.post(
-                API + "/workflow-drafts", json={"description": rejected}
-            ).status_code
-            == 422
-        )
+    unverified = draft("Проверь зависимости и отправь отчёт на почту")
+    assert email_node(unverified)["config"] == {}
+    assert unverified["warnings"] == ["Подтвердите почту аккаунта в личном кабинете для отправки отчёта."]
+    with monkeypatch.context() as missing_smtp:
+        missing_smtp.delenv("SMTP_HOST")
+        offline = draft(description)
+        assert email_node(offline)["config"] == {"recipient": address}
+        assert offline["warnings"] == ["Почтовый сервер не настроен."]
+    ambiguous = description.rstrip(".") + ", other@example.com"
+    assert client.post(API + "/workflow-drafts", json={"description": ambiguous}).status_code == 422
     workflow = client.post(
         API + "/workflows",
         json={

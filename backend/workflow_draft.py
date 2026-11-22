@@ -28,6 +28,31 @@ SEVERITY_TERMS = {
     "INFO": r"(?:info|информационн\w*)",
 }
 
+AI_NAME = r"(?:ai|ии|qwen(?:\d+(?:\.\d+)*)?|нейросет\w*|нейронк\w*|искусственн\w*\s+интеллект\w*)"
+AI_STAGE = rf"(?:(?:анализ\w*|разбор\w*)\s+(?:(?:с помощью|через|от)\s+)?{AI_NAME}|{AI_NAME}[\s\-‑–—]+(?:анализ\w*|разбор\w*|analysis))"
+EMAIL_NAME = r"(?:e[\-‑]?mail|имейл\w*|электронн\w*\s+почт\w*|почт(?:а|у|ой|е|ы)|письм(?:о|ом))"
+TELEGRAM_NAME = r"(?:telegram|телегра[м]+\w*|тг)"
+DELIVERY_ACTION = r"(?:отправ\w*|отосл\w*|вышл\w*|пришл\w*|присыла\w*|перешл\w*|достав\w*|скин\w*|уведом\w*|send\w*|deliver\w*|notify\w*)"
+
+
+def channel_excluded(text, channel):
+    if re.search(r"\b(?:без\s+(?:уведомлений|рассылки)|without\s+notifications)\b(?!\s+(?:на|по|в|через|via|by)\b)", text, re.I):
+        return True
+    qualifier = r"(?:(?:отправки|уведомлений|рассылки|отч[её]та|отч[её]т|его|мне|результаты|на|по|в|через|мою)\s+)*"
+    negative = rf"\b(?:без|кроме|without|skip|не\s+(?:надо\s+)?{DELIVERY_ACTION}|не\s+добавля\w*)\s+{qualifier}{channel}\b"
+    trailing_negative = rf"\b{channel}\s+не\s+(?:нуж\w*|надо|{DELIVERY_ACTION})\b"
+    return bool(re.search(negative, text, re.I) or re.search(trailing_negative, text, re.I))
+
+
+def channel_requested(text, channel):
+    return bool(re.search(
+        rf"\b(?:(?:{DELIVERY_ACTION}|отч[её]т\w*|результат\w*|report)\b[^.!?\n]{{0,100}}?\b{channel}"
+        rf"|(?:на|по|в|через|via|by)\s+(?:(?:мою|свою|мне|мой|электронной|подтвержд[её]нную)\s+)*{channel}"
+        rf"|{channel}\s+(?:the\s+)?report)\b"
+        rf"|(?:^|[,;+→]|\sи\s)\s*{channel}\s*(?=$|[,;+.!?→])",
+        text, re.I,
+    ))
+
 
 def apply_scanner_request(plan, text):
     excluded = set()
@@ -161,16 +186,21 @@ def apply_explicit_filters(plan, description):
         plan.levels = []
     if not re.search(r"\b(?:regex|regexp|path|files?|folder\w*|director\w*|пут\w*|файл\w*|папк\w*|каталог\w*)\b|\w/\w|\.(?:kt|kts|java)\b", text):
         plan.path_regex = ""
-    ai = r"(?:ai|ии|нейросет\w*|нейронк\w*|искусственн\w*\s+интеллект\w*)"
-    if re.search(rf"\b(?:без\s+{ai}|without\s+ai|не\s+(?:объясняй|поясняй))\b", text):
+    ai_option = rf"(?:{AI_STAGE}|{AI_NAME})"
+    if re.search(
+        rf"\b(?:(?:без|without|исключи|пропусти|не\s+(?:добавляй|включай|используй|делай))\s+{ai_option}"
+        rf"|{ai_option}\s+не\s+(?:нуж\w*|надо|добавляй)|не\s+(?:объясняй|поясняй)"
+        r"|(?:без|without)\s+(?:объясн\w*|поясн\w*|рекомендаци\w*|explanations|recommendations))\b", text
+    ):
         plan.explanations = False
     elif re.search(
-        rf"\b(?:с\s+(?:помощью\s+)?{ai}|with\s+ai|(?:ai|ии)[-\s]+анализ\w*|"
-        r"объясни\w*|поясни\w*|порекомендуй\w*|explain|recommend)\b",
+        rf"\b(?:{AI_STAGE}|(?:с|с помощью|через|with|добавь|включи|используй)\s+{AI_NAME}"
+        r"|объясн\w*|поясн\w*|порекомендуй\w*|рекомендаци\w*|explain\w*|recommend\w*)\b"
+        rf"|(?:^|[,;+→]|\sи\s)\s*{AI_NAME}\s*(?=$|[,;+.!?→]|\sи\s)",
         text,
     ):
         plan.explanations = True
-    elif not re.search(rf"\b(?:объясн\w*|поясн\w*|порекоменд\w*|рекомендац\w*|explain\w*|recommend\w*|{ai})\b", text):
+    elif not re.search(rf"\b(?:объясн\w*|поясн\w*|порекоменд\w*|рекомендац\w*|explain\w*|recommend\w*|{AI_NAME})\b", text):
         plan.explanations = False
     apply_scanner_request(plan, text)
 
@@ -203,25 +233,19 @@ def apply_explicit_schedule(plan, description):
 
 
 def draft_email_recipient(description, account_email, report_email):
-    if re.search(
-        r"\b(?:без (?:уведомлен\w*|рассылк\w*|почты|e-?mail)|"
-        r"не отправляй[^.!?]{0,45}(?:почт|e-?mail|@))",
-        description,
-        re.I,
+    if channel_excluded(description, EMAIL_NAME) or re.search(
+        rf"\bне\s+{DELIVERY_ACTION}\b[^,;.!?\n]{{0,45}}@", description, re.I
     ):
         return None
     targets = {
         match["address"].rstrip(".").casefold()
         for match in ADDRESS_TARGET.finditer(description)
     }
-    email_requested = re.search(
-        rf"\b(?:на\s+{MAIL_DESTINATION}|по (?:электронной )?почте|на e-?mail|"
-        r"send\w* .{0,60}\b(?:e-?mail|inbox)|e-?mail (?:the )?report)\b",
-        description,
-        re.I,
+    email_requested = channel_requested(ADDRESS_TEXT.sub("", description), EMAIL_NAME) or re.search(
+        r"\bsend\w* .{0,60}\binbox\b", description, re.I
     )
     explicit_delivery = targets and re.search(
-        r"\b(?:отправ\w*|пришл\w*|присыл\w*|уведом\w*|send\w*|deliver\w*)\b",
+        rf"\b{DELIVERY_ACTION}\b",
         description,
         re.I,
     )
@@ -239,19 +263,15 @@ def draft_email_recipient(description, account_email, report_email):
             raise ValueError("Укажите корректный email получателя.") from None
         if recipient not in (account_email, report_email):
             raise ValueError(
-                "Адрес отчёта не подтверждён или SMTP не настроен. Проверьте раздел «Отправка по почте» в личном кабинете."
+                "Подтвердите адрес для отчётов в личном кабинете."
             )
         return recipient
     if addresses:
         raise ValueError("Укажите адрес в формате «отправь отчёт на user@example.com».")
-    if not account_email:
-        raise ValueError(
-            "Почта аккаунта не подтверждена или SMTP не настроен. Проверьте раздел «Отправка по почте» в личном кабинете."
-        )
     return ""
 
 
-def draft(description, *, account_email=None, report_email=None, telegram_enabled=False):
+def draft(description, *, account_email=None, report_email=None, telegram_enabled=False, smtp_configured=True):
     recipient = draft_email_recipient(description, account_email, report_email)
     try:
         provider = configured_provider()
@@ -273,7 +293,8 @@ def draft(description, *, account_email=None, report_email=None, telegram_enable
                 "Do not add SAST merely because code is mentioned as the source for another scan. Default levels=[], cron='', timezone='Europe/Moscow', "
                 "path_regex='', explanations=false, notify=[], only_if_findings=false. "
                 "Use five-field cron only if requested. "
-                "Include an explanation stage only when explicitly requested. "
+                "Requests for AI analysis, Qwen review or recommendations mean explanations=true. "
+                "This stage follows the requested scanners and never replaces them. "
                 "Set only_if_findings=true for conditional delivery. Do not invent recipients or actions."
             ),
         },
@@ -302,20 +323,13 @@ def draft(description, *, account_email=None, report_email=None, telegram_enable
             )
             apply_explicit_filters(plan, model_description)
             apply_explicit_schedule(plan, model_description)
-            telegram_requested = re.search(
-                r"\b(?:отправ\w*|пришл\w*|присыл\w*|уведом\w*|send\w*|deliver\w*|notify\w*)"
-                r"[^.!?\n]{0,110}\b(?:telegram|телеграм\w*)\b",
-                model_description,
-                re.I,
-            )
-            telegram_excluded = re.search(
-                r"\b(?:без (?:уведомлен\w*|рассылк\w*|telegram|телеграм\w*)|"
-                r"не\s+(?:отправ\w*|присыл\w*|уведом\w*)[^.!?\n]{0,45}(?:telegram|телеграм\w*))\b",
-                model_description,
-                re.I,
-            )
-            plan.notify = ["telegram"] if telegram_requested and not telegram_excluded else []
+            telegram = channel_requested(model_description, TELEGRAM_NAME) and not channel_excluded(model_description, TELEGRAM_NAME)
+            plan.notify = ["telegram"] if telegram else []
             warnings = []
+            if recipient is not None and not smtp_configured:
+                warnings.append("Почтовый сервер не настроен.")
+            if recipient == "" and not account_email:
+                warnings.append("Подтвердите почту аккаунта в личном кабинете для отправки отчёта.")
             if plan.notify and not telegram_enabled:
                 warnings.append("Подключите Telegram для доставки отчёта.")
             plan.only_if_findings = bool(re.search(

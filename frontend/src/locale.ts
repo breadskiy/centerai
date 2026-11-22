@@ -532,6 +532,8 @@ const english: Record<string, string> = {
     "Multiple report recipients were specified for this run.",
   "Подтвердите адрес для отчётов в личном кабинете.":
     "Verify the report address in My account.",
+  "Подтвердите почту аккаунта в личном кабинете для отправки отчёта.":
+    "Verify your account email in My account to receive the report.",
   "Укажите адрес в формате «отправь отчёт на user@example.com».":
     "Use a request like “send the report to user@example.com”.",
   "Почта подтверждена.": "Email address verified.",
