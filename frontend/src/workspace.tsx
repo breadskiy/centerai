@@ -461,10 +461,12 @@ export function Dashboard() {
 function ProjectForm({
   project,
   initialSource,
+  onSave,
   close,
 }: {
   project?: Project;
   initialSource?: { mode: string; file?: File; repository: string };
+  onSave?: (session: Project) => void;
   close: () => void;
 }) {
   const [source, type] = useState(
@@ -500,7 +502,11 @@ function ProjectForm({
                   description: values.get("description"),
                 })
               : await uploadProject(values, setProgress);
-            show(translateText("Проект сохранён"));
+            show(translateText("Сессия сохранена"));
+            if (onSave) {
+              onSave(res);
+              return;
+            }
             close();
             nav(
               initialSource
@@ -857,6 +863,42 @@ function NewFlow({
   const [name, setName] = useState(personal ? personalName : normalName);
   const { act, busy } = useAction();
   const nav = useNavigate();
+  const [addingSession, setAddingSession] = useState(false);
+  const [createdSession, setCreatedSession] = useState<Project>();
+  const sessions =
+    createdSession && !projects.some((item) => item.id === createdSession.id)
+      ? [createdSession, ...projects]
+      : projects;
+
+  if (addingSession) {
+    return (
+      <ProjectForm
+        close={() => setAddingSession(false)}
+        onSave={(session) => {
+          setCreatedSession(session);
+          setAddingSession(false);
+        }}
+      />
+    );
+  }
+
+  if (!sessions.length) {
+    return (
+      <Modal title={translateText("Новый сценарий")} close={close}>
+        <Empty title={translateText("У вас пока нет сессий")}>
+          <button className="primary" onClick={() => setAddingSession(true)}>
+            <Plus size={16} />
+            {translateText("Создать сессию")}
+          </button>
+        </Empty>
+      </Modal>
+    );
+  }
+
+  const selectedSession =
+    createdSession?.id ??
+    sessions.find((item) => item.id === project)?.id ??
+    sessions[0].id;
   return (
     <Modal title={translateText("Новый сценарий")} close={close}>
       <form
@@ -900,13 +942,9 @@ function NewFlow({
           <textarea name="description" maxLength={2000} />
         </label>
         <label>
-          {translateText("Проект")}
-          <select
-            required
-            name="project"
-            defaultValue={project || projects[0]?.id}
-          >
-            {projects.map((p) => (
+          {translateText("Сессия")}
+          <select required name="project" defaultValue={selectedSession}>
+            {sessions.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
@@ -964,12 +1002,7 @@ function NewFlow({
             </small>
           </label>
         )}
-        {!projects.length && (
-          <Link to="/projects?new=1">
-            {translateText("Сначала добавьте проект")}
-          </Link>
-        )}
-        <button className="primary" disabled={busy || !projects.length}>
+        <button className="primary" disabled={busy}>
           {busy && start === "prompt"
             ? translateText("Подготавливаем схему…")
             : translateText("Открыть редактор")}
@@ -1001,11 +1034,11 @@ export function Workflows() {
       />
       <div className="filters">
         <select
-          aria-label={translateText("Фильтр проекта")}
+          aria-label={translateText("Фильтр сессий")}
           value={project}
           onChange={(e) => setProject(e.target.value)}
         >
-          <option value="">{translateText("Все проекты")}</option>
+          <option value="">{translateText("Все сессии")}</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}

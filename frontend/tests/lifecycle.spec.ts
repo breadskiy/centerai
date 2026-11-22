@@ -2,6 +2,30 @@ import { expect, test } from "./session";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+test("Новый сценарий предлагает создать первую сессию и выбирает её", async ({
+  page,
+}) => {
+  await page.goto("/workflows");
+  await page.getByRole("button", { name: "Новый сценарий" }).click();
+  const workflow = page.getByRole("dialog", { name: "Новый сценарий" });
+  await expect(workflow.getByText("У вас пока нет сессий")).toBeVisible();
+  await expect(workflow.getByRole("combobox")).toHaveCount(0);
+  await workflow.getByRole("button", { name: "Создать сессию" }).click();
+  const session = page.getByRole("dialog", { name: "Новая сессия" });
+  await session.getByLabel("Название", { exact: true }).fill("Первая сессия");
+  await session
+    .locator("input[type=file]")
+    .setInputFiles(resolve("../.qa/e2e-fixture.zip"));
+  await session.getByRole("button", { name: "Создать сессию" }).click();
+  await expect(
+    workflow
+      .getByRole("combobox", { name: "Сессия" })
+      .locator("option:checked"),
+  ).toHaveText("Первая сессия");
+  await workflow.getByRole("button", { name: "Открыть редактор" }).click();
+  await expect(page.getByLabel("Название сценария")).toBeVisible();
+});
+
 test("Генератор сохраняет описание при ошибке", async ({ page, request }) => {
   const project = await request.post("/api/v1/projects", {
     multipart: {

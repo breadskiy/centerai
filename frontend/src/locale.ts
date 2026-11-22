@@ -72,7 +72,6 @@ const english: Record<string, string> = {
   "Новая сессия": "New session",
   "Новый профиль": "New profile",
   "Загрузить архив": "Upload archive",
-  "Проект сохранён": "Project saved",
   Название: "Name",
   "Например, Repair Desk": "e.g. Repair Desk",
   Описание: "Description",
@@ -154,7 +153,10 @@ const english: Record<string, string> = {
     "Scan dependencies on weekdays at 9 AM and email critical results",
   "Модель получит текст задания. Проверьте черновик в редакторе. Расписание включается вручную.":
     "The model uses your description to draft a workflow. Review it in the editor and enable the schedule when ready.",
-  "Сначала добавьте проект": "Add a project first",
+  "У вас пока нет сессий": "You don’t have any sessions yet",
+  "Сессия сохранена": "Session saved",
+  "Фильтр сессий": "Filter sessions",
+  "Все сессии": "All sessions",
   "Подготавливаем схему…": "Preparing the graph…",
   "Открыть редактор": "Open editor",
   "Графы анализа и правила передачи результатов.":
