@@ -13,6 +13,9 @@ export type Viewer = {
   id: string;
   guest: boolean;
   email: string | null;
+  email_verified: boolean;
+  email_available: boolean;
+  report_recipient: string | null;
   nickname: string;
   avatar: string | null;
   github_login: string | null;
@@ -21,6 +24,8 @@ export type Viewer = {
 };
 export type SetViewer = (viewer: Viewer | null) => void;
 const sessionSignal = "centerai-auth-change";
+const emailReturnKey = "centerai-email-verification-return";
+const emailVerificationHash = /^#verify-email=[A-Za-z0-9_-]{43}$/;
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -77,11 +82,24 @@ export function AccountGate({
 }: {
   children: (viewer: Viewer, change: SetViewer) => ReactNode;
 }) {
+  const navigate = useNavigate();
   useLanguage((state) => state.language);
   const [viewer, setViewer] = useState<Viewer | null>();
   const [error, setError] = useState("");
   const current = useRef<Viewer | null | undefined>(undefined);
   const generation = useRef(0);
+  useEffect(() => {
+    if (!viewer || viewer.guest) return;
+    let hash: string | null;
+    try {
+      hash = sessionStorage.getItem(emailReturnKey);
+      sessionStorage.removeItem(emailReturnKey);
+    } catch {
+      return;
+    }
+    if (hash && emailVerificationHash.test(hash))
+      navigate({ pathname: "/account", hash }, { replace: true });
+  }, [viewer?.id, viewer?.guest, navigate]);
   const update = useCallback<SetViewer>((next) => {
     if (current.current?.id !== next?.id) cache.clear();
     current.current = next;
@@ -207,7 +225,10 @@ function Access({ enter }: { enter: SetViewer }) {
     queryFn: () => api<{ available: boolean }>("/auth/github/status"),
   });
   const [mode, setMode] = useState<"register" | "login">(
-    githubResult && params.get("mode") !== "register" ? "login" : "register",
+    location.hash.startsWith("#verify-email=") ||
+      (githubResult && params.get("mode") !== "register")
+      ? "login"
+      : "register",
   );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -239,7 +260,11 @@ function Access({ enter }: { enter: SetViewer }) {
         "POST",
         action === "guest" ? undefined : { email: email.trim(), password },
       );
-      if (action !== "login" || location.pathname === "/account")
+      if (
+        action !== "login" ||
+        (location.pathname === "/account" &&
+          !location.hash.startsWith("#verify-email="))
+      )
         navigate("/", { replace: true });
       enter(account);
     } catch (failure) {
@@ -414,6 +439,11 @@ function Access({ enter }: { enter: SetViewer }) {
                   "/auth/github/" + (registering ? "register" : "login"),
                   "POST",
                 );
+                if (emailVerificationHash.test(location.hash)) {
+                  try {
+                    sessionStorage.setItem(emailReturnKey, location.hash);
+                  } catch {}
+                }
                 window.location.assign(result.url);
               } catch (failure) {
                 setError(
@@ -479,10 +509,16 @@ export function AccountPage({
     enabled: !viewer.guest,
   });
   const githubResult = new URLSearchParams(location.search).get("github");
+  const emailToken = new URLSearchParams(location.hash.slice(1)).get(
+    "verify-email",
+  );
   const [nickname, setNickname] = useState(viewer.nickname);
   const [username, setUsername] = useState(viewer.telegram_username);
   const [pending, setPending] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [reportsOnly, setReportsOnly] = useState(true);
+  const [emailPassword, setEmailPassword] = useState("");
   const [notice, setNotice] = useState<{ text: string; error: boolean }>();
   const run = async (fn: () => Promise<void>) => {
     if (pending) return;
@@ -648,6 +684,165 @@ export function AccountPage({
                     )}
                   </div>
                 </form>
+              </section>
+              <section className="panel account-card">
+                <h2>{t("Отправка по почте")}</h2>
+                <p>
+                  {t(
+                    viewer.email_verified
+                      ? "Почта подтверждена."
+                      : "Подтвердите почту, чтобы использовать узел Email.",
+                  )}
+                </p>
+                {emailToken ? (
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() =>
+                      void run(async () => {
+                        const account = await api<Viewer>(
+                          "/auth/email/verify",
+                          "POST",
+                          { token: emailToken },
+                        );
+                        change(account);
+                        await cache.invalidateQueries({
+                          queryKey: ["/registry"],
+                        });
+                        navigate(
+                          { pathname: "/account", search: location.search },
+                          { replace: true },
+                        );
+                        setNotice({
+                          text: t(
+                            account.report_recipient !== viewer.report_recipient
+                              ? "Адрес для отчётов подтверждён."
+                              : "Почта подтверждена.",
+                          ),
+                          error: false,
+                        });
+                      })
+                    }
+                  >
+                    {t("Подтвердить адрес")}
+                  </button>
+                ) : viewer.email_available ? (
+                  <>
+                    {!viewer.email_verified && (
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() =>
+                          void run(async () => {
+                            await api("/auth/email/verification", "POST", {});
+                            setNotice({
+                              text: t(
+                                "Письмо отправлено. Откройте ссылку из письма.",
+                              ),
+                              error: false,
+                            });
+                          })
+                        }
+                      >
+                        {t("Отправить письмо для подтверждения")}
+                      </button>
+                    )}
+                    <details>
+                      <summary>{t("Добавить или изменить адрес")}</summary>
+                      <form
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void run(async () => {
+                            await api("/auth/email/verification", "POST", {
+                              email: newEmail,
+                              password: emailPassword,
+                              reports_only: reportsOnly,
+                            });
+                            setEmailPassword("");
+                            setNotice({
+                              text: t(
+                                "Подтвердите новый адрес по ссылке из письма.",
+                              ),
+                              error: false,
+                            });
+                          });
+                        }}
+                      >
+                        <label className="check">
+                          <input
+                            type="checkbox"
+                            checked={reportsOnly}
+                            onChange={(event) =>
+                              setReportsOnly(event.target.checked)
+                            }
+                          />
+                          {t("Использовать только для отчётов")}
+                        </label>
+                        <label>
+                          {t("Новый адрес почты")}
+                          <input
+                            type="email"
+                            required
+                            maxLength={254}
+                            autoComplete="email"
+                            value={newEmail}
+                            onChange={(event) =>
+                              setNewEmail(event.target.value)
+                            }
+                          />
+                        </label>
+                        {viewer.github_can_unlink && (
+                          <label>
+                            {t("Текущий пароль")}
+                            <input
+                              type="password"
+                              required
+                              maxLength={128}
+                              autoComplete="current-password"
+                              value={emailPassword}
+                              onChange={(event) =>
+                                setEmailPassword(event.target.value)
+                              }
+                            />
+                          </label>
+                        )}
+                        <button type="submit" disabled={pending}>
+                          {t("Отправить письмо для подтверждения")}
+                        </button>
+                      </form>
+                    </details>
+                  </>
+                ) : (
+                  <p>{t("Почтовый сервер не настроен.")}</p>
+                )}
+                {viewer.report_recipient && (
+                  <div className="account-actions">
+                    <span>
+                      {t("Дополнительный адрес для отчётов")}
+                      {": "}
+                      {viewer.report_recipient}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() =>
+                        void run(async () => {
+                          change(
+                            await api<Viewer>(
+                              "/auth/email/report-recipient",
+                              "DELETE",
+                            ),
+                          );
+                          await cache.invalidateQueries({
+                            queryKey: ["/registry"],
+                          });
+                        })
+                      }
+                    >
+                      {t("Удалить адрес для отчётов")}
+                    </button>
+                  </div>
+                )}
               </section>
               <section className="panel account-card">
                 <h2>GitHub</h2>

@@ -29,13 +29,14 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import notifications
 from .analyzers.common import SubmissionReportExporter
-from .auth import DB, MAX_AVATAR, member, session, token_digest, viewer
+from .auth import DB, MAX_AVATAR, member, session, throttle, token_digest, viewer
 from .auth import router as auth_router
 from .db import (
     Event,
     Finding,
     NodeRun,
     Project,
+    ReportEmail,
     Run,
     Session,
     Version,
@@ -45,10 +46,12 @@ from .db import (
     delete_run_records,
     engine,
     lock_project,
+    uid,
 )
 from .github_oauth import router as github_router
 from .graph import LEVELS, REGISTRY, Graph, default_graph, next_due, validate
 from .migrate import upgrade
+from .node_config import EmailConfig
 from .repository_watches import router as repository_router, watch_worker
 from .scan_profiles import ProfileUnavailable, resolve_scan_profile
 from .sources import MAX_UPLOAD, fetch_repository, unpack_archive
@@ -292,7 +295,8 @@ class TelegramConfig(BaseModel):
 
 
 @api.get("/registry")
-def registry():
+def registry(db: DB):
+    account = db.info["account"]
     return {
         "types": {
             k: {
@@ -305,6 +309,8 @@ def registry():
         },
         "default_graph": default_graph(),
         "ai_graph": default_graph(with_ai=True),
+        "email_available": notifications.report_email_enabled(account),
+        "email_recipients": notifications.verified_report_addresses(account),
     }
 
 
@@ -313,8 +319,16 @@ class DraftRequest(BaseModel):
 
 
 @api.post("/workflow-drafts")
-def workflow_draft(body: DraftRequest):
-    return draft(body.description)
+def workflow_draft(body: DraftRequest, db: DB):
+    account = db.info["account"]
+    configured = notifications.mail_configured()
+    return draft(
+        body.description,
+        account_email=account.email
+        if configured and account.email_verified_at
+        else None,
+        report_email=account.report_recipient if configured else None,
+    )
 
 
 @api.get("/dashboard")
@@ -585,6 +599,72 @@ def edit_flow(key: str, body: FlowEdit, db: DB):
     return flow_out(db, row)
 
 
+class WorkflowEmail(EmailConfig):
+    report_node: str = Field(default="", max_length=80)
+
+
+@api.put("/workflows/{key}/email")
+def configure_workflow_email(key: str, body: WorkflowEmail, db: DB):
+    """Attach an Email node to a saved workflow without using a model."""
+    account = member(db)
+    row = get(db, Workflow, key)
+    if not notifications.mail_configured():
+        raise HTTPException(503, "Почтовый сервер не настроен.")
+    if (body.recipient or account.email) not in notifications.verified_report_addresses(
+        account
+    ):
+        raise HTTPException(403, "Подтвердите адрес для отчётов через /docs.")
+    graph = Graph.model_validate(row.graph).model_dump()
+    reports = [node for node in graph["nodes"] if node["type"] == "report_generator"]
+    matches = (
+        [node for node in reports if node["id"] == body.report_node]
+        if body.report_node
+        else reports
+    )
+    if len(matches) != 1:
+        raise HTTPException(
+            422, "Укажите идентификатор одного узла «Отчёт» в report_node."
+        )
+    report_node = matches[0]
+    email_nodes = [
+        node for node in graph["nodes"] if node["type"] == "email_notification"
+    ]
+    if len(email_nodes) > 1:
+        raise HTTPException(
+            409, "В сценарии уже несколько узлов Email. Выберите нужный в редакторе."
+        )
+    if email_nodes:
+        node = email_nodes[0]
+        graph["edges"] = [
+            edge for edge in graph["edges"] if edge["target"] != node["id"]
+        ]
+    else:
+        node = {
+            "id": "email-" + uid(),
+            "type": "email_notification",
+            "position": {
+                "x": report_node["position"]["x"] + 220,
+                "y": report_node["position"]["y"],
+            },
+        }
+        graph["nodes"].append(node)
+    node["config"] = {"recipient": body.recipient} if body.recipient else {}
+    graph["edges"].append(
+        {"source": report_node["id"], "target": node["id"], "branch": ""}
+    )
+    validate(graph)
+    return edit_flow(
+        key,
+        FlowEdit(
+            name=row.name,
+            description=row.description,
+            revision=row.revision,
+            graph=Graph.model_validate(graph),
+        ),
+        db,
+    )
+
+
 @api.delete("/workflows/{key}")
 def delete_flow(key: str, db: DB):
     row = get(db, Workflow, key)
@@ -769,9 +849,13 @@ def run(key: str, db: DB):
                 "output": output,
             }
         )
+    report_email = db.get(ReportEmail, key)
     return {
         **run_out(row),
         "project_archived": db.get(Project, row.project_id).archived,
+        "report_email": fields(report_email, "status", "attempts", "error")
+        if report_email
+        else None,
         "graph": row.graph,
         "stage_order": stage_order,
         "nodes": outputs,
@@ -787,7 +871,18 @@ def run(key: str, db: DB):
 @api.get("/runs/{key}/nodes/{node_id}")
 def node_result(key: str, node_id: str, db: DB):
     row = get(db, NodeRun, (key, node_id))
-    return fields(row, "node_id", "status", "started", "finished", "output")
+    data = fields(row, "node_id", "status", "started", "finished", "output")
+    if (row.output.get("receipt") or {}).get("provider") == "email":
+        report_email = db.get(ReportEmail, key)
+        if report_email:
+            data["output"] = {
+                **row.output,
+                "receipt": {
+                    "provider": "email",
+                    **fields(report_email, "status", "attempts", "error"),
+                },
+            }
+    return data
 
 
 def event_out(e):
@@ -1003,7 +1098,7 @@ def export(key: str, db: DB, format: str = Query("json", pattern="^(json|txt)$")
 def settings(db: DB):
     return {
         "email_recipient": "",
-        "smtp": bool(os.getenv("SMTP_HOST")),
+        "smtp": notifications.mail_configured(),
         "demo_mailbox": os.getenv("CENTERAI_DEMO") == "1",
         "telegram": notifications.telegram_connected(db, db.info["account"].id),
         "repositories": os.getenv("ALLOWED_REPOSITORIES", "TBagirov/training").split(
@@ -1019,12 +1114,28 @@ class EmailSettings(BaseModel):
 
 @api.put("/integrations/email")
 def email_settings(body: EmailSettings, db: DB):
-    raise HTTPException(410, "Email временно отключён. Используйте Telegram.")
+    raise HTTPException(
+        410, "Подтвердите адрес через POST /api/v1/auth/email/verification."
+    )
 
 
 @api.post("/integrations/email/test")
-def test_email(db: DB):
-    raise HTTPException(410, "Email временно отключён. Используйте Telegram.")
+def test_email(request: Request, db: DB):
+    account = member(db)
+    throttle(request, "email-test", 10)
+    if not notifications.mail_configured():
+        raise HTTPException(503, "Почтовый сервер не настроен.")
+    if not account.email_verified_at:
+        raise HTTPException(403, "Подтвердите почту аккаунта через /docs.")
+    try:
+        notifications.send_email(
+            account.email,
+            "CenTRap · Проверка почты",
+            "Почтовый канал CenTRap работает.",
+        )
+    except notifications.MailError as exc:
+        raise HTTPException(503, str(exc)) from None
+    return {"accepted": True}
 
 
 @api.put("/integrations/telegram")

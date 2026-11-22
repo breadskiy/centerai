@@ -2,10 +2,18 @@ import re
 from http.client import HTTPException
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .ai_report import configured_provider
 from .graph import validate
+from .node_config import EmailConfig
+
+ADDRESS_TEXT = re.compile(r'[^\s<>(),;:"“”«»]+@[^\s<>(),;:"“”«»]*')
+ADDRESS_TARGET = re.compile(
+    r"\b(?:на|to)\s+(?:(?:(?:электронную\s+)?почту|e-?mail|адрес|address)\s*:?\s*)?"
+    r'["<«]?(?P<address>[^\s<>(),;:"“”«»]+@[^\s<>(),;:"“”«»]*)',
+    re.I,
+)
 
 
 class Plan(BaseModel):
@@ -22,7 +30,7 @@ class Plan(BaseModel):
     only_if_findings: bool
 
 
-def compile_plan(plan):
+def compile_plan(plan, recipient=None):
     nodes, edges = [], []
 
     def add(kind, x, y=120, config=None, key=None):
@@ -78,6 +86,16 @@ def compile_plan(plan):
         wire("if_else", add("report_generator", x, 300, key="empty_report"), "false")
     if plan.notify:
         wire(report, add("notification", x + 220))
+    if recipient is not None:
+        wire(
+            report,
+            add(
+                "email_notification",
+                x + 220,
+                260 if plan.notify else 120,
+                config={"recipient": recipient} if recipient else {},
+            ),
+        )
     graph = {"nodes": nodes, "edges": edges}
     validate(graph)
     return graph
@@ -107,7 +125,57 @@ def apply_explicit_filters(plan, description):
         plan.levels = ["CRITICAL"]
 
 
-def draft(description):
+def draft_email_recipient(description, account_email, report_email):
+    if re.search(
+        r"\b(?:без (?:уведомлен\w*|рассылк\w*|почты|e-?mail)|"
+        r"не отправляй[^.!?]{0,45}(?:почт|e-?mail|@))",
+        description,
+        re.I,
+    ):
+        return None
+    targets = {
+        match["address"].rstrip(".").casefold()
+        for match in ADDRESS_TARGET.finditer(description)
+    }
+    email_requested = re.search(
+        r"\b(?:на (?:электронную )?почту|по (?:электронной )?почте|на e-?mail|"
+        r"send\w* .{0,60}\b(?:e-?mail|inbox)|e-?mail (?:the )?report)\b",
+        description,
+        re.I,
+    )
+    explicit_delivery = targets and re.search(
+        r"\b(?:отправ\w*|пришл\w*|присыл\w*|уведом\w*|send\w*|deliver\w*)\b",
+        description,
+        re.I,
+    )
+    if not (email_requested or explicit_delivery):
+        return None
+    addresses = {
+        value.rstrip(".").casefold() for value in ADDRESS_TEXT.findall(description)
+    }
+    if len(targets) > 1 or (targets and len(addresses) > 1):
+        raise ValueError("Укажите одного получателя отчёта.")
+    if targets:
+        try:
+            recipient = EmailConfig(recipient=next(iter(targets))).recipient
+        except ValidationError:
+            raise ValueError("Укажите корректный email получателя.") from None
+        if recipient not in (account_email, report_email):
+            raise ValueError(
+                "Адрес отчёта не подтверждён или SMTP не настроен. Проверьте раздел «Отправка по почте» в личном кабинете."
+            )
+        return recipient
+    if addresses:
+        raise ValueError("Укажите адрес в формате «отправь отчёт на user@example.com».")
+    if not account_email:
+        raise ValueError(
+            "Почта аккаунта не подтверждена или SMTP не настроен. Проверьте раздел «Отправка по почте» в личном кабинете."
+        )
+    return ""
+
+
+def draft(description, *, account_email=None, report_email=None):
+    recipient = draft_email_recipient(description, account_email, report_email)
     provider = configured_provider()
     messages = [
         {
@@ -116,7 +184,7 @@ def draft(description):
                 "Переведи задание пользователя в JSON план. Зависимости, библиотеки, Gradle = sca. "
                 "Секреты, пароли и токены = secrets. Статическая проверка кода = sast. "
                 "«По будням» и «каждый будний день» означают дни недели 1-5. "
-                '«Вручную» означает cron пустой. Единственный канал уведомлений — Telegram. '
+                "«Вручную» означает cron пустой. Единственный канал уведомлений — Telegram. "
                 "Use all three only for a general scan. Default levels=[], cron='', timezone='Europe/Moscow', "
                 "path_regex='', explanations=false, notify=[], only_if_findings=false. "
                 "Use five-field cron only if requested. "
@@ -140,7 +208,12 @@ def draft(description):
             "role": "assistant",
             "content": '{"scanners":["sca"],"levels":["HIGH"],"cron":"0 10 * * 1-5","timezone":"Europe/Moscow","path_regex":"","explanations":false,"notify":["telegram"],"only_if_findings":true}',
         },
-        {"role": "user", "content": description},
+        {
+            "role": "user",
+            "content": ADDRESS_TEXT.sub("[email address]", description)
+            if recipient
+            else description,
+        },
     ]
     for attempt in range(2):
         try:
@@ -148,13 +221,21 @@ def draft(description):
                 provider.complete(messages, Plan.model_json_schema())
             )
             apply_explicit_filters(plan, description)
-            if not re.search(r"\b(?:telegram|телеграм\w*)\b", description, re.I) or re.search(
-                r"\b(?:без|не отправляй в)\s+(?:telegram|телеграм\w*)\b", description, re.I
+            if not re.search(
+                r"\b(?:telegram|телеграм\w*)\b", description, re.I
+            ) or re.search(
+                r"\b(?:без|не отправляй в)\s+(?:telegram|телеграм\w*)\b",
+                description,
+                re.I,
             ):
                 plan.notify = []
-            if not re.search(r"\b(?:только если|если (?:есть|найден\w*|обнаружен\w*))\b", description, re.I):
+            if not re.search(
+                r"\b(?:только если|если (?:есть|найден\w*|обнаружен\w*))\b",
+                description,
+                re.I,
+            ):
                 plan.only_if_findings = False
-            return compile_plan(plan)
+            return compile_plan(plan, recipient)
         except (ValueError, TypeError, KeyError, IndexError):
             if attempt:
                 raise ValueError(

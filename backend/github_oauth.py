@@ -6,6 +6,7 @@ import hmac
 import json
 import os
 import secrets
+import time
 from urllib.parse import urlencode
 
 import httpx
@@ -226,7 +227,12 @@ def complete_flow(db, request, response, intent, github_id, login, email, token)
                 return "email-unavailable"
             if db.scalar(select(Account.id).where(Account.email == email)) is not None:
                 return "existing-email"
-            account = Account(email=email, github_id=github_id, github_login=login)
+            account = Account(
+                email=email,
+                github_id=github_id,
+                github_login=login,
+                email_verified_at=time.time(),
+            )
             db.add(account)
             db.flush()
         if account.email is None:

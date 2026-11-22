@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from .node_config import (
     AIConfig,
     EmptyConfig,
+    EmailConfig,
     CompareConfig,
     LevelsConfig,
     PatternConfig,
@@ -137,7 +138,7 @@ def notify(ctx, cfg, data):
 
 
 def email(ctx, cfg, data):
-    raise ValueError("Email временно отключён. Замените узел на Telegram.")
+    return Packet(data.findings, receipt={"provider": "email", "requested": True})
 
 
 REGISTRY = {
@@ -249,6 +250,7 @@ REGISTRY = {
         "report",
         "receipt",
         email,
+        config_schema=EmailConfig,
     ),
 }
 

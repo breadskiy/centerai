@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import regex
 from croniter import croniter
+from email_validator import EmailNotValidError, validate_email
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -14,6 +15,22 @@ class EmptyConfig(BaseModel):
 
 class AIConfig(EmptyConfig):
     model: str = Field(default="", max_length=160)
+
+
+class EmailConfig(EmptyConfig):
+    recipient: str = Field(default="", max_length=254)
+
+    @field_validator("recipient")
+    @classmethod
+    def valid_recipient(cls, value):
+        if not value:
+            return ""
+        try:
+            return validate_email(
+                value, check_deliverability=False, allow_smtputf8=False
+            ).normalized.lower()
+        except EmailNotValidError:
+            raise ValueError("Укажите корректный email получателя.") from None
 
 
 class CompareConfig(EmptyConfig):

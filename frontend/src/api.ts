@@ -28,6 +28,8 @@ export interface Registry {
   types: Record<string, Kind>;
   default_graph: Graph;
   ai_graph?: Graph;
+  email_available?: boolean;
+  email_recipients?: string[];
 }
 export interface Project {
   id: string;
@@ -76,6 +78,12 @@ export interface Run {
 }
 export interface RunDetails extends Run {
   project_archived?: boolean;
+  report_email?: {
+    status:
+      "queued" | "sending" | "accepted" | "failed" | "uncertain" | "skipped";
+    attempts: number;
+    error: string | null;
+  } | null;
   graph: Graph;
   stage_order: string[];
   nodes: {

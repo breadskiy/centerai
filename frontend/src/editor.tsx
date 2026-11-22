@@ -34,6 +34,7 @@ import {
   GripVertical,
   History,
   KeyRound,
+  Mail,
   PanelLeft,
   Play,
   Plus,
@@ -74,6 +75,7 @@ const marks = {
   sast_scanner: Braces,
   report_generator: FileOutput,
   notification: Send,
+  email_notification: Mail,
   if_else: GitBranch,
   severity_filter: Filter,
   regex_filter: Braces,
@@ -306,9 +308,11 @@ function Connections({
 function Config({
   node,
   update,
+  recipients,
 }: {
   node: Tile;
   update: (config: Record<string, unknown>) => void;
+  recipients: string[];
 }) {
   const c = node.data.config;
   const set = (key: string, value: unknown) => update({ ...c, [key]: value });
@@ -369,6 +373,29 @@ function Config({
             placeholder={translateText("По умолчанию на сервере")}
             onChange={(e) => set("model", e.target.value)}
           />
+        </label>
+      )}
+      {node.data.kind === "email_notification" && (
+        <label>
+          {translateText("Получатель отчёта")}
+          <select
+            value={String(c.recipient || "")}
+            onChange={(event) => set("recipient", event.target.value)}
+          >
+            <option value="">{translateText("Почта аккаунта")}</option>
+            {typeof c.recipient === "string" &&
+              c.recipient &&
+              !recipients.includes(c.recipient) && (
+                <option value={c.recipient} disabled>
+                  {c.recipient} ({translateText("адрес не подтверждён")})
+                </option>
+              )}
+            {recipients.map((address) => (
+              <option value={address} key={address}>
+                {address}
+              </option>
+            ))}
+          </select>
         </label>
       )}
       {node.data.kind === "regex_filter" && (
@@ -603,7 +630,10 @@ function Editor({
   function dropped(e: DragEvent) {
     e.preventDefault();
     const type = e.dataTransfer.getData("centerai/node");
-    if (type !== "email_notification" && registry.types[type])
+    if (
+      (type !== "email_notification" || registry.email_available) &&
+      registry.types[type]
+    )
       add(type, screen.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
   }
   function connect(c: Connection) {
@@ -829,7 +859,8 @@ function Editor({
                     Object.entries(registry.types)
                       .filter(
                         ([key, t]) =>
-                          key !== "email_notification" &&
+                          (key !== "email_notification" ||
+                            registry.email_available) &&
                           t.category === group &&
                           t.title.toLowerCase().includes(search.toLowerCase()),
                       )
@@ -916,6 +947,7 @@ function Editor({
               />
               <Config
                 node={picked}
+                recipients={registry.email_recipients ?? []}
                 update={(config) =>
                   setNodes((ns) =>
                     ns.map((n) =>

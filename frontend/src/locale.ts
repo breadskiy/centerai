@@ -507,6 +507,64 @@ const english: Record<string, string> = {
   "Создать аккаунт": "Create account",
   Войти: "Sign in",
   "Электронная почта": "Email address",
+  "Отправка по почте": "Email delivery",
+  "Добавить или изменить адрес": "Add or change an address",
+  "Использовать только для отчётов": "Use for reports only",
+  "Дополнительный адрес для отчётов": "Additional report address",
+  "Адрес для отчётов подтверждён.": "Report address verified.",
+  "Удалить адрес для отчётов": "Remove report address",
+  "Получатель отчёта": "Report recipient",
+  "Почта аккаунта": "Account email address",
+  "адрес не подтверждён": "address not verified",
+  "Укажите дополнительный адрес для отчётов.":
+    "Enter an additional report address.",
+  "Укажите корректный email получателя.":
+    "Enter a valid recipient email address.",
+  "Укажите одного получателя отчёта.": "Specify only one report recipient.",
+  "Адрес отчёта не подтверждён или SMTP не настроен. Проверьте раздел «Отправка по почте» в личном кабинете.":
+    "The report address is unverified or SMTP is not configured. Check Email delivery in My account.",
+  "Почта аккаунта не подтверждена или SMTP не настроен. Проверьте раздел «Отправка по почте» в личном кабинете.":
+    "The account email is unverified or SMTP is not configured. Check Email delivery in My account.",
+  "В запуске указано несколько адресов для отчёта.":
+    "Multiple report recipients were specified for this run.",
+  "Подтвердите адрес для отчётов в личном кабинете.":
+    "Verify the report address in My account.",
+  "Укажите адрес в формате «отправь отчёт на user@example.com».":
+    "Use a request like “send the report to user@example.com”.",
+  "Почта подтверждена.": "Email address verified.",
+  "Подтвердите почту, чтобы использовать узел Email.":
+    "Verify your email to use the Email node.",
+  "Подтвердить адрес": "Verify email address",
+  "Отправить письмо для подтверждения": "Send verification email",
+  "Письмо отправлено. Откройте ссылку из письма.":
+    "Email sent. Open the link in the message.",
+  "Новый адрес почты": "New email address",
+  "Текущий пароль": "Current password",
+  "Подтвердите новый адрес по ссылке из письма.":
+    "Verify the new address using the link in the email.",
+  "Отчёт по почте": "Email report",
+  "В очереди на отправку": "Queued for delivery",
+  Отправляется: "Sending",
+  "Принято почтовым сервером": "Accepted by the mail server",
+  "Отчёт не отправлен": "Report not sent",
+  "Ошибка отправки": "Delivery failed",
+  "Приём письма не подтверждён": "Mail acceptance could not be confirmed",
+  "Адрес владельца изменился или не подтверждён.":
+    "The owner's address changed or is unverified.",
+  "Почтовый сервер не настроен.": "The mail server is not configured.",
+  "SMTP-сервер не подтвердил приём письма.":
+    "The SMTP server did not confirm acceptance.",
+  "SMTP-сервер отклонил письмо.": "The SMTP server rejected the message.",
+  "SMTP-сервер отклонил адрес получателя.":
+    "The SMTP server rejected the recipient address.",
+  "Укажите доступный адрес приложения в PUBLIC_URL.":
+    "Set a reachable application address in PUBLIC_URL.",
+  "Ссылка подтверждения недействительна или просрочена.":
+    "The verification link is invalid or expired.",
+  "Этот адрес уже подтверждён.": "This address is already verified.",
+  "Неверный текущий пароль.": "Incorrect current password.",
+  "Повторить отправку можно через минуту.":
+    "Wait one minute before sending again.",
   Пароль: "Password",
   "Показать пароль": "Show password",
   "Скрыть пароль": "Hide password",
