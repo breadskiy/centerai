@@ -69,6 +69,22 @@ test("ZIP → editable workflow → live execution → report and settings", asy
   await page.getByRole("link", { name: "Создать сценарий" }).click();
   await page.getByRole("button", { name: "Открыть редактор" }).click();
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
+  const palette = page.locator(".palette");
+  const fits = () =>
+    palette.evaluate(
+      (panel) =>
+        panel.scrollWidth <= panel.clientWidth &&
+        Array.from(panel.querySelectorAll(".node-option svg:last-child")).every(
+          (icon) =>
+            icon.getBoundingClientRect().right <=
+            panel.getBoundingClientRect().left + panel.clientWidth,
+        ),
+    );
+  expect(await fits()).toBe(true);
+  const desktop = page.viewportSize()!;
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await fits()).toBe(true);
+  await page.setViewportSize(desktop);
   await page.getByLabel("Название сценария").fill("Приёмочная проверка");
   await page
     .getByRole("button", { name: "Regex", exact: true })

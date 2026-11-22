@@ -767,6 +767,7 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
                       .map(([key, spec]) => (
                         <button
                           key={key}
+                          className="node-option"
                           title={translateText(spec.description)}
                           draggable
                           onDragStart={(e) =>
@@ -775,7 +776,7 @@ function Editor({ flow, registry }: { flow: Flow; registry: Registry }) {
                           onClick={() => add(key)}
                         >
                           <GripVertical size={13} />
-                          {translateText(spec.title)}
+                          <span>{translateText(spec.title)}</span>
                           <Plus size={13} />
                         </button>
                       ))}

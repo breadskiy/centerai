@@ -943,6 +943,12 @@ dialog > .button {
   padding: 14px 10px;
   border-right: 1px solid var(--line);
 }
+.palette {
+  flex-basis: 216px;
+  min-width: 0;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
 .palette h3 {
   font-size: 12px;
   color: var(--muted);
@@ -964,6 +970,13 @@ dialog > .button {
 .palette button svg:first-child {
   color: var(--muted);
 }
+.palette .node-option {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 7px;
+}
+.node-option span { overflow-wrap: anywhere; }
 .canvas,
 .readgraph {
   flex: 1;
@@ -1279,8 +1292,8 @@ fieldset {
     height: 65vh;
   }
   .palette {
-    flex-basis: 112px;
-    padding: 8px 3px;
+    flex-basis: clamp(150px, 46%, 190px);
+    padding: 8px 6px;
   }
   .palette button {
     font-size: 12px;
