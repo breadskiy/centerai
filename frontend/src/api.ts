@@ -28,6 +28,7 @@ export interface Registry {
   types: Record<string, Kind>;
   default_graph: Graph;
   ai_graph?: Graph;
+  email_available?: boolean;
 }
 export interface Project {
   id: string;

@@ -18,7 +18,7 @@ class Plan(BaseModel):
     timezone: str
     path_regex: str
     explanations: bool
-    notify: list[Literal["telegram"]]
+    notify: list[Literal["telegram", "email"]]
     only_if_findings: bool
 
 
@@ -76,8 +76,10 @@ def compile_plan(plan):
         wire(parent, report, "true" if plan.only_if_findings else "")
     if plan.only_if_findings:
         wire("if_else", add("report_generator", x, 300, key="empty_report"), "false")
-    if plan.notify:
+    if "telegram" in plan.notify:
         wire(report, add("notification", x + 220))
+    if "email" in plan.notify:
+        wire(report, add("email_notification", x + 220, 260 if "telegram" in plan.notify else 120))
     graph = {"nodes": nodes, "edges": edges}
     validate(graph)
     return graph
@@ -86,12 +88,22 @@ def compile_plan(plan):
 def apply_explicit_filters(plan, description):
     """Preserve unambiguous positive scanner and risk requests in compact-model drafts."""
     text = description.casefold()
+    if not re.search(
+        r"\b(?:critical|high|medium|low|info|severity|критическ\w*|высок\w*|"
+        r"средн\w*|низк\w*|информационн\w*|критичност\w*|серьёзност\w*|серьезност\w*|важн\w*)\b",
+        text,
+    ):
+        plan.levels = []
+    if not re.search(r"\b(?:regex|regexp|path|files?|folder\w*|director\w*|пут\w*|файл\w*|папк\w*|каталог\w*)\b|\w/\w|\.(?:kt|kts|java)\b", text):
+        plan.path_regex = ""
+    if not re.search(r"\b(?:объясн\w*|поясн\w*|порекоменд\w*|рекомендац\w*|explain\w*|recommend\w*|ai|ии)\b", text):
+        plan.explanations = False
     if re.search(r"\b(не|без|кроме|исключ\w*|except|without|not)\b", text):
         return
     matches = {
         "sca": r"\b(?:sca|зависимост\w*|библиотек\w*)\b",
         "secrets": r"\b(?:secrets|секрет\w*|парол\w*|токен\w*)\b",
-        "sast": r"\b(?:sast|код(?:а)?|авторизаци\w*)\b",
+        "sast": r"\b(?:sast|статическ\w*\s+анализ|авторизаци\w*)\b",
     }
     requested = [name for name, pattern in matches.items() if re.search(pattern, text)]
     if requested and not re.search(r"все (?:три|анализатор|виды|категории)", text):
@@ -107,7 +119,22 @@ def apply_explicit_filters(plan, description):
         plan.levels = ["CRITICAL"]
 
 
-def draft(description):
+def apply_explicit_schedule(plan, description):
+    text = description.casefold()
+    if re.search(r"\b(?:вручную|manual(?:ly)?|без расписания)\b", text):
+        plan.cron = ""
+        return
+    weekdays = re.search(r"\b(?:по будням|каждый будний день|weekdays)\b", text)
+    daily = re.search(r"\b(?:каждый день|ежедневно|every day|daily)\b", text)
+    times = re.findall(r"(?<!\d)([01]?\d|2[0-3]):([0-5]\d)(?!\d)", text)
+    if (weekdays or daily) and len(times) == 1 and not re.search(
+        r"\bне\s+(?:каждый день|ежедневно|по будням)", text
+    ):
+        hour, minute = (int(part) for part in times[0])
+        plan.cron = f"{minute} {hour} * * {'1-5' if weekdays else '*'}"
+
+
+def draft(description, *, email_enabled=False, telegram_enabled=False):
     provider = configured_provider()
     messages = [
         {
@@ -116,11 +143,12 @@ def draft(description):
                 "Переведи задание пользователя в JSON план. Зависимости, библиотеки, Gradle = sca. "
                 "Секреты, пароли и токены = secrets. Статическая проверка кода = sast. "
                 "«По будням» и «каждый будний день» означают дни недели 1-5. "
-                '«Вручную» означает cron пустой. Единственный канал уведомлений — Telegram. '
+                '«Вручную» означает cron пустой. Каналы уведомлений: Telegram и email. '
+                "Do not add SAST merely because the code is mentioned as the source for another scan. "
                 "Use all three only for a general scan. Default levels=[], cron='', timezone='Europe/Moscow', "
                 "path_regex='', explanations=false, notify=[], only_if_findings=false. "
                 "Use five-field cron only if requested. "
-                "Include an explanation stage only when explicitly requested. "
+                "Include filters and explanation stages only when explicitly requested. "
                 "Set only_if_findings=true for conditional delivery. Do not invent recipients or actions."
             ),
         },
@@ -148,13 +176,35 @@ def draft(description):
                 provider.complete(messages, Plan.model_json_schema())
             )
             apply_explicit_filters(plan, description)
-            if not re.search(r"\b(?:telegram|телеграм\w*)\b", description, re.I) or re.search(
+            apply_explicit_schedule(plan, description)
+            warnings = []
+            plan.notify = []
+            no_delivery = re.search(r"\bбез (?:уведомлен\w*|рассылк\w*)\b", description, re.I)
+            telegram_requested = re.search(r"\b(?:telegram|телеграм\w*)\b", description, re.I)
+            telegram_excluded = re.search(
                 r"\b(?:без|не отправляй в)\s+(?:telegram|телеграм\w*)\b", description, re.I
-            ):
-                plan.notify = []
+            )
+            if telegram_requested and not (telegram_excluded or no_delivery):
+                plan.notify.append("telegram")
+                if not telegram_enabled:
+                    warnings.append("Подключите Telegram в настройках для доставки отчёта.")
+            email_requested = re.search(
+                r"\b(?:на (?:электронную )?почту|по (?:электронной )?почте|на e-?mail|"
+                r"send\w* .{0,60}\b(?:e-?mail|inbox)|e-?mail (?:the )?report)\b",
+                description, re.I,
+            )
+            email_excluded = re.search(
+                r"\b(?:без (?:почты|e-?mail)|не отправляй[^.!?]{0,45}(?:почт|e-?mail))",
+                description, re.I,
+            )
+            if email_requested and not (email_excluded or no_delivery):
+                if email_enabled:
+                    plan.notify.append("email")
+                else:
+                    warnings.append("Почта не настроена для этого аккаунта. Отчёт будет доступен в CenterAI.")
             if not re.search(r"\b(?:только если|если (?:есть|найден\w*|обнаружен\w*))\b", description, re.I):
                 plan.only_if_findings = False
-            return compile_plan(plan)
+            return {**compile_plan(plan), "warnings": warnings}
         except (ValueError, TypeError, KeyError, IndexError):
             if attempt:
                 raise ValueError(

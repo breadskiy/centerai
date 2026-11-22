@@ -287,7 +287,7 @@ class TelegramConfig(BaseModel):
 
 
 @api.get("/registry")
-def registry():
+def registry(db: DB):
     return {
         "types": {
             k: {
@@ -300,6 +300,7 @@ def registry():
         },
         "default_graph": default_graph(),
         "ai_graph": default_graph(with_ai=True),
+        "email_available": notifications.report_email_enabled(db.info["account"].email),
     }
 
 
@@ -308,8 +309,13 @@ class DraftRequest(BaseModel):
 
 
 @api.post("/workflow-drafts")
-def workflow_draft(body: DraftRequest):
-    return draft(body.description)
+def workflow_draft(body: DraftRequest, db: DB):
+    account = db.info["account"]
+    return draft(
+        body.description,
+        email_enabled=notifications.report_email_enabled(account.email),
+        telegram_enabled=notifications.telegram_connected(db, account.id),
+    )
 
 
 @api.get("/dashboard")

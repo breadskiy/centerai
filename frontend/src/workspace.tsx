@@ -20,6 +20,7 @@ import {
   Plus,
   Search,
   Settings2,
+  Sparkles,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -752,14 +753,17 @@ function NewFlow({
   projects,
   project,
   close,
+  fromPrompt,
 }: {
   projects: Project[];
   project: string;
   close: () => void;
+  fromPrompt: boolean;
 }) {
   const registry = useData<Registry>("/registry");
-  const [start, setStart] = useState("base");
+  const [start, setStart] = useState(fromPrompt ? "prompt" : "base");
   const { act, busy } = useAction();
+  const show = useNotice((state) => state.show);
   const nav = useNavigate();
   return (
     <Modal title={translateText("Новый сценарий")} close={close}>
@@ -769,14 +773,18 @@ function NewFlow({
           const v = new FormData(e.currentTarget);
           void act(async () => {
             let graph: Graph = registry.default_graph;
+            let warnings: string[] = [];
             if (v.get("start") === "blank")
               graph = { nodes: [graph.nodes[0]], edges: [] };
             if (v.get("start") === "ai" && registry.ai_graph)
               graph = registry.ai_graph;
-            if (start === "prompt")
-              graph = await api<Graph>("/workflow-drafts", "POST", {
+            if (start === "prompt") {
+              const draft = await api<Graph & { warnings: string[] }>("/workflow-drafts", "POST", {
                 description: v.get("prompt"),
               });
+              graph = { nodes: draft.nodes, edges: draft.edges };
+              warnings = draft.warnings ?? [];
+            }
             const f = await api<Flow>("/workflows", "POST", {
               name: v.get("name"),
               description: v.get("description"),
@@ -785,6 +793,7 @@ function NewFlow({
             });
             close();
             nav("/workflows/" + f.id);
+            if (warnings.length) show(warnings.map(translateText).join(" "));
           });
         }}
       >
@@ -861,7 +870,7 @@ function NewFlow({
         <button className="primary" disabled={busy || !projects.length}>
           {busy && start === "prompt"
             ? translateText("Подготавливаем схему…")
-            : translateText("Открыть редактор")}
+            : translateText(start === "prompt" ? "Сгенерировать сценарий" : "Открыть редактор")}
         </button>
       </form>
     </Modal>
@@ -873,6 +882,7 @@ export function Workflows() {
   const [params] = useSearchParams();
   const [project, setProject] = useState(params.get("project") || "");
   const [open, toggle] = useState(params.has("new"));
+  const [fromPrompt, setFromPrompt] = useState(false);
   const { act, busy } = useAction();
   const nav = useNavigate();
   const rows = flows.filter((f) => !project || f.project_id === project);
@@ -882,10 +892,16 @@ export function Workflows() {
         title={translateText("Сценарии")}
         sub={translateText("Графы анализа и правила передачи результатов.")}
         action={
-          <button className="primary" onClick={() => toggle(true)}>
-            <Plus />
-            {translateText("Новый сценарий")}
-          </button>
+          <div className="toolbar">
+            <button onClick={() => { setFromPrompt(true); toggle(true); }}>
+              <Sparkles />
+              {translateText("Собрать с AI")}
+            </button>
+            <button className="primary" onClick={() => { setFromPrompt(false); toggle(true); }}>
+              <Plus />
+              {translateText("Новый сценарий")}
+            </button>
+          </div>
         }
       />
       <div className="filters">
@@ -984,6 +1000,7 @@ export function Workflows() {
         <NewFlow
           projects={projects}
           project={project}
+          fromPrompt={fromPrompt}
           close={() => toggle(false)}
         />
       )}

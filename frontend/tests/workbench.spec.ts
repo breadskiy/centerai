@@ -1,5 +1,38 @@
 import { expect, test } from "./session";
 import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
+
+test("Собрать с AI открывает граф в редакторе и позволяет запустить проверку", async ({ page, request }) => {
+  const project = await request.post("/api/v1/projects", {
+    multipart: {
+      name: "Демо генерации",
+      archive: { name: "project.zip", mimeType: "application/zip", buffer: readFileSync(resolve("../.qa/e2e-fixture.zip")) },
+    },
+  });
+  expect(project.status()).toBe(201);
+  const registry = await (await request.get("/api/v1/registry")).json();
+  const graph = registry.default_graph;
+  const omitted = new Set(["sca_scanner", "sast_scanner"]);
+  const prompt = "Каждый день в 14:00 проверяй репозиторий на секреты";
+  await page.route("**/api/v1/workflow-drafts", (route) => {
+    expect(route.request().postDataJSON().description).toBe(prompt);
+    return route.fulfill({ json: {
+      nodes: graph.nodes.filter((node: { id: string }) => !omitted.has(node.id)),
+      edges: graph.edges.filter((edge: { source: string; target: string }) => !omitted.has(edge.source) && !omitted.has(edge.target)),
+      warnings: [],
+    } });
+  });
+  await page.goto("/workflows");
+  await page.getByRole("button", { name: "Собрать с AI" }).click();
+  await page.getByLabel("Что проверить").fill(prompt);
+  await page.getByRole("button", { name: "Сгенерировать сценарий" }).click();
+  await expect(page).toHaveURL(/\/workflows\/[^/]+$/);
+  await expect(page.locator(".react-flow__node")).toHaveCount(4);
+  await expect(page.locator(".react-flow__node").filter({ hasText: "Secrets" })).toBeVisible();
+  await page.getByRole("textbox", { name: "Название сценария" }).fill("Проверка из описания");
+  await page.getByRole("button", { name: "Запустить", exact: true }).click();
+  await expect(page).toHaveURL(/\/runs\/[^/]+$/);
+});
 
 test("Тема следует системе и сохраняет ручной выбор", async ({ page }) => {
   const root = page.locator("html");

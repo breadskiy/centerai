@@ -9,7 +9,7 @@ from email.utils import make_msgid
 
 import httpx
 
-from .db import Credential, Project, cipher
+from .db import Account, Credential, Project, cipher
 
 
 class TelegramLogFilter(logging.Filter):
@@ -37,9 +37,26 @@ def configure_email(session, recipient):
     session.commit()
 
 
+def report_email_enabled(email):
+    recipient = os.getenv("SMTP_REPORT_RECIPIENT", "").strip()
+    return bool(
+        os.getenv("SMTP_HOST")
+        and email
+        and recipient.casefold() == email.casefold()
+        and re.fullmatch(r"[\w.+%-]+@[\w.-]+\.[\w-]+", recipient, re.ASCII)
+    )
+
+
 def send_email(session, run=None, count=0):
     host = os.getenv("SMTP_HOST")
-    recipient = email_recipient(session)
+    if run:
+        project = session.get(Project, run.project_id)
+        account = session.get(Account, project.owner_id) if project and project.owner_id else None
+        if not account or not report_email_enabled(account.email):
+            raise ValueError("Доставка отчётов по почте не настроена для этого аккаунта.")
+        recipient = os.environ["SMTP_REPORT_RECIPIENT"].strip()
+    else:
+        recipient = email_recipient(session)
     if not host or not recipient:
         raise ValueError("Настройте SMTP на сервере и сохраните адрес получателя")
     mode = os.getenv("SMTP_SECURITY", "starttls")

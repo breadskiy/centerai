@@ -29,6 +29,7 @@ import {
   GripVertical,
   History,
   KeyRound,
+  Mail,
   PanelLeft,
   Play,
   Plus,
@@ -68,6 +69,7 @@ const marks = {
   sast_scanner: Braces,
   report_generator: FileOutput,
   notification: Send,
+  email_notification: Mail,
   if_else: GitBranch,
   severity_filter: Filter,
   regex_filter: Braces,
@@ -572,7 +574,7 @@ function Editor({ flow, registry, repositoryPage }: {
   function dropped(e: DragEvent) {
     e.preventDefault();
     const type = e.dataTransfer.getData("centerai/node");
-    if (type !== "email_notification" && registry.types[type])
+    if ((type !== "email_notification" || registry.email_available) && registry.types[type])
       add(type, screen.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
   }
   function connect(c: Connection) {
@@ -772,7 +774,7 @@ function Editor({ flow, registry, repositoryPage }: {
                     Object.entries(registry.types)
                       .filter(
                         ([key, t]) =>
-                          key !== "email_notification" &&
+                          (key !== "email_notification" || registry.email_available) &&
                           t.category === group &&
                           t.title.toLowerCase().includes(search.toLowerCase()),
                       )
