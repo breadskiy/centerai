@@ -21,6 +21,7 @@ import {
   Plus,
   Search,
   Settings2,
+  Sparkles,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -845,22 +846,24 @@ export function ProjectDetail() {
     </>
   );
 }
+type WorkflowStart = "base" | "personal" | "prompt";
+
 function NewFlow({
   projects,
   project,
-  personal,
+  initialStart,
   close,
 }: {
   projects: Project[];
   project: string;
-  personal: boolean;
+  initialStart: WorkflowStart;
   close: () => void;
 }) {
   const registry = useData<Registry>("/registry");
-  const [start, setStart] = useState(personal ? "personal" : "base");
+  const [start, setStart] = useState<string>(initialStart);
   const normalName = translateText("Проверка исходного кода");
   const personalName = translateText("Личный сценарий");
-  const [name, setName] = useState(personal ? personalName : normalName);
+  const [name, setName] = useState(initialStart === "personal" ? personalName : normalName);
   const { act, busy } = useAction();
   const nav = useNavigate();
   const [addingSession, setAddingSession] = useState(false);
@@ -1016,7 +1019,9 @@ export function Workflows() {
   const projects = useData<Project[]>("/projects");
   const [params] = useSearchParams();
   const [project, setProject] = useState(params.get("project") || "");
-  const [open, toggle] = useState(params.has("new"));
+  const [newFlow, setNewFlow] = useState<WorkflowStart | null>(
+    params.has("new") ? (params.get("start") === "personal" ? "personal" : "base") : null,
+  );
   const { act, busy } = useAction();
   const nav = useNavigate();
   const rows = flows.filter((f) => !project || f.project_id === project);
@@ -1026,10 +1031,16 @@ export function Workflows() {
         title={translateText("Сценарии")}
         sub={translateText("Графы анализа и правила передачи результатов.")}
         action={
-          <button className="primary" onClick={() => toggle(true)}>
-            <Plus />
-            {translateText("Новый сценарий")}
-          </button>
+          <div className="toolbar">
+            <button onClick={() => setNewFlow("prompt")}>
+              <Sparkles />
+              {translateText("Создать с ИИ")}
+            </button>
+            <button className="primary" onClick={() => setNewFlow("base")}>
+              <Plus />
+              {translateText("Новый сценарий")}
+            </button>
+          </div>
         }
       />
       <div className="filters">
@@ -1124,12 +1135,12 @@ export function Workflows() {
         )}
       </section>
       <TemplateLibrary flows={flows} projects={projects} project={project} />
-      {open && (
+      {newFlow && (
         <NewFlow
           projects={projects}
           project={project}
-          personal={params.get("start") === "personal"}
-          close={() => toggle(false)}
+          initialStart={newFlow}
+          close={() => setNewFlow(null)}
         />
       )}
     </>

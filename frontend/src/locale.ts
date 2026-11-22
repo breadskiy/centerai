@@ -180,6 +180,7 @@ const english: Record<string, string> = {
     "Delete the project and its workflows? Scan history will be retained.",
   Удалить: "Delete",
   "Новый сценарий": "New workflow",
+  "Создать с ИИ": "Create with AI",
   "Проверка исходного кода": "Source code scan",
   Проект: "Project",
   "Начальный граф": "Starting graph",

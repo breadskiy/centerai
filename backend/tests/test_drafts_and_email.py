@@ -86,6 +86,80 @@ def test_failed_draft_creates_nothing(client, monkeypatch):
     assert client.get(API + "/workflows").json() == []
 
 
+def test_full_project_prompt_adds_all_scanners_even_if_model_returns_one(client, monkeypatch):
+    provider = MagicMock()
+    provider.complete.return_value = json.dumps(dict(
+        scanners=["sast"], levels=[], cron="", timezone="Europe/Moscow",
+        path_regex="", explanations=False, notify=[], only_if_findings=False,
+    ))
+    monkeypatch.setattr(workflow_draft, "configured_provider", lambda: provider)
+    for description, expected in (
+        ("Проверь полностью проект", ["secrets_scanner", "sca_scanner", "sast_scanner"]),
+        ("Проверь полность проект", ["secrets_scanner", "sca_scanner", "sast_scanner"]),
+        ("Сделай полную проверку проекта без уведомлений", ["secrets_scanner", "sca_scanner", "sast_scanner"]),
+        ("Используй все три анализатора", ["secrets_scanner", "sca_scanner", "sast_scanner"]),
+        ("Проверь полностью проект, но только на секреты", ["secrets_scanner"]),
+    ):
+        response = client.post(API + "/workflow-drafts", json={"description": description})
+        assert response.is_success, response.text
+        graph = response.json()
+        assert [node["type"] for node in graph["nodes"] if node["type"].endswith("_scanner")] == expected
+
+
+def test_full_ai_prompt_connects_ai_before_email(monkeypatch):
+    provider = MagicMock()
+    plan = dict(
+        scanners=["sast"], levels=[], cron="", timezone="Europe/Moscow",
+        path_regex="", explanations=False, notify=[], only_if_findings=False,
+    )
+    provider.complete.return_value = json.dumps(plan)
+    monkeypatch.setattr(workflow_draft, "configured_provider", lambda: provider)
+    graph = workflow_draft.draft(
+        "Сделай полную проверку с AI и отчет пришли мне по почте",
+        account_email="developer@example.com",
+    )
+    assert {node["type"] for node in graph["nodes"]} == {
+        "manual_trigger", "repository_source", "secrets_scanner", "sca_scanner",
+        "sast_scanner", "ai_analysis", "report_generator", "email_notification",
+    }
+    links = {(edge["source"], edge["target"]) for edge in graph["edges"]}
+    assert {(scanner, "ai_analysis") for scanner in ("secrets_scanner", "sca_scanner", "sast_scanner")} <= links
+    assert {("ai_analysis", "report_generator"), ("report_generator", "email_notification")} <= links
+
+    provider.complete.return_value = json.dumps({**plan, "explanations": True})
+    graph = workflow_draft.draft("Сделай полную проверку без AI")
+    assert not any(node["type"] == "ai_analysis" for node in graph["nodes"])
+
+
+def test_draft_preserves_combined_request_when_qwen_omits_parts(monkeypatch):
+    provider = MagicMock()
+    provider.complete.return_value = json.dumps(dict(
+        scanners=["sast"], levels=[], cron="", timezone="Europe/Moscow",
+        path_regex="", explanations=False, notify=[], only_if_findings=False,
+    ))
+    monkeypatch.setattr(workflow_draft, "configured_provider", lambda: provider)
+    graph = workflow_draft.draft(
+        "По будням в 9 утра сделай полную проверку без SAST. "
+        "Покажи только критические и высокие находки, объясни их. "
+        "При наличии находок отправь отчёт в Telegram и по почте.",
+        account_email="developer@example.com",
+    )
+    nodes = {node["type"]: node["config"] for node in graph["nodes"]}
+    assert set(nodes) == {
+        "schedule_trigger", "repository_source", "secrets_scanner", "sca_scanner",
+        "severity_filter", "ai_analysis", "if_else", "report_generator",
+        "email_notification", "notification",
+    }
+    assert nodes["schedule_trigger"]["cron"] == "0 9 * * 1-5"
+    assert nodes["severity_filter"]["levels"] == ["CRITICAL", "HIGH"]
+    links = {(edge["source"], edge["target"], edge["branch"]) for edge in graph["edges"]}
+    assert ("if_else", "report_generator", "true") in links
+    assert ("if_else", "empty_report", "false") in links
+    assert ("report_generator", "email_notification", "") in links
+    assert ("report_generator", "notification", "") in links
+    assert not any(source == "empty_report" for source, _, _ in links)
+
+
 def test_add_email_without_ai_and_read_delivery_in_run_details(
     client, project, monkeypatch
 ):
@@ -269,9 +343,10 @@ def test_prompt_recipient_must_be_confirmed_and_can_be_revoked(
     assert viewer["email_verified"] is False
     assert viewer["report_recipient"] == address
 
-    graph = draft(description)
-    assert email_node(graph)["config"] == {"recipient": address}
-    assert address not in provider.complete.call_args.args[0][-1]["content"]
+    for destination in (address, f"почту {address}", f"мою подтверждённую почту: {address}"):
+        graph = draft(f"Проверь зависимости и отправь отчёт на {destination}.")
+        assert email_node(graph)["config"] == {"recipient": address}
+        assert address not in provider.complete.call_args.args[0][-1]["content"]
     for rejected in (
         "Проверь зависимости и отправь отчёт на почту",
         description.rstrip(".") + ", other@example.com",

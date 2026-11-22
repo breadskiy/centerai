@@ -37,8 +37,9 @@ test("Генератор сохраняет описание при ошибке
       },
     },
   });
-  await page.goto("/workflows?new=1&project=" + (await project.json()).id);
-  await page.getByLabel("Начальный граф").selectOption("prompt");
+  await page.goto("/workflows?project=" + (await project.json()).id);
+  await page.getByRole("button", { name: "Создать с ИИ" }).click();
+  await expect(page.getByLabel("Начальный граф")).toHaveValue("prompt");
   const description = "Проверяй зависимости и отправляй результат в Telegram";
   await page.getByLabel("Что проверить").fill(description);
   await page.getByRole("button", { name: "Открыть редактор" }).click();
