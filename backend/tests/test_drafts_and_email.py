@@ -99,6 +99,8 @@ def test_full_project_prompt_adds_all_scanners_even_if_model_returns_one(client,
         ("Сделай полную проверку проекта без уведомлений", ["secrets_scanner", "sca_scanner", "sast_scanner"]),
         ("Используй все три анализатора", ["secrets_scanner", "sca_scanner", "sast_scanner"]),
         ("Проверь полностью проект, но только на секреты", ["secrets_scanner"]),
+        ("Run a full project scan and generate a report", ["secrets_scanner", "sca_scanner", "sast_scanner"]),
+        ("Check dependencies and generate a report", ["sca_scanner"]),
     ):
         response = client.post(API + "/workflow-drafts", json={"description": description})
         assert response.is_success, response.text
@@ -131,6 +133,34 @@ def test_full_ai_prompt_connects_ai_before_email(monkeypatch):
     assert not any(node["type"] == "ai_analysis" for node in graph["nodes"])
 
 
+def test_draft_recognizes_sac_typo_and_keeps_email(client, monkeypatch):
+    mail = smtp_fixture(monkeypatch)
+    assert confirm(client, request_token(client, mail)).is_success
+    provider = MagicMock()
+    provider.complete.return_value = json.dumps(dict(
+        scanners=["secrets"], levels=[], cron="", timezone="Europe/Moscow",
+        path_regex="", explanations=False, notify=[], only_if_findings=False,
+    ))
+    monkeypatch.setattr(workflow_draft, "configured_provider", lambda: provider)
+
+    response = client.post(
+        API + "/workflow-drafts",
+        json={"description": "Сделай проверку SAC и секретов. Отчёт отправь мне на почту"},
+    )
+
+    assert response.is_success, response.text
+    graph = response.json()
+    assert {node["type"] for node in graph["nodes"] if node["type"].endswith("_scanner")} == {
+        "secrets_scanner", "sca_scanner",
+    }
+    links = {(edge["source"], edge["target"]) for edge in graph["edges"]}
+    assert {
+        ("secrets_scanner", "report_generator"),
+        ("sca_scanner", "report_generator"),
+        ("report_generator", "email_notification"),
+    } <= links
+
+
 def test_draft_preserves_combined_request_when_qwen_omits_parts(monkeypatch):
     provider = MagicMock()
     provider.complete.return_value = json.dumps(dict(
@@ -158,6 +188,52 @@ def test_draft_preserves_combined_request_when_qwen_omits_parts(monkeypatch):
     assert ("report_generator", "email_notification", "") in links
     assert ("report_generator", "notification", "") in links
     assert not any(source == "empty_report" for source, _, _ in links)
+
+
+def test_draft_keeps_explicit_schedule_and_removes_unrequested_steps(
+    client, monkeypatch
+):
+    provider = MagicMock()
+    provider.complete.return_value = json.dumps(
+        {
+            "scanners": ["secrets", "sast"],
+            "levels": ["HIGH"],
+            "cron": "5 10 * * 1",
+            "timezone": "Europe/Moscow",
+            "path_regex": "sample",
+            "explanations": True,
+            "notify": ["telegram"],
+            "only_if_findings": True,
+        }
+    )
+    monkeypatch.setattr(workflow_draft, "configured_provider", lambda: provider)
+    path = API + "/workflow-drafts"
+    response = client.post(
+        path,
+        json={
+            "description": "Каждый день в 14:30 проверяй код на секреты и сформируй отчёт.",
+        },
+    )
+    assert response.is_success, response.text
+    draft = response.json()
+    assert [node["type"] for node in draft["nodes"]] == [
+        "schedule_trigger",
+        "repository_source",
+        "secrets_scanner",
+        "report_generator",
+    ]
+    assert draft["nodes"][0]["config"] == {
+        "cron": "30 14 * * *",
+        "timezone": "Europe/Moscow",
+        "enabled": False,
+    }
+    assert draft["warnings"] == []
+
+    response = client.post(
+        path, json={"description": "Проверь секреты и сформируй отчёт."}
+    )
+    assert response.is_success, response.text
+    assert response.json()["nodes"][0]["type"] == "manual_trigger"
 
 
 def test_add_email_without_ai_and_read_delivery_in_run_details(

@@ -27,7 +27,7 @@ import "@fontsource/ibm-plex-mono/latin-400.css";
 import bankMark from "./centr-invest.svg";
 import { cache } from "./api";
 import { Boundary, Toast } from "./ui";
-import { AccountGate, AccountPage } from "./account";
+import { AccountGate, AccountPage, ThemeToggle } from "./account";
 import type { SetViewer, Viewer } from "./account";
 import { RepositoriesPage } from "./repositories";
 import {
@@ -90,24 +90,21 @@ function Shell({ viewer, change }: { viewer: Viewer; change: SetViewer }) {
             <span>{translateText("Настройки")}</span>
           </NavLink>
         </nav>
-        <NavLink
-          to="/account"
-          className="account-link"
-          aria-label={translateText("Личный кабинет")}
-          title={translateText("Личный кабинет")}
-        >
-          {viewer.avatar ? (
-            <img src={viewer.avatar} alt="" />
-          ) : (
-            <UserRound size={19} />
-          )}
-          <span>
-            <strong>{translateText("Личный кабинет")}</strong>
-            <small>
-              {viewer.nickname || viewer.email || translateText("Гость")}
-            </small>
-          </span>
-        </NavLink>
+        <div className="account-shortcuts">
+          <ThemeToggle />
+          <NavLink
+            to="/account"
+            className="account-link"
+            aria-label={translateText("Личный кабинет")}
+            title={translateText("Личный кабинет")}
+          >
+            {viewer.avatar ? (
+              <img src={viewer.avatar} alt="" />
+            ) : (
+              <UserRound size={19} aria-hidden="true" />
+            )}
+          </NavLink>
+        </div>
       </aside>
       <div className="content">
         <main>

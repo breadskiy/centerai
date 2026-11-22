@@ -846,25 +846,28 @@ export function ProjectDetail() {
     </>
   );
 }
-type WorkflowStart = "base" | "personal" | "prompt";
+type InitialWorkflow = "base" | "personal" | "prompt";
 
 function NewFlow({
   projects,
   project,
-  initialStart,
+  initial,
   close,
 }: {
   projects: Project[];
   project: string;
-  initialStart: WorkflowStart;
+  initial: InitialWorkflow;
   close: () => void;
 }) {
   const registry = useData<Registry>("/registry");
-  const [start, setStart] = useState<string>(initialStart);
+  const [start, setStart] = useState<string>(initial);
   const normalName = translateText("Проверка исходного кода");
   const personalName = translateText("Личный сценарий");
-  const [name, setName] = useState(initialStart === "personal" ? personalName : normalName);
+  const [name, setName] = useState(
+    initial === "personal" ? personalName : normalName,
+  );
   const { act, busy } = useAction();
+  const show = useNotice((state) => state.show);
   const nav = useNavigate();
   const [addingSession, setAddingSession] = useState(false);
   const [createdSession, setCreatedSession] = useState<Project>();
@@ -910,15 +913,23 @@ function NewFlow({
           const v = new FormData(e.currentTarget);
           void act(async () => {
             let graph: Graph = registry.default_graph;
+            let warnings: string[] = [];
             if (v.get("start") === "blank")
               graph = { nodes: [graph.nodes[0]], edges: [] };
             if (start === "personal") graph = { nodes: [], edges: [] };
             if (v.get("start") === "ai" && registry.ai_graph)
               graph = registry.ai_graph;
-            if (start === "prompt")
-              graph = await api<Graph>("/workflow-drafts", "POST", {
-                description: v.get("prompt"),
-              });
+            if (start === "prompt") {
+              const draft = await api<Graph & { warnings?: string[] }>(
+                "/workflow-drafts",
+                "POST",
+                {
+                  description: v.get("prompt"),
+                },
+              );
+              graph = { nodes: draft.nodes, edges: draft.edges };
+              warnings = draft.warnings ?? [];
+            }
             const f = await api<Flow>("/workflows", "POST", {
               name: v.get("name"),
               description: v.get("description"),
@@ -927,6 +938,7 @@ function NewFlow({
             });
             close();
             nav("/workflows/" + f.id);
+            if (warnings.length) show(warnings.map(translateText).join(" "));
           });
         }}
       >
@@ -1008,7 +1020,11 @@ function NewFlow({
         <button className="primary" disabled={busy}>
           {busy && start === "prompt"
             ? translateText("Подготавливаем схему…")
-            : translateText("Открыть редактор")}
+            : translateText(
+                start === "prompt"
+                  ? "Сгенерировать сценарий"
+                  : "Открыть редактор",
+              )}
         </button>
       </form>
     </Modal>
@@ -1019,9 +1035,11 @@ export function Workflows() {
   const projects = useData<Project[]>("/projects");
   const [params] = useSearchParams();
   const [project, setProject] = useState(params.get("project") || "");
-  const [newFlow, setNewFlow] = useState<WorkflowStart | null>(
-    params.has("new") ? (params.get("start") === "personal" ? "personal" : "base") : null,
-  );
+  const [initial, setInitial] = useState<InitialWorkflow | null>(() => {
+    if (!params.has("new")) return null;
+    const start = params.get("start");
+    return start === "personal" || start === "prompt" ? start : "base";
+  });
   const { act, busy } = useAction();
   const nav = useNavigate();
   const rows = flows.filter((f) => !project || f.project_id === project);
@@ -1032,11 +1050,11 @@ export function Workflows() {
         sub={translateText("Графы анализа и правила передачи результатов.")}
         action={
           <div className="toolbar">
-            <button onClick={() => setNewFlow("prompt")}>
+            <button onClick={() => setInitial("prompt")}>
               <Sparkles />
-              {translateText("Создать с ИИ")}
+              {translateText("Собрать с AI")}
             </button>
-            <button className="primary" onClick={() => setNewFlow("base")}>
+            <button className="primary" onClick={() => setInitial("base")}>
               <Plus />
               {translateText("Новый сценарий")}
             </button>
@@ -1135,12 +1153,12 @@ export function Workflows() {
         )}
       </section>
       <TemplateLibrary flows={flows} projects={projects} project={project} />
-      {newFlow && (
+      {initial && (
         <NewFlow
           projects={projects}
           project={project}
-          initialStart={newFlow}
-          close={() => setNewFlow(null)}
+          initial={initial}
+          close={() => setInitial(null)}
         />
       )}
     </>

@@ -2,7 +2,8 @@
 param(
     [ValidateRange(1,65535)][int]$Port = 8000,
     [switch]$ConfigureGitHub,
-    [switch]$SkipGitHub
+    [switch]$SkipGitHub,
+    [switch]$Vulkan
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,36 +26,6 @@ if (Test-Path -LiteralPath '.env' -PathType Leaf) {
     }
 }
 $url = "http://127.0.0.1:$Port"
-$listeners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
-if ($listeners.Count -gt 0) {
-    $owners = @($listeners.OwningProcess | Sort-Object -Unique)
-    $ownerList = $owners -join ', '
-    $running = $null
-    try {
-        $running = Invoke-RestMethod "$url/openapi.json" -TimeoutSec 2
-    } catch {}
-    if ($owners.Count -ne 1 -or $running.info.title -notin @('CenTRap Security Workflow', 'CenterAI Security Workflow')) {
-        throw "Port $Port is in use (PID: $ownerList). Close that program and retry."
-    }
-    $server = Get-CimInstance Win32_Process -Filter "ProcessId=$($owners[0])"
-    $commandPattern = "(?:^|\s)-m\s+uvicorn\s+backend\.api:app\s+--host\s+127\.0\.0\.1\s+--port\s+$Port(?:\s|$)"
-    if ($server.Name -ne 'python.exe' -or $server.CommandLine -notmatch $commandPattern) {
-        throw "Cannot verify the CenTRap process on port $Port (PID: $ownerList). Stop it in its launch window and retry."
-    }
-    $currentOwners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique)
-    if ($currentOwners.Count -ne 1 -or $currentOwners[0] -ne $server.ProcessId) {
-        throw "The process on port $Port changed during startup. Run this file again."
-    }
-    Write-Host "Stopping the previous CenTRap server on port $Port (PID: $($server.ProcessId))."
-    Stop-Process -Id $server.ProcessId
-    for ($attempt = 0; $attempt -lt 20; $attempt++) {
-        if (-not (Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)) { break }
-        Start-Sleep -Milliseconds 250
-    }
-    if (Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue) {
-        throw "Port $Port did not become free after stopping CenTRap."
-    }
-}
 $pythonPath = Join-Path (Get-Location) '.venv\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $pythonPath)) {
     $launcher = Get-Command py.exe -ErrorAction SilentlyContinue
@@ -72,6 +43,35 @@ if (-not (Test-Path -LiteralPath $pythonPath)) {
 }
 $release = & $pythonPath scripts/start_stack.py --build-id
 if ($LASTEXITCODE -or -not $release) { throw 'Could not identify the local CenTRap build.' }
+try {
+    $running = Invoke-RestMethod "$url/openapi.json" -TimeoutSec 2
+} catch {
+    $running = $null
+}
+if ($running.info.title -in @('CenTRap Security Workflow', 'CenterAI Security Workflow')) {
+    if ($ConfigureGitHub -or $SkipGitHub) {
+        throw 'Stop the running CenTRap window with Ctrl+C before changing GitHub settings.'
+    }
+    if ($Vulkan) {
+        throw 'Stop the running CenTRap window with Ctrl+C before selecting Vulkan.'
+    }
+    try {
+        $current = Invoke-RestMethod "$url/api/v1/build" -TimeoutSec 2
+    } catch {
+        $current = $null
+    }
+    if ($current.release -ne $release) {
+        throw "A different CenTRap build is listening at $url. Stop it with Ctrl+C in its launch window and run this file again."
+    }
+    Write-Host "CenTRap is already running the current build at $url"
+    Start-Process "$url/?build=$release"
+    exit 0
+}
+$owners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue |
+    Select-Object -ExpandProperty OwningProcess -Unique)
+if ($owners.Count -gt 0) {
+    throw "Port $Port is already in use (PID: $($owners -join ', ')). Stop that program or use -Port to select another port."
+}
 . (Join-Path $PSScriptRoot 'local_services.ps1')
 Initialize-CenterAIGitHub -Port $Port -Configure:$ConfigureGitHub -Skip:$SkipGitHub
 Initialize-CenterAIOllama
@@ -92,5 +92,7 @@ try {
 } finally {
     Pop-Location
 }
-& $pythonPath scripts/start_stack.py --port $Port --release $release
+$stackArgs = @('--port', $Port, '--release', $release)
+if ($Vulkan) { $stackArgs += '--vulkan' }
+& $pythonPath scripts/start_stack.py @stackArgs
 exit $LASTEXITCODE

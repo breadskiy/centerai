@@ -27,7 +27,7 @@ const sessionSignal = "centerai-auth-change";
 const emailReturnKey = "centerai-email-verification-return";
 const emailVerificationHash = /^#verify-email=[A-Za-z0-9_-]{43}$/;
 
-function ThemeToggle() {
+export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const systemDark = useSystemDark();
   const dark = theme === "dark" || (theme === "system" && systemDark);

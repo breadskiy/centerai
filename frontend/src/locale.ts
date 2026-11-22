@@ -180,7 +180,6 @@ const english: Record<string, string> = {
     "Delete the project and its workflows? Scan history will be retained.",
   Удалить: "Delete",
   "Новый сценарий": "New workflow",
-  "Создать с ИИ": "Create with AI",
   "Проверка исходного кода": "Source code scan",
   Проект: "Project",
   "Начальный граф": "Starting graph",
@@ -194,6 +193,9 @@ const english: Record<string, string> = {
   "Загружаем данные этапа…": "Loading stage details…",
   "Не удалось загрузить выход узла.": "Could not load the node output.",
   "По описанию с AI": "Generate from a description",
+  "Собрать с AI": "Build with AI",
+  "Сгенерировать сценарий": "Generate workflow",
+  "Подключите Telegram для доставки отчёта.": "Connect Telegram to deliver the report.",
   "Что проверить": "What to scan",
   "По будням в 9 утра проверяй зависимости и присылай критические результаты по почте":
     "Scan dependencies on weekdays at 9 AM and email critical results",

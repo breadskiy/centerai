@@ -16,9 +16,9 @@ ADDRESS_TARGET = re.compile(
     re.I,
 )
 SCANNER_TERMS = {
-    "secrets": r"(?:secrets|секрет\w*|парол\w*|токен\w*)",
-    "sca": r"(?:sca|зависимост\w*|библиотек\w*|gradle)",
-    "sast": r"(?:sast|статическ\w*\s+анализ|авторизаци\w*)",
+    "secrets": r"(?:secrets?|секрет\w*|парол\w*|токен\w*)",
+    "sca": r"(?:sca|sac|dependenc(?:y|ies)|librar(?:y|ies)|зависимост\w*|библиотек\w*|gradle)",
+    "sast": r"(?:sast|static\s+(?:code\s+)?analysis|статическ\w*\s+анализ|авторизаци\w*)",
 }
 SEVERITY_TERMS = {
     "CRITICAL": r"(?:critical|критическ\w*)",
@@ -47,10 +47,14 @@ def apply_scanner_request(plan, text):
     )
     full_scan = re.search(
         r"\b(?:полность(?:ю)?|полн\w*\s+проверк\w*|комплексн\w*\s+проверк\w*|"
-        r"весь\s+(?:проект|репозиторий|код)|full\s+scan|complete\s+scan)\b",
+        r"весь\s+(?:проект|репозиторий|код)|(?:full|complete)\s+(?:(?:project|repository|code)\s+)?scan)\b",
         text,
     )
-    negated_full = re.search(r"\b(?:не\s+полностью|не\s+(?:делай|запускай)\s+полн\w*|not a full scan)\b", text)
+    negated_full = re.search(
+        r"\b(?:не\s+полностью|не\s+(?:делай|запускай)\s+полн\w*|"
+        r"not a (?:full|complete)\s+(?:(?:project|repository|code)\s+)?scan)\b",
+        text,
+    )
     if (all_scanners or (full_scan and not requested)) and not negated_full:
         candidates = list(SCANNER_TERMS)
     else:
@@ -189,6 +193,13 @@ def apply_explicit_schedule(plan, description):
     ):
         hour, minute = (int(part) for part in times[0])
         plan.cron = f"{minute} {hour} * * {'1-5' if weekdays else '*'}"
+    elif not re.search(
+        r"\b(?:расписан\w*|cron|по будням|по выходным|кажд\w*|ежеднев\w*|еженедел\w*|"
+        r"ежемесяч\w*|weekdays|weekends|daily|weekly|monthly|every|schedule\w*|"
+        r"понедельник\w*|вторник\w*|сред[ауеы]|четверг\w*|пятниц\w*|суббот\w*|воскресень\w*)\b",
+        text,
+    ):
+        plan.cron = ""
 
 
 def draft_email_recipient(description, account_email, report_email):
@@ -240,9 +251,14 @@ def draft_email_recipient(description, account_email, report_email):
     return ""
 
 
-def draft(description, *, account_email=None, report_email=None):
+def draft(description, *, account_email=None, report_email=None, telegram_enabled=False):
     recipient = draft_email_recipient(description, account_email, report_email)
-    provider = configured_provider()
+    try:
+        provider = configured_provider()
+    except ValueError:
+        raise ValueError(
+            "Сервис модели недоступен. Проверьте подключение AI."
+        ) from None
     model_description = ADDRESS_TEXT.sub("[email address]", description)
     messages = [
         {
@@ -286,21 +302,29 @@ def draft(description, *, account_email=None, report_email=None):
             )
             apply_explicit_filters(plan, model_description)
             apply_explicit_schedule(plan, model_description)
-            plan.notify = []
-            no_delivery = re.search(r"\bбез (?:уведомлен\w*|рассылк\w*)\b", description, re.I)
-            telegram_requested = re.search(r"\b(?:telegram|телеграм\w*)\b", description, re.I)
-            telegram_excluded = re.search(
-                r"\b(?:без|не отправляй в)\s+(?:telegram|телеграм\w*)\b", description, re.I
+            telegram_requested = re.search(
+                r"\b(?:отправ\w*|пришл\w*|присыл\w*|уведом\w*|send\w*|deliver\w*|notify\w*)"
+                r"[^.!?\n]{0,110}\b(?:telegram|телеграм\w*)\b",
+                model_description,
+                re.I,
             )
-            if telegram_requested and not (telegram_excluded or no_delivery):
-                plan.notify.append("telegram")
+            telegram_excluded = re.search(
+                r"\b(?:без (?:уведомлен\w*|рассылк\w*|telegram|телеграм\w*)|"
+                r"не\s+(?:отправ\w*|присыл\w*|уведом\w*)[^.!?\n]{0,45}(?:telegram|телеграм\w*))\b",
+                model_description,
+                re.I,
+            )
+            plan.notify = ["telegram"] if telegram_requested and not telegram_excluded else []
+            warnings = []
+            if plan.notify and not telegram_enabled:
+                warnings.append("Подключите Telegram для доставки отчёта.")
             plan.only_if_findings = bool(re.search(
                 r"\b(?:если\s+(?:есть|найд\w*|обнаруж\w*|будут?\s+находк\w*)|"
                 r"при\s+наличии\s+находок|only\s+if\s+(?:there\s+are\s+)?findings)\b",
                 model_description,
                 re.I,
             ))
-            return compile_plan(plan, recipient)
+            return {**compile_plan(plan, recipient), "warnings": warnings}
         except (ValueError, TypeError, KeyError, IndexError):
             if attempt:
                 raise ValueError(

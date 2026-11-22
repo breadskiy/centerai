@@ -606,6 +606,11 @@ function Editor({
     [],
   );
   const picked = nodes.find((n) => n.id === selected);
+  function removeNode(id: string) {
+    setEdges((es) => es.filter((e) => e.source !== id && e.target !== id));
+    setNodes((ns) => ns.filter((n) => n.id !== id));
+    select((current) => (current === id ? null : current));
+  }
   function add(kind: string, point?: { x: number; y: number }) {
     const spec = registry.types[kind];
     const bounds = canvas.current?.getBoundingClientRect();
@@ -905,6 +910,7 @@ function Editor({
               }
               onConnect={connect}
               onNodeClick={(_, n) => select(n.id)}
+              onNodeDoubleClick={(_, n) => removeNode(n.id)}
               onPaneClick={() => select(null)}
               deleteKeyCode={["Backspace", "Delete"]}
             >
@@ -960,15 +966,7 @@ function Editor({
               />
               <button
                 className="danger"
-                onClick={() => {
-                  setEdges((es) =>
-                    es.filter(
-                      (e) => e.source !== picked.id && e.target !== picked.id,
-                    ),
-                  );
-                  setNodes((ns) => ns.filter((n) => n.id !== picked.id));
-                  select(null);
-                }}
+                onClick={() => removeNode(picked.id)}
               >
                 <Trash2 />
                 {translateText("Удалить узел")}

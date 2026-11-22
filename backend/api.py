@@ -328,6 +328,7 @@ def workflow_draft(body: DraftRequest, db: DB):
         if configured and account.email_verified_at
         else None,
         report_email=account.report_recipient if configured else None,
+        telegram_enabled=notifications.telegram_connected(db, account.id),
     )
 
 

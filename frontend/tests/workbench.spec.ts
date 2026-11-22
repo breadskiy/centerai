@@ -1,5 +1,61 @@
 import { expect, test } from "./session";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+
+test("Собрать с AI открывает редактируемый граф и запускает его", async ({
+  page,
+  request,
+}) => {
+  const project = await request.post("/api/v1/projects", {
+    multipart: {
+      name: "Сессия для генерации",
+      archive: {
+        name: "project.zip",
+        mimeType: "application/zip",
+        buffer: readFileSync(resolve("../.qa/e2e-fixture.zip")),
+      },
+    },
+  });
+  expect(project.status()).toBe(201);
+  const { default_graph: graph } = await (
+    await request.get("/api/v1/registry")
+  ).json();
+  const omitted = new Set(["sca_scanner", "sast_scanner"]);
+  const prompt = "Каждый день в 14:00 проверяй репозиторий на секреты";
+  await page.route("**/api/v1/workflow-drafts", (route) => {
+    expect(route.request().postDataJSON().description).toBe(prompt);
+    return route.fulfill({
+      json: {
+        nodes: graph.nodes.filter(
+          (node: { id: string }) => !omitted.has(node.id),
+        ),
+        edges: graph.edges.filter(
+          (edge: { source: string; target: string }) =>
+            !omitted.has(edge.source) && !omitted.has(edge.target),
+        ),
+        warnings: [],
+      },
+    });
+  });
+  await page.goto("/workflows");
+  await page.getByRole("button", { name: "Собрать с AI" }).click();
+  await expect(page.getByLabel("Начальный граф")).toHaveValue("prompt");
+  await page.getByLabel("Что проверить").fill(prompt);
+  await page.getByRole("button", { name: "Сгенерировать сценарий" }).click();
+  await expect(page).toHaveURL(/\/workflows\/[^/]+$/);
+  await expect(page.locator(".react-flow__node")).toHaveCount(4);
+  await expect(
+    page.locator(".react-flow__node").filter({ hasText: "Secrets" }),
+  ).toBeVisible();
+  await page
+    .getByRole("textbox", { name: "Название сценария" })
+    .fill("Проверка из описания");
+  await page.getByRole("button", { name: "Запустить", exact: true }).click();
+  await expect(page).toHaveURL(/\/runs\/[^/]+$/);
+  await expect(
+    page.getByRole("heading", { name: "Проверка из описания", exact: true }),
+  ).toBeVisible();
+});
 
 test("Фокус кнопок и загрузки архива выделен фоном без обводки", async ({
   page,
@@ -63,9 +119,12 @@ test("Тема следует системе и сохраняет ручной 
   await expect(
     page.getByRole("heading", { name: "Личный кабинет" }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Тёмная тема" })).toHaveCount(
-    0,
-  );
+  await expect(
+    page.locator(".account-shortcuts").getByRole("button", { name: "Тёмная тема" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("main").getByRole("button", { name: "Тёмная тема" }),
+  ).toHaveCount(0);
 });
 
 test("ZIP → editable workflow → live execution → report and settings", async ({
@@ -122,7 +181,15 @@ test("ZIP → editable workflow → live execution → report and settings", asy
   await page.getByLabel("Вход из узла").selectOption("secrets_scanner");
   await page.getByRole("button", { name: "Соединить", exact: true }).click();
   await expect(page.locator(".react-flow__edge")).toHaveCount(8);
+  const regexNode = page.locator('.react-flow__node[data-id^="regex_filter-"]');
+  await regexNode.dblclick();
+  await expect(regexNode).toHaveCount(0);
+  await expect(page.locator(".react-flow__edge")).toHaveCount(7);
+  await expect(page.getByRole("button", { name: "Удалить узел" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Regex", exact: true }).click();
+  await expect(regexNode).toHaveCount(1);
   await page.getByRole("button", { name: "Удалить узел" }).click();
+  await expect(regexNode).toHaveCount(0);
   await page.getByRole("button", { name: "Проверить", exact: true }).click();
   await expect(page.getByText("Граф прошёл проверку")).toBeVisible();
   await page.screenshot({ path: resolve("../.qa/editor.png"), fullPage: true });
