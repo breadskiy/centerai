@@ -284,9 +284,11 @@ function Connections({
 function Config({
   node,
   update,
+  recipients,
 }: {
   node: Tile;
   update: (config: Record<string, unknown>) => void;
+  recipients: string[];
 }) {
   const c = node.data.config;
   const set = (key: string, value: unknown) => update({ ...c, [key]: value });
@@ -347,6 +349,18 @@ function Config({
             placeholder={translateText("По умолчанию на сервере")}
             onChange={(e) => set("model", e.target.value)}
           />
+        </label>
+      )}
+      {node.data.kind === "email_notification" && (
+        <label>
+          {translateText("Получатель отчёта")}
+          <select value={String(c.recipient || "")} onChange={(event) => set("recipient", event.target.value)}>
+            <option value="">{translateText("Почта аккаунта")}</option>
+            {typeof c.recipient === "string" && c.recipient && !recipients.includes(c.recipient) && (
+              <option value={c.recipient} disabled>{c.recipient} ({translateText("адрес не подтверждён")})</option>
+            )}
+            {recipients.map((address) => <option value={address} key={address}>{address}</option>)}
+          </select>
         </label>
       )}
       {node.data.kind === "regex_filter" && (
@@ -860,6 +874,7 @@ function Editor({ flow, registry, repositoryPage }: {
               />
               <Config
                 node={picked}
+                recipients={registry.email_recipients ?? []}
                 update={(config) =>
                   setNodes((ns) =>
                     ns.map((n) =>

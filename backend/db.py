@@ -62,6 +62,12 @@ class Account(Base):
     __tablename__ = "accounts"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
     email: Mapped[str | None] = mapped_column(String(254), unique=True)
+    email_verified_at: Mapped[float | None] = mapped_column(Float)
+    pending_email: Mapped[str | None] = mapped_column(String(254))
+    email_verification_digest: Mapped[str | None] = mapped_column(String(64))
+    email_verification_sent_at: Mapped[float | None] = mapped_column(Float)
+    report_recipient: Mapped[str | None] = mapped_column(String(254))
+    pending_email_reports_only: Mapped[bool] = mapped_column(default=False, server_default="false")
     password_hash: Mapped[str | None]
     nickname: Mapped[str] = mapped_column(String(60), default="")
     telegram_username: Mapped[str] = mapped_column(String(32), default="")
@@ -135,6 +141,18 @@ class Run(Base):
     heartbeat: Mapped[float | None] = mapped_column(Float)
     error: Mapped[str | None]
     count: Mapped[int] = mapped_column(default=0)
+
+
+class ReportEmail(Base):
+    __tablename__ = "report_emails"
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("runs.id", ondelete="CASCADE"), primary_key=True
+    )
+    recipient: Mapped[str | None] = mapped_column(String(254))
+    status: Mapped[str] = mapped_column(String(20), index=True)
+    due: Mapped[float] = mapped_column(Float)
+    attempts: Mapped[int] = mapped_column(default=0)
+    error: Mapped[str | None]
 
 
 class RepositoryWatch(Base):

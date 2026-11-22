@@ -2,10 +2,18 @@ import re
 from http.client import HTTPException
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .ai_report import configured_provider
 from .graph import validate
+from .node_config import EmailConfig
+
+ADDRESS_TEXT = re.compile(r"[^\s<>(),;:\"“”«»]+@[^\s<>(),;:\"“”«»]*")
+ADDRESS_TARGET = re.compile(
+    r"\b(?:на|to)\s+(?:(?:(?:электронную\s+)?почту|e-?mail|адрес|address)\s*:?\s*)?"
+    r"[\"<«]?(?P<address>[^\s<>(),;:\"“”«»]+@[^\s<>(),;:\"“”«»]*)",
+    re.I,
+)
 
 
 class Plan(BaseModel):
@@ -22,7 +30,7 @@ class Plan(BaseModel):
     only_if_findings: bool
 
 
-def compile_plan(plan):
+def compile_plan(plan, recipient=""):
     nodes, edges = [], []
 
     def add(kind, x, y=120, config=None, key=None):
@@ -79,7 +87,11 @@ def compile_plan(plan):
     if "telegram" in plan.notify:
         wire(report, add("notification", x + 220))
     if "email" in plan.notify:
-        wire(report, add("email_notification", x + 220, 260 if "telegram" in plan.notify else 120))
+        wire(report, add(
+            "email_notification", x + 220,
+            260 if "telegram" in plan.notify else 120,
+            config={"recipient": recipient} if recipient else {},
+        ))
     graph = {"nodes": nodes, "edges": edges}
     validate(graph)
     return graph
@@ -134,7 +146,7 @@ def apply_explicit_schedule(plan, description):
         plan.cron = f"{minute} {hour} * * {'1-5' if weekdays else '*'}"
 
 
-def draft(description, *, email_enabled=False, telegram_enabled=False):
+def draft(description, *, account_email=None, report_email=None, telegram_enabled=False):
     provider = configured_provider()
     messages = [
         {
@@ -168,7 +180,7 @@ def draft(description, *, email_enabled=False, telegram_enabled=False):
             "role": "assistant",
             "content": '{"scanners":["sca"],"levels":["HIGH"],"cron":"0 10 * * 1-5","timezone":"Europe/Moscow","path_regex":"","explanations":false,"notify":["telegram"],"only_if_findings":true}',
         },
-        {"role": "user", "content": description},
+        {"role": "user", "content": ADDRESS_TEXT.sub("[email address]", description)},
     ]
     for attempt in range(2):
         try:
@@ -188,6 +200,10 @@ def draft(description, *, email_enabled=False, telegram_enabled=False):
                 plan.notify.append("telegram")
                 if not telegram_enabled:
                     warnings.append("Подключите Telegram в настройках для доставки отчёта.")
+            targets = {
+                match["address"].rstrip(".").casefold()
+                for match in ADDRESS_TARGET.finditer(description)
+            }
             email_requested = re.search(
                 r"\b(?:на (?:электронную )?почту|по (?:электронной )?почте|на e-?mail|"
                 r"send\w* .{0,60}\b(?:e-?mail|inbox)|e-?mail (?:the )?report)\b",
@@ -197,14 +213,35 @@ def draft(description, *, email_enabled=False, telegram_enabled=False):
                 r"\b(?:без (?:почты|e-?mail)|не отправляй[^.!?]{0,45}(?:почт|e-?mail))",
                 description, re.I,
             )
-            if email_requested and not (email_excluded or no_delivery):
-                if email_enabled:
+            recipient = ""
+            explicit_delivery = targets and re.search(
+                r"\b(?:отправ\w*|пришл\w*|присыл\w*|уведом\w*|send\w*|deliver\w*)\b",
+                description, re.I,
+            )
+            if (email_requested or explicit_delivery) and not (email_excluded or no_delivery):
+                mentioned_addresses = {address.rstrip(".").casefold() for address in ADDRESS_TEXT.findall(description)}
+                if len(targets) > 1 or (targets and len(mentioned_addresses) > 1):
+                    warnings.append("В промпте указан не один адрес. Укажите одного получателя отчёта.")
+                elif targets:
+                    try:
+                        target = EmailConfig(recipient=next(iter(targets))).recipient
+                    except ValidationError:
+                        warnings.append("Укажите корректный email получателя.")
+                    else:
+                        if target in (account_email, report_email):
+                            recipient = target
+                            plan.notify.append("email")
+                        else:
+                            warnings.append("Адрес из промпта не подтверждён или почта не настроена. Проверьте раздел «Отчёты по почте» в личном кабинете.")
+                elif mentioned_addresses:
+                    warnings.append("Для отправки укажите адрес в формате «отправь отчёт на user@example.com».")
+                elif account_email:
                     plan.notify.append("email")
                 else:
                     warnings.append("Почта не настроена для этого аккаунта. Отчёт будет доступен в CenterAI.")
             if not re.search(r"\b(?:только если|если (?:есть|найден\w*|обнаружен\w*))\b", description, re.I):
                 plan.only_if_findings = False
-            return {**compile_plan(plan), "warnings": warnings}
+            return {**compile_plan(plan, recipient), "warnings": warnings}
         except (ValueError, TypeError, KeyError, IndexError):
             if attempt:
                 raise ValueError(

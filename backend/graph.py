@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from .node_config import (
     AIConfig,
     EmptyConfig,
+    EmailConfig,
     CompareConfig,
     LevelsConfig,
     PatternConfig,
@@ -18,7 +19,7 @@ from .node_config import (
 )
 from .analyzers import SCANNERS
 from .analyzers.common import SubmissionReportExporter
-from .notifications import send_email, telegram
+from .notifications import telegram
 from .ai_report import explain
 
 LEVELS = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
@@ -137,8 +138,7 @@ def notify(ctx, cfg, data):
 
 
 def email(ctx, cfg, data):
-    receipt = send_email(ctx.session, ctx.run, len(data.findings))
-    return Packet(data.findings, receipt=receipt)
+    return Packet(data.findings, receipt={"provider": "email", "requested": True})
 
 
 REGISTRY = {
@@ -250,6 +250,7 @@ REGISTRY = {
         "report",
         "receipt",
         email,
+        config_schema=EmailConfig,
     ),
 }
 

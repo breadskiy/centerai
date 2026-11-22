@@ -149,6 +149,16 @@ export function Monitor() {
     };
     return () => sse.close();
   }, [key, done]);
+  const mail = r.report_email;
+  const mailPending = mail?.status === "queued" || mail?.status === "sending";
+  useEffect(() => {
+    if (!mailPending) return;
+    const timer = window.setInterval(
+      () => void cache.invalidateQueries({ queryKey: [key], exact: true }),
+      2000,
+    );
+    return () => window.clearInterval(timer);
+  }, [key, mailPending]);
   const complete = r.nodes.filter((n) =>
     ["success", "failed", "skipped", "cancelled"].includes(n.status),
   ).length;
@@ -190,6 +200,28 @@ export function Monitor() {
       {r.error && (
         <p className="errorline" role="alert">
           {translateText(r.error)}
+        </p>
+      )}
+      {mail && (
+        <p role="status">
+          <strong>{translateText("Отчёт по почте")}</strong>
+          {" · "}
+          {translateText(
+            {
+              queued: "В очереди на отправку",
+              sending: "Отправляется",
+              accepted: "Принято почтовым сервером",
+              skipped: "Отчёт не отправлен",
+              failed: "Ошибка отправки",
+              uncertain: "Приём письма не подтверждён",
+            }[mail.status],
+          )}
+          {mail.error && (
+            <>
+              {" · "}
+              {translateText(mail.error)}
+            </>
+          )}
         </p>
       )}
       <section className="panel">

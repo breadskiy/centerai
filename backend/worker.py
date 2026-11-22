@@ -21,6 +21,8 @@ from .db import (
     cipher,
 )
 from .graph import REGISTRY, Context, Packet, next_due, validate
+from .node_config import EmailConfig
+from .report_email import process_report_emails, queue_report_email
 
 log = logging.getLogger(__name__)
 celery = Celery("centerai", broker=os.getenv("REDIS_URL", "redis://redis:6379/0"))
@@ -111,6 +113,7 @@ def execute(run_id):
             )
             ctx = Context(db, run, files)
             packets, reports = {}, {}
+            email_recipients = set()
             for node_id in order:
                 db.refresh(run, attribute_names=["cancel_requested"])
                 if run.cancel_requested:
@@ -144,6 +147,8 @@ def execute(run_id):
                     files=next((p.files for p in active if p.files is not None), None),
                 )
                 output = REGISTRY[node.type].execute(ctx, node.config, data)
+                if node.type == "email_notification":
+                    email_recipients.add(EmailConfig.model_validate(node.config).recipient)
                 packets[node_id] = output
                 current.output = {
                     "count": len(output.findings),
@@ -205,6 +210,8 @@ def execute(run_id):
                 complete_cancellation(db, run)
                 return
             run.status = "success"
+            if email_recipients:
+                queue_report_email(db, run, email_recipients)
             record(db, run, "success", "Проверка завершена")
         except Exception as exc:
             db.rollback()
@@ -292,6 +299,7 @@ def tick():
         ).all()
     for run_id in queued:
         execute(run_id)
+    process_report_emails()
 
 
 def local_worker(stop):

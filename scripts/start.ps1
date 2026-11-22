@@ -7,6 +7,22 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath (Split-Path -Parent $PSScriptRoot)
+$mailEnvironment = @('SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURITY', 'SMTP_FROM', 'SMTP_USER', 'SMTP_PASSWORD', 'PUBLIC_URL', 'ALLOWED_HOSTS')
+if (Test-Path -LiteralPath '.env' -PathType Leaf) {
+    foreach ($line in Get-Content -LiteralPath '.env' -Encoding UTF8) {
+        if ($line -match '^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$' -and $Matches[1] -cin $mailEnvironment) {
+            $name, $value = $Matches[1], $Matches[2].Trim()
+            if (-not (Test-Path -LiteralPath "Env:$name")) {
+                if ($value -match '^"([^"]*)"(?:\s*#.*)?$' -or $value -match "^'([^']*)'(?:\s*#.*)?$") {
+                    $value = $Matches[1]
+                } else {
+                    $value = ($value -replace '\s+#.*$', '').TrimEnd()
+                }
+                [Environment]::SetEnvironmentVariable($name, $value, 'Process')
+            }
+        }
+    }
+}
 $url = "http://127.0.0.1:$Port"
 try {
     $running = Invoke-RestMethod "$url/openapi.json" -TimeoutSec 2

@@ -31,11 +31,14 @@ from .db import (
     Version,
     Workflow,
 )
+from .notifications import MailError, mail_configured, public_url, send_email
 
 COOKIE = "centerai_session"
 MAX_AVATAR = 2 * 1024 * 1024
 GUEST_IDLE = 30 * 60
 MEMBER_TTL = 30 * 24 * 60 * 60
+EMAIL_TTL = 30 * 60
+EMAIL_COOLDOWN = 60
 router = APIRouter(prefix="/api/v1/auth", tags=["account"])
 attempts = {}
 attempt_lock = Lock()
@@ -50,6 +53,16 @@ class Credentials(BaseModel):
 class Profile(BaseModel):
     nickname: str = Field(max_length=60)
     telegram_username: str = Field(max_length=33)
+
+
+class EmailVerificationRequest(BaseModel):
+    email: str | None = Field(None, max_length=254)
+    password: str = Field("", max_length=128)
+    reports_only: bool = False
+
+
+class EmailVerification(BaseModel):
+    token: str = Field(pattern=r"^[A-Za-z0-9_-]{43}$")
 
 
 def normalize_email(email):
@@ -145,6 +158,9 @@ def profile_out(account):
         "id": account.id,
         "guest": account.email is None,
         "email": account.email,
+        "email_verified": bool(account.email_verified_at),
+        "report_recipient": account.report_recipient,
+        "email_available": mail_configured(),
         "nickname": account.nickname,
         "github_login": account.github_login,
         "github_can_unlink": bool(account.password_hash),
@@ -292,6 +308,119 @@ def edit_profile(body: Profile, db: DB):
     account.nickname = body.nickname.strip()
     account.telegram_username = username
     db.commit()
+    return account_out(db, account)
+
+
+@router.post("/email/verification", status_code=202)
+def request_email_verification(
+    body: EmailVerificationRequest, request: Request, db: DB
+):
+    account = member(db)
+    throttle(request, "email-verification", 20)
+    if not mail_configured():
+        raise HTTPException(503, "Почтовый сервер не настроен.")
+    recipient = normalize_email(body.email) if body.email else account.email
+    if body.reports_only and (not body.email or recipient == account.email):
+        raise HTTPException(422, "Укажите дополнительный адрес для отчётов.")
+    if body.reports_only and recipient == account.report_recipient:
+        raise HTTPException(409, "Этот адрес уже подтверждён.")
+    if recipient == account.email and account.email_verified_at:
+        raise HTTPException(409, "Этот адрес уже подтверждён.")
+    if recipient != account.email:
+        if account.password_hash and not matches(body.password, account.password_hash):
+            raise HTTPException(403, "Неверный текущий пароль.")
+        if not body.reports_only and db.scalar(
+            select(Account.id).where(Account.email == recipient)
+        ):
+            raise HTTPException(409, "Для этого адреса уже есть аккаунт")
+    now = time.time()
+    token = secrets.token_urlsafe(32)
+    digest = hashlib.sha256(token.encode()).hexdigest()
+    try:
+        link = f"{public_url()}/account#verify-email={token}"
+    except MailError as exc:
+        raise HTTPException(503, str(exc)) from None
+    saved = db.execute(
+        update(Account)
+        .where(
+            Account.id == account.id,
+            Account.email == account.email,
+            Account.email_verification_sent_at.is_(None)
+            | (Account.email_verification_sent_at <= now - EMAIL_COOLDOWN),
+        )
+        .values(
+            pending_email=recipient,
+            pending_email_reports_only=body.reports_only,
+            email_verification_digest=digest,
+            email_verification_sent_at=now,
+        )
+    )
+    if not saved.rowcount:
+        raise HTTPException(429, "Повторить отправку можно через минуту.")
+    db.commit()
+    try:
+        send_email(
+            recipient,
+            "CenterAI · Подтвердите адрес для отчётов"
+            if body.reports_only
+            else "CenterAI · Подтвердите почту",
+            "Войдите в CenterAI и подтвердите адрес по ссылке. Ссылка действует 30 минут.\n\n"
+            + link
+            + "\n\nЕсли вы не запрашивали подтверждение, просто проигнорируйте письмо.",
+        )
+    except MailError as exc:
+        raise HTTPException(503, str(exc)) from None
+    return {"accepted": True}
+
+
+@router.delete("/email/report-recipient")
+def remove_report_recipient(db: DB):
+    account = member(db)
+    account.report_recipient = None
+    if account.pending_email_reports_only:
+        account.pending_email = None
+        account.email_verification_digest = None
+        account.pending_email_reports_only = False
+    db.commit()
+    return account_out(db, account)
+
+
+@router.post("/email/verify")
+def verify_email(body: EmailVerification, request: Request, db: DB):
+    account = member(db)
+    throttle(request, "email-verify", 30)
+    digest = hashlib.sha256(body.token.encode()).hexdigest()
+    now = time.time()
+    if not account.pending_email:
+        raise HTTPException(422, "Ссылка подтверждения недействительна или просрочена.")
+    values = (
+        {"report_recipient": account.pending_email}
+        if account.pending_email_reports_only
+        else {"email": account.pending_email, "email_verified_at": now}
+    )
+    try:
+        confirmed = db.execute(
+            update(Account)
+            .where(
+                Account.id == account.id,
+                Account.email_verification_digest == digest,
+                Account.email_verification_sent_at >= now - EMAIL_TTL,
+            )
+            .values(
+                **values,
+                pending_email=None,
+                pending_email_reports_only=False,
+                email_verification_digest=None,
+                email_verification_sent_at=None,
+            )
+        )
+        if not confirmed.rowcount:
+            raise HTTPException(
+                422, "Ссылка подтверждения недействительна или просрочена."
+            )
+        db.commit()
+    except IntegrityError:
+        raise HTTPException(409, "Для этого адреса уже есть аккаунт") from None
     return account_out(db, account)
 
 

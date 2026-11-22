@@ -29,13 +29,14 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import notifications
 from .analyzers.common import SubmissionReportExporter
-from .auth import DB, MAX_AVATAR, member, session, token_digest, viewer
+from .auth import DB, MAX_AVATAR, member, session, throttle, token_digest, viewer
 from .auth import router as auth_router
 from .db import (
     Event,
     Finding,
     NodeRun,
     Project,
+    ReportEmail,
     Run,
     Session,
     Version,
@@ -300,7 +301,8 @@ def registry(db: DB):
         },
         "default_graph": default_graph(),
         "ai_graph": default_graph(with_ai=True),
-        "email_available": notifications.report_email_enabled(db.info["account"].email),
+        "email_available": notifications.report_email_enabled(db.info["account"]),
+        "email_recipients": notifications.verified_report_addresses(db.info["account"]),
     }
 
 
@@ -313,7 +315,8 @@ def workflow_draft(body: DraftRequest, db: DB):
     account = db.info["account"]
     return draft(
         body.description,
-        email_enabled=notifications.report_email_enabled(account.email),
+        account_email=account.email if account.email_verified_at and notifications.mail_configured() else None,
+        report_email=account.report_recipient if notifications.mail_configured() else None,
         telegram_enabled=notifications.telegram_connected(db, account.id),
     )
 
@@ -725,9 +728,11 @@ def run(key: str, db: DB):
                 "output": output,
             }
         )
+    email_job = db.get(ReportEmail, key)
     return {
         **run_out(row),
         "project_archived": db.get(Project, row.project_id).archived,
+        "report_email": fields(email_job, "status", "attempts", "error") if email_job else None,
         "graph": row.graph,
         "nodes": outputs,
         "events": [
@@ -950,7 +955,7 @@ def export(key: str, db: DB, format: str = Query("json", pattern="^(json|txt)$")
 def settings(db: DB):
     return {
         "email_recipient": "",
-        "smtp": bool(os.getenv("SMTP_HOST")),
+        "smtp": notifications.mail_configured(),
         "demo_mailbox": os.getenv("CENTERAI_DEMO") == "1",
         "telegram": notifications.telegram_connected(db, db.info["account"].id),
         "repositories": os.getenv("ALLOWED_REPOSITORIES", "TBagirov/training").split(
@@ -966,12 +971,22 @@ class EmailSettings(BaseModel):
 
 @api.put("/integrations/email")
 def email_settings(body: EmailSettings, db: DB):
-    raise HTTPException(410, "Email временно отключён. Используйте Telegram.")
+    raise HTTPException(410, "Адрес для отчётов берётся из личного кабинета.")
 
 
 @api.post("/integrations/email/test")
-def test_email(db: DB):
-    raise HTTPException(410, "Email временно отключён. Используйте Telegram.")
+def test_email(request: Request, db: DB):
+    account = member(db)
+    throttle(request, "email-test", 10)
+    if not notifications.mail_configured():
+        raise HTTPException(503, "Почтовый сервер не настроен.")
+    if not account.email_verified_at:
+        raise HTTPException(403, "Подтвердите email в личном кабинете.")
+    try:
+        notifications.send_email(account.email, "CenterAI · Проверка почты", "Почтовый канал CenterAI работает.")
+    except notifications.MailError as exc:
+        raise HTTPException(503, str(exc)) from None
+    return {"accepted": True}
 
 
 @api.put("/integrations/telegram")
