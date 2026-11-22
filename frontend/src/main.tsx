@@ -98,6 +98,7 @@ function Shell({ viewer, change }: { viewer: Viewer; change: SetViewer }) {
             aria-label={translateText("Личный кабинет")}
             title={translateText("Личный кабинет")}
           >
+            <span>{translateText("Личный кабинет")}</span>
             {viewer.avatar ? (
               <img src={viewer.avatar} alt="" />
             ) : (

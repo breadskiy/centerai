@@ -1721,19 +1721,24 @@ button:focus-visible > svg.lucide-chevron-left {
   margin-top: auto;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 8px;
+  justify-content: space-between;
+  gap: 4px;
+  padding-block: 8px;
 }
 .account-link {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding-inline: 4px;
+  border-radius: 6px;
   color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
 }
+.account-link > :is(img, svg) { flex: 0 0 auto; }
 .account-link:hover, .account-link:focus-visible, .account-link.active {
   background: var(--surface-hover);
   text-decoration: none;
@@ -1799,11 +1804,13 @@ button:focus-visible > svg.lucide-chevron-left {
   .account-sign-out { margin-block-start: 4px; }
 }
 @media (min-width: 651px) and (max-width: 900px) {
-  .account-shortcuts { justify-content: center; gap: 0; padding-inline: 0; }
-  .account-shortcuts .theme-toggle.icon, .account-link { width: 24px; }
+  .account-shortcuts { gap: 0; }
+  .account-shortcuts .theme-toggle.icon, .account-link { width: 24px; padding-inline: 0; }
+  .account-link span { display: none; }
   .account-link img { width: 22px; height: 22px; }
 }
 @media (max-width: 650px) {
   .access { display: block; }
   .access-intro { border-inline-end: 0; border-bottom: 1px solid var(--line); padding: 26px 22px; }
+  .account-shortcuts { padding-inline: 12px; }
 }

@@ -121,12 +121,14 @@ test("В боковой панели тема раскрывается от ик
   const shortcuts = page.locator(".account-shortcuts");
   const toggle = shortcuts.getByRole("button", { name: "Тёмная тема" });
   const account = shortcuts.getByRole("link", { name: "Личный кабинет" });
-  await expect(shortcuts).toHaveText("");
+  const label = account.getByText("Личный кабинет", { exact: true });
+  await expect(label).toBeVisible();
   await expect(toggle.locator(".lucide-moon")).toBeVisible();
   const button = (await toggle.boundingBox())!;
-  expect((await account.boundingBox())!.x).toBeGreaterThanOrEqual(
-    button.x + button.width,
-  );
+  expect(button.x).toBe((await shortcuts.boundingBox())!.x);
+  expect((await label.boundingBox())!.x).toBeGreaterThan(button.x + button.width);
+  expect((await account.locator(".lucide-user-round").boundingBox())!.x)
+    .toBeGreaterThan((await label.boundingBox())!.x);
   await toggle.click();
   const root = page.locator("html");
   await expect(root).toHaveClass(/theme-revealing/);
@@ -138,13 +140,14 @@ test("В боковой панели тема раскрывается от ик
   await expect(root).toHaveAttribute("data-theme", "light");
   await expect(toggle.locator(".lucide-sun")).toBeVisible();
   await expect(root).not.toHaveClass(/theme-revealing/);
+  await label.click();
+  await expect(page.getByRole("heading", { name: "Личный кабинет" })).toBeVisible();
 
   await page.setViewportSize({ width: 800, height: 740 });
   const panel = (await page.locator(".side").boundingBox())!;
   const avatar = (await account.boundingBox())!;
   expect(avatar.x + avatar.width).toBeLessThanOrEqual(panel.x + panel.width);
-  await account.click();
-  await expect(page.getByRole("heading", { name: "Личный кабинет" })).toBeVisible();
+  await expect(label).toBeHidden();
 });
 
 test("Привязанный GitHub открывает список репозиториев и позволяет включить автопроверку", async ({
@@ -395,7 +398,9 @@ test("Регистрация, проверка пароля и сохранен�
   await page.getByLabel("Имя пользователя Telegram").fill("@quartz_owner");
   await page.getByRole("button", { name: "Сохранить профиль" }).click();
   await expect(page.getByRole("status")).toHaveText("Профиль сохранён");
-  await expect(page.getByRole("link", { name: "Личный кабинет" })).toHaveText("");
+  await expect(page.getByRole("link", { name: "Личный кабинет" })).toHaveText(
+    "Личный кабинет",
+  );
   await expect(page.locator(".account-summary")).toContainText("Quartz");
   await page.getByRole("button", { name: "Выйти из аккаунта" }).click();
   await page
