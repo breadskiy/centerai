@@ -99,6 +99,9 @@ function Initialize-CenterAIOllama {
             if (-not $command) { return }
             $cli = $command.Source
         }
+        if (-not (Test-Path Env:OLLAMA_IGPU_ENABLE)) {
+            $env:OLLAMA_IGPU_ENABLE = '1'
+        }
         Start-Process -FilePath $cli -ArgumentList 'serve' -WindowStyle Hidden
         for ($i = 0; $i -lt 15; $i++) {
             try {
