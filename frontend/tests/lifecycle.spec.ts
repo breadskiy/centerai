@@ -82,14 +82,14 @@ test("Ошибки импорта, поиск, история версий, пу
     buffer: Buffer.from("invalid"),
   });
   await page
-    .getByRole("button", { name: "Создать проект", exact: true })
+    .getByRole("button", { name: "Создать сессию", exact: true })
     .click();
   await expect(page.getByRole("status")).toContainText("ZIP");
   await page
     .locator("input[type=file]")
     .setInputFiles(resolve("../.qa/e2e-fixture.zip"));
   await page
-    .getByRole("button", { name: "Создать проект", exact: true })
+    .getByRole("button", { name: "Создать сессию", exact: true })
     .click();
   await page.getByRole("button", { name: "Изменить", exact: true }).click();
   await page

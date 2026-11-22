@@ -184,11 +184,14 @@ def lock_project(db, key):
     ).rowcount
 
 
-def delete_project_records(db, projects):
-    runs = select(Run.id).where(Run.project_id.in_(projects))
+def delete_run_records(db, runs):
     for table in (Finding, Event, NodeRun):
         db.execute(delete(table).where(table.run_id.in_(runs)))
-    db.execute(delete(Run).where(Run.project_id.in_(projects)))
+    db.execute(delete(Run).where(Run.id.in_(runs)))
+
+
+def delete_project_records(db, projects):
+    delete_run_records(db, select(Run.id).where(Run.project_id.in_(projects)))
     workflows = select(Workflow.id).where(Workflow.project_id.in_(projects))
     db.execute(delete(Version).where(Version.workflow_id.in_(workflows)))
     db.execute(delete(Workflow).where(Workflow.project_id.in_(projects)))

@@ -69,20 +69,22 @@ const english: Record<string, string> = {
   "Последние запуски": "Recent runs",
   "Вся история": "Full history",
   "Изменить проект": "Edit project",
-  "Новый проект": "New project",
+  "Новая сессия": "New session",
+  "Новый профиль": "New profile",
+  "Загрузить архив": "Upload archive",
   "Проект сохранён": "Project saved",
   Название: "Name",
   "Например, Repair Desk": "e.g. Repair Desk",
   Описание: "Description",
   "Что проверяем в этом проекте": "What will be scanned in this project",
   КБ: "KB",
-  "Выберите ZIP с проектом": "Choose a project ZIP",
+  "Выберите архив с проектом": "Choose a project archive",
   "Gradle Kotlin DSL · до 24 МБ": "Gradle Kotlin DSL · up to 24 MB",
   "Ссылка на учебный репозиторий": "Training repository URL",
   "Проверяем исходники…": "Checking source files…",
   "Сохраняем…": "Saving…",
   Сохранить: "Save",
-  "Создать проект": "Create project",
+  "Создать сессию": "Create session",
   "Исходники и история проверок каждого проекта.":
     "Source files and scan history for each project.",
   "Поиск проектов": "Search projects",
@@ -103,8 +105,10 @@ const english: Record<string, string> = {
   "История сессий очищена": "Session history cleared",
   "Удалить сессию вместе с исходниками, сценариями и отчётами? Это действие нельзя отменить.":
     "Delete the session, its source files, workflows and reports? This cannot be undone.",
-  "Очистить историю сессий? Будут удалены все ваши сессии, исходники, сценарии и отчёты. Это действие нельзя отменить.":
-    "Clear session history? This deletes all your sessions, source files, workflows and reports. This cannot be undone.",
+  "Очистить историю сессий? Завершённые запуски и их отчёты будут удалены. Сессии, исходники и сценарии сохранятся.":
+    "Clear session history? Completed runs and their reports will be deleted. Sessions, source files and workflows will be kept.",
+  "Загрузите архив или подключите учебный репозиторий GitHub.":
+    "Upload an archive or connect a training repository on GitHub.",
   "Завершите или отмените активные проверки перед удалением.":
     "Finish or cancel active scans before deleting.",
   "Нет завершённых проверок": "No completed scans",
@@ -138,6 +142,12 @@ const english: Record<string, string> = {
   "Три анализатора и отчёт": "Three analyzers and a report",
   "Три анализатора, AI и отчёт": "Three analyzers, AI, and a report",
   "Только триггер": "Trigger only",
+  "Личный сценарий": "Personal workflow",
+  "Личный сценарий (пустой граф)": "Personal workflow (empty graph)",
+  "Загружаем сводку отчёта…": "Loading report summary…",
+  "Не удалось загрузить сводку отчёта.": "Could not load the report summary.",
+  "Загружаем данные этапа…": "Loading stage details…",
+  "Не удалось загрузить выход узла.": "Could not load the node output.",
   "По описанию с AI": "Generate from a description",
   "Что проверить": "What to scan",
   "По будням в 9 утра проверяй зависимости и присылай критические результаты по почте":

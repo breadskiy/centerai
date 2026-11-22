@@ -42,6 +42,7 @@ from .db import (
     Workflow,
     cipher,
     delete_project_records,
+    delete_run_records,
     engine,
     lock_project,
 )
@@ -359,8 +360,11 @@ def create_project(
     description: str = Form("", max_length=2000),
     archive: UploadFile | None = File(None),
     repository: str = Form("", max_length=500),
+    public_repository: bool = Form(False),
 ):
-    row = import_project(db, name, description, archive, repository)
+    row = import_project(
+        db, name, description, archive, repository, public=public_repository
+    )
     db.commit()
     return project_out(db, row)
 
@@ -469,33 +473,24 @@ def edit_project(key: str, body: ProjectEdit, db: DB):
 
 @api.delete("/projects/{key}")
 def delete_project(key: str, db: DB):
-    return remove_projects(db, key)
-
-
-@api.delete("/projects")
-def clear_projects(db: DB):
-    return remove_projects(db)
-
-
-def remove_projects(db, key=None):
-    query = update(Project).where(Project.owner_id == db.info["account"].id)
-    if key is not None:
-        query = query.where(Project.id == key)
-    ids = db.scalars(query.values(archived=True).returning(Project.id)).all()
-    if not ids and key is not None:
+    updated = db.execute(
+        update(Project)
+        .where(Project.id == key, Project.owner_id == db.info["account"].id)
+        .values(archived=True)
+    )
+    if not updated.rowcount:
         raise HTTPException(404, "Сессия не найдена")
-    if ids and db.scalar(
+    if db.scalar(
         select(Run.id)
-        .where(Run.project_id.in_(ids), Run.status.in_(("queued", "running")))
+        .where(Run.project_id == key, Run.status.in_(("queued", "running")))
         .limit(1)
     ):
         raise HTTPException(
             409, "Завершите или отмените активные проверки перед удалением."
         )
-    if ids:
-        delete_project_records(db, ids)
+    delete_project_records(db, [key])
     db.commit()
-    return {"ok": True, "deleted": len(ids)}
+    return {"ok": True, "deleted": 1}
 
 
 @api.get("/workflows")
@@ -700,6 +695,27 @@ def runs(
             q.order_by(Run.created.desc()).offset(offset).limit(limit)
         )
     ]
+
+
+@api.delete("/runs")
+@api.delete("/projects", include_in_schema=False)
+def clear_history(db: DB):
+    # Serialize with session deletion and select a fixed set of completed runs.
+    db.execute(
+        update(Project)
+        .where(Project.owner_id == db.info["account"].id)
+        .values(archived=Project.archived)
+    )
+    ids = db.scalars(
+        select(Run.id).where(
+            Run.project_id.in_(owned_projects(db)),
+            Run.status.in_(("success", "failed", "cancelled")),
+        )
+    ).all()
+    for offset in range(0, len(ids), 500):
+        delete_run_records(db, ids[offset : offset + 500])
+    db.commit()
+    return {"ok": True, "deleted": len(ids)}
 
 
 @api.post("/runs/{key}/cancel")

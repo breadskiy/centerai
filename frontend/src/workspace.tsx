@@ -42,6 +42,16 @@ const SessionResults = lazy(() =>
   import("./results").then((module) => ({ default: module.SessionResults })),
 );
 
+const archiveAccept = ".zip,.rar,.7z,.tar,.tar.gz,.tgz";
+function archiveError(file?: File) {
+  if (!file) return "";
+  if (!/\.(zip|rar|7z|tar|tar\.gz|tgz)$/i.test(file.name))
+    return translateText("Выберите ZIP, RAR, 7Z, TAR, TAR.GZ или TGZ.");
+  return file.size > 24 * 1024 * 1024
+    ? translateText("Архив превышает 24 МБ.")
+    : "";
+}
+
 function Pipeline() {
   return (
     <div
@@ -86,31 +96,46 @@ function Pipeline() {
 function DeleteSessionButton({
   id,
   onDelete,
+  iconOnly = false,
+  sessionName,
 }: {
   id?: string;
   onDelete?: () => void;
+  iconOnly?: boolean;
+  sessionName?: string;
 }) {
   const { act, busy } = useAction();
   const show = useNotice((state) => state.show);
+  const label = translateText(
+    id ? "Удалить сессию" : "Очистить историю сессий",
+  );
   return (
     <button
       type="button"
-      className="danger"
+      className={
+        id
+          ? iconOnly
+            ? "icon danger session-remove"
+            : "danger"
+          : "danger session-clear"
+      }
+      aria-label={iconOnly ? label + " · " + sessionName : undefined}
+      title={iconOnly ? label : undefined}
       disabled={busy}
       onClick={() => {
         const prompt = id
           ? "Удалить сессию вместе с исходниками, сценариями и отчётами? Это действие нельзя отменить."
-          : "Очистить историю сессий? Будут удалены все ваши сессии, исходники, сценарии и отчёты. Это действие нельзя отменить.";
+          : "Очистить историю сессий? Завершённые запуски и их отчёты будут удалены. Сессии, исходники и сценарии сохранятся.";
         if (!window.confirm(translateText(prompt))) return;
         void act(async () => {
-          await api(id ? "/projects/" + id : "/projects", "DELETE");
+          await api(id ? "/projects/" + id : "/runs", "DELETE");
           onDelete?.();
           show(translateText(id ? "Сессия удалена" : "История сессий очищена"));
         });
       }}
     >
       <Trash2 size={16} />
-      {translateText(id ? "Удалить сессию" : "Очистить историю сессий")}
+      {!iconOnly && label}
     </button>
   );
 }
@@ -122,6 +147,7 @@ export function Dashboard() {
     recent: Run[];
   }>("/dashboard");
   const [dialog, setDialog] = useState(false);
+  const [profileForm, setProfileForm] = useState(false);
   const [importError, setImportError] = useState("");
   const [mode, setMode] = useState("archive");
   const [archive, setArchive] = useState<File>();
@@ -175,6 +201,7 @@ export function Dashboard() {
     })),
   ];
   useEffect(() => {
+    if (profileForm) return;
     const isFile = (e: DragEvent) => e.dataTransfer?.types.includes("Files");
     const enter = (e: DragEvent) => {
       if (!isFile(e)) return;
@@ -216,14 +243,8 @@ export function Dashboard() {
       window.removeEventListener("drop", drop);
       window.removeEventListener("blur", reset);
     };
-  }, [busy]);
-  const fileError =
-    archive &&
-    (!/\.(zip|rar|7z|tar|tar\.gz|tgz)$/i.test(archive.name)
-      ? translateText("Выберите ZIP, RAR, 7Z, TAR, TAR.GZ или TGZ.")
-      : archive.size > 24 * 1024 * 1024
-        ? translateText("Архив превышает 24 МБ.")
-        : "");
+  }, [busy, profileForm]);
+  const fileError = archiveError(archive);
   return (
     <>
       <Heading title={translateText("Главная")} />
@@ -317,7 +338,7 @@ export function Dashboard() {
                 <label className="repo-file">
                   <Archive size={18} />
                   <span>
-                    {archive?.name || "Выбрать архив"}
+                    {archive?.name || translateText("Выбрать архив")}
                     <small>
                       {translateText(
                         "ZIP, RAR, 7Z, TAR, TAR.GZ, TGZ · до 24 МБ",
@@ -328,7 +349,7 @@ export function Dashboard() {
                     aria-label={translateText("Выбрать архив")}
                     type="file"
                     disabled={busy}
-                    accept=".zip,.rar,.7z,.tar,.gz,.tgz"
+                    accept={archiveAccept}
                     onChange={(e) => {
                       if (e.target.files?.[0]) setArchive(e.target.files[0]);
                     }}
@@ -369,6 +390,18 @@ export function Dashboard() {
                   </span>
                 </label>
               ))}
+              <button
+                type="button"
+                className="repo-profile repo-new-profile"
+                disabled={busy}
+                onClick={() => {
+                  setDialog(false);
+                  setProfileForm(true);
+                }}
+              >
+                <Plus size={16} />
+                {translateText("Новый профиль")}
+              </button>
             </fieldset>
             {importError && (
               <p role="alert" className="errorline">
@@ -396,6 +429,12 @@ export function Dashboard() {
           </form>
         </Modal>
       )}
+      {profileForm && (
+        <ProjectForm
+          initialSource={{ mode, file: archive, repository }}
+          close={() => setProfileForm(false)}
+        />
+      )}
       <div className="home-summary" aria-label={translateText("Сводка")}>
         <Link to="/projects">
           {data.projects} {translateText("· сессии")}
@@ -408,7 +447,7 @@ export function Dashboard() {
         <div className="sectionHead session-history-head">
           <h2>{translateText("Последние запуски")}</h2>
           <div className="toolbar">
-            {(data.projects > 0 || data.runs > 0) && <DeleteSessionButton />}
+            {data.runs > 0 && <DeleteSessionButton />}
             <Link to="/runs">
               {translateText("Вся история")} <ChevronRight size={14} />
             </Link>
@@ -421,13 +460,18 @@ export function Dashboard() {
 }
 function ProjectForm({
   project,
+  initialSource,
   close,
 }: {
   project?: Project;
+  initialSource?: { mode: string; file?: File; repository: string };
   close: () => void;
 }) {
-  const [source, type] = useState("ZIP");
-  const [file, setFile] = useState<File>();
+  const [source, type] = useState(
+    initialSource?.mode === "link" ? "GitHub" : "archive",
+  );
+  const [file, setFile] = useState(initialSource?.file);
+  const fileError = archiveError(file);
   const [progress, setProgress] = useState(0);
   const { act, busy } = useAction();
   const nav = useNavigate();
@@ -437,7 +481,7 @@ function ProjectForm({
       title={
         project
           ? translateText("Изменить проект")
-          : translateText("Новый проект")
+          : translateText("Новая сессия")
       }
       close={close}
     >
@@ -445,6 +489,10 @@ function ProjectForm({
         onSubmit={(e) => {
           e.preventDefault();
           const values = new FormData(e.currentTarget);
+          if (!project && source === "archive" && file)
+            values.set("archive", file);
+          if (initialSource && source === "GitHub")
+            values.set("public_repository", "true");
           void act(async () => {
             const res = project
               ? await api<Project>("/projects/" + project.id, "PATCH", {
@@ -454,7 +502,11 @@ function ProjectForm({
               : await uploadProject(values, setProgress);
             show(translateText("Проект сохранён"));
             close();
-            nav("/projects/" + res.id);
+            nav(
+              initialSource
+                ? "/workflows?project=" + res.id + "&new=1&start=personal"
+                : "/projects/" + res.id,
+            );
           });
         }}
       >
@@ -481,18 +533,18 @@ function ProjectForm({
         {!project && (
           <>
             <div className="seg">
-              {["ZIP", "GitHub"].map((s) => (
+              {["archive", "GitHub"].map((s) => (
                 <button
                   type="button"
                   key={s}
                   className={s === source ? "on" : ""}
                   onClick={() => type(s)}
                 >
-                  {s}
+                  {s === "archive" ? translateText("Загрузить архив") : s}
                 </button>
               ))}
             </div>
-            {source === "ZIP" ? (
+            {source === "archive" ? (
               <label className="upload">
                 <Upload />
                 {file
@@ -500,26 +552,40 @@ function ProjectForm({
                     " · " +
                     Math.ceil(file.size / 1024) +
                     translateText(" КБ")
-                  : translateText("Выберите ZIP с проектом")}
-                <small>{translateText("Gradle Kotlin DSL · до 24 МБ")}</small>
+                  : translateText("Выберите архив с проектом")}
+                <small>
+                  {translateText("ZIP, RAR, 7Z, TAR, TAR.GZ, TGZ · до 24 МБ")}
+                </small>
                 <input
-                  required
+                  required={!file}
                   type="file"
                   name="archive"
-                  accept=".zip"
+                  accept={archiveAccept}
                   onChange={(e) => setFile(e.target.files?.[0])}
                 />
               </label>
             ) : (
               <label>
-                {translateText("Ссылка на учебный репозиторий")}
+                {translateText(
+                  initialSource
+                    ? "Ссылка на публичный GitHub-репозиторий"
+                    : "Ссылка на учебный репозиторий",
+                )}
                 <input
                   required
                   type="url"
                   name="repository"
-                  defaultValue="https://github.com/TBagirov/training"
+                  defaultValue={
+                    initialSource?.repository ||
+                    "https://github.com/TBagirov/training"
+                  }
                 />
               </label>
+            )}
+            {source === "archive" && fileError && (
+              <p role="alert" className="errorline">
+                {fileError}
+              </p>
             )}
           </>
         )}
@@ -531,12 +597,15 @@ function ProjectForm({
             <progress max={100} value={progress} />
           </label>
         )}
-        <button className="primary" disabled={busy}>
+        <button
+          className="primary"
+          disabled={busy || (!project && source === "archive" && !!fileError)}
+        >
           {busy
             ? translateText("Сохраняем…")
             : project
               ? translateText("Сохранить")
-              : translateText("Создать проект")}
+              : translateText("Создать сессию")}
         </button>
       </form>
     </Modal>
@@ -563,7 +632,7 @@ export function Projects() {
         action={
           <button className="primary" onClick={() => toggle(true)}>
             <Plus />
-            {translateText("Новый проект")}
+            {translateText("Новая сессия")}
           </button>
         }
       />
@@ -597,32 +666,34 @@ export function Projects() {
               <span>{translateText("Критические и высокие")}</span>
             </div>
             {rows.map((p) => (
-              <Link
-                className="projectrow session-row"
-                key={p.id}
-                to={"/projects/" + p.id}
-              >
-                <b>{p.name}</b>
-                <small>
-                  {p.latest_completed?.finished
-                    ? date(p.latest_completed.finished)
-                    : translateText("Нет завершённых проверок")}
-                </small>
-                <span
-                  className="session-list-risk"
-                  aria-label={translateText("Критические и высокие")}
+              <div className="session-list-item" key={p.id}>
+                <Link
+                  className="projectrow session-row"
+                  to={"/projects/" + p.id}
                 >
-                  {p.latest_completed
-                    ? (p.latest_completed.levels.CRITICAL || 0) +
-                      (p.latest_completed.levels.HIGH || 0)
-                    : "—"}
-                  <span className="session-risk-label">
-                    {" "}
-                    {translateText("· серьёзные")}
+                  <b>{p.name}</b>
+                  <small>
+                    {p.latest_completed?.finished
+                      ? date(p.latest_completed.finished)
+                      : translateText("Нет завершённых проверок")}
+                  </small>
+                  <span
+                    className="session-list-risk"
+                    aria-label={translateText("Критические и высокие")}
+                  >
+                    {p.latest_completed
+                      ? (p.latest_completed.levels.CRITICAL || 0) +
+                        (p.latest_completed.levels.HIGH || 0)
+                      : "—"}
+                    <span className="session-risk-label">
+                      {" "}
+                      {translateText("· серьёзные")}
+                    </span>
                   </span>
-                </span>
-                <ChevronRight aria-hidden />
-              </Link>
+                  <ChevronRight aria-hidden />
+                </Link>
+                <DeleteSessionButton id={p.id} iconOnly sessionName={p.name} />
+              </div>
             ))}
           </>
         ) : (
@@ -634,7 +705,7 @@ export function Projects() {
             }
           >
             {translateText(
-              "Загрузите ZIP или подключите учебный репозиторий GitHub.",
+              "Загрузите архив или подключите учебный репозиторий GitHub.",
             )}
           </Empty>
         )}
@@ -771,14 +842,19 @@ export function ProjectDetail() {
 function NewFlow({
   projects,
   project,
+  personal,
   close,
 }: {
   projects: Project[];
   project: string;
+  personal: boolean;
   close: () => void;
 }) {
   const registry = useData<Registry>("/registry");
-  const [start, setStart] = useState("base");
+  const [start, setStart] = useState(personal ? "personal" : "base");
+  const normalName = translateText("Проверка исходного кода");
+  const personalName = translateText("Личный сценарий");
+  const [name, setName] = useState(personal ? personalName : normalName);
   const { act, busy } = useAction();
   const nav = useNavigate();
   return (
@@ -791,6 +867,7 @@ function NewFlow({
             let graph: Graph = registry.default_graph;
             if (v.get("start") === "blank")
               graph = { nodes: [graph.nodes[0]], edges: [] };
+            if (start === "personal") graph = { nodes: [], edges: [] };
             if (v.get("start") === "ai" && registry.ai_graph)
               graph = registry.ai_graph;
             if (start === "prompt")
@@ -814,7 +891,8 @@ function NewFlow({
             name="name"
             required
             maxLength={100}
-            defaultValue={translateText("Проверка исходного кода")}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
           />
         </label>
         <label>
@@ -840,7 +918,17 @@ function NewFlow({
           <select
             name="start"
             value={start}
-            onChange={(e) => setStart(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setName((current) =>
+                current === (start === "personal" ? personalName : normalName)
+                  ? next === "personal"
+                    ? personalName
+                    : normalName
+                  : current,
+              );
+              setStart(next);
+            }}
           >
             <option value="base">
               {translateText("Три анализатора и отчёт")}
@@ -851,6 +939,9 @@ function NewFlow({
               </option>
             )}
             <option value="blank">{translateText("Только триггер")}</option>
+            <option value="personal">
+              {translateText("Личный сценарий (пустой граф)")}
+            </option>
             <option value="prompt">{translateText("По описанию с AI")}</option>
           </select>
         </label>
@@ -1004,6 +1095,7 @@ export function Workflows() {
         <NewFlow
           projects={projects}
           project={project}
+          personal={params.get("start") === "personal"}
           close={() => toggle(false)}
         />
       )}

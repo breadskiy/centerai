@@ -112,23 +112,27 @@ def queue_scan(client):
     return response.json()
 
 
-def test_clear_sessions_is_atomic_and_owner_scoped(client):
+def test_clear_history_preserves_sessions_workflows_and_active_runs(client):
     first = queue_scan(client)
     tick()
     second = queue_scan(client)
     assert client.delete(API + "/projects/" + second["project_id"]).status_code == 409
-    assert client.delete(API + "/projects").status_code == 409
+    assert client.delete(API + "/runs").json()["deleted"] == 1
     assert {row["id"] for row in client.get(API + "/projects").json()} == {
         first["project_id"],
         second["project_id"],
     }
+    assert client.get(API + "/runs/" + first["id"] + "/report").status_code == 404
+    assert client.get(API + "/workflows/" + first["workflow_id"]).status_code == 200
+    assert client.get(API + "/runs/" + second["id"]).json()["status"] == "queued"
     assert client.post(API + "/runs/" + second["id"] + "/cancel").status_code == 200
     with TestClient(app) as other:
         assert other.post(API + "/auth/register", json=CREDS).status_code == 201
         private = queue_scan(other)
+        execute(private["id"])
         assert other.delete(API + "/projects/" + first["project_id"]).status_code == 404
-        assert client.delete(API + "/projects").json()["deleted"] == 2
-        assert client.get(API + "/projects").json() == []
+        assert client.delete(API + "/projects").json()["deleted"] == 1
+        assert len(client.get(API + "/projects").json()) == 2
         assert client.get(API + "/runs").json() == []
         assert client.get(API + "/results").json() == []
         assert other.get(API + "/runs/" + private["id"]).status_code == 200

@@ -55,14 +55,14 @@ test("ZIP → editable workflow → live execution → report and settings", asy
     .getByRole("navigation")
     .getByRole("link", { name: "Сессии", exact: true })
     .click();
-  await page.getByRole("button", { name: "Новый проект", exact: true }).click();
+  await page.getByRole("button", { name: "Новая сессия", exact: true }).click();
   await page
     .getByLabel("Название", { exact: true })
     .fill("Проверка в браузере");
   await page
     .locator("input[type=file]")
     .setInputFiles(resolve("../.qa/e2e-fixture.zip"));
-  await page.getByRole("button", { name: "Создать проект" }).click();
+  await page.getByRole("button", { name: "Создать сессию" }).click();
   await expect(
     page.getByRole("heading", { name: "Проверка в браузере" }),
   ).toBeVisible();
@@ -82,6 +82,14 @@ test("ZIP → editable workflow → live execution → report and settings", asy
   await page.getByRole("button", { name: "Проверить", exact: true }).click();
   await expect(page.getByText("Граф прошёл проверку")).toBeVisible();
   await page.screenshot({ path: resolve("../.qa/editor.png"), fullPage: true });
+  let releasePreview = () => {};
+  const previewGate = new Promise<void>((resolve) => {
+    releasePreview = resolve;
+  });
+  await page.route("**/report/preview", async (route) => {
+    await previewGate;
+    await route.continue();
+  });
   const stageCounts = await page.evaluateHandle(() => {
     const counts: number[] = [];
     const observer = new MutationObserver(() => {
@@ -103,6 +111,14 @@ test("ZIP → editable workflow → live execution → report and settings", asy
     page.getByRole("heading", { name: "Выполнение графа" }),
   ).toBeVisible();
   await expect(page.getByText("Обнаружено в итоговом отчёте: 2")).toBeVisible();
+  try {
+    await expect(
+      page.getByRole("status").filter({ hasText: "Загружаем сводку отчёта…" }),
+    ).toBeVisible();
+    await expect(page.locator(".readgraph")).toBeVisible();
+  } finally {
+    releasePreview();
+  }
   expect(await stageCounts.jsonValue()).toEqual([1, 2, 3]);
   await expect(
     page.getByRole("heading", { name: "Обнаружено по блокам" }),
@@ -174,6 +190,51 @@ test("Главная принимает архив перетаскивание�
   await clear.click();
   await expect(page.getByText("История запусков пуста")).toBeVisible();
   await expect(clear).toHaveCount(0);
+  await page
+    .getByRole("navigation")
+    .getByRole("link", { name: "Сессии" })
+    .click();
+  await expect(page.getByRole("link", { name: /drag\.zip/ })).toBeVisible();
+});
+
+test("Новый профиль сохраняет выбранный архив и открывает пустой личный сценарий", async ({
+  page,
+  request,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Загрузить репозиторий" }).click();
+  await page
+    .locator("input[type=file]")
+    .setInputFiles(resolve("../.qa/e2e-fixture.zip"));
+  await page.getByRole("button", { name: "Новый профиль" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("e2e-fixture.zip");
+  await expect(
+    dialog.getByRole("button", { name: "Загрузить архив" }),
+  ).toBeVisible();
+  await dialog.getByLabel("Название", { exact: true }).fill("Кастомная сессия");
+  await dialog.getByRole("button", { name: "Создать сессию" }).click();
+  await expect(dialog.getByLabel("Название", { exact: true })).toHaveValue(
+    "Личный сценарий",
+  );
+  await expect(dialog.getByLabel("Начальный граф")).toHaveValue("personal");
+  await dialog.getByRole("button", { name: "Открыть редактор" }).click();
+  await expect(page.getByLabel("Название сценария")).toHaveValue(
+    "Личный сценарий",
+  );
+  const workflow = await request.get("/api/v1" + new URL(page.url()).pathname);
+  expect((await workflow.json()).graph).toEqual({ nodes: [], edges: [] });
+  await page
+    .getByRole("navigation")
+    .getByRole("link", { name: "Сессии" })
+    .click();
+  const remove = page.getByRole("button", {
+    name: "Удалить сессию · Кастомная сессия",
+  });
+  page.once("dialog", (confirm) => confirm.accept());
+  await remove.click();
+  await expect(remove).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Сессии" })).toBeVisible();
 });
 
 test("Главная сохраняет выбранный профиль после ошибки ссылки", async ({

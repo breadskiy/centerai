@@ -143,7 +143,12 @@ export function Monitor() {
   useEffect(() => {
     if (done) return;
     const sse = new EventSource("/api/v1" + key + "/events");
-    const refresh = () => void cache.invalidateQueries({ queryKey: [key] });
+    let timer: number | undefined;
+    const refresh = () => {
+      window.clearTimeout(timer);
+      timer = undefined;
+      void cache.invalidateQueries({ queryKey: [key], exact: true });
+    };
     sse.onopen = () => setConnection(translateText("Журнал подключён"));
     sse.onmessage = (message) => {
       const event: RunEvent = JSON.parse(message.data);
@@ -153,18 +158,21 @@ export function Monitor() {
             ? previous
             : [...previous, event],
         );
-      refresh();
+      timer ??= window.setTimeout(refresh, 100);
     };
     sse.addEventListener("done", () => {
       sse.close();
       refresh();
-      void cache.invalidateQueries();
+      void cache.invalidateQueries({ refetchType: "none" });
     });
     sse.onerror = () => {
       setConnection(translateText("Переподключение к журналу…"));
       refresh();
     };
-    return () => sse.close();
+    return () => {
+      window.clearTimeout(timer);
+      sse.close();
+    };
   }, [key, done]);
   const stageEvents = [
     ...new Map(
@@ -407,14 +415,29 @@ export function Monitor() {
   );
 }
 function ReportPreview({ run }: { run: string }) {
-  const data = useData<{
-    valid: boolean;
-    partial: boolean;
-    count: number;
-    levels: Record<string, number>;
-    priorities: Finding[];
-  }>("/runs/" + run + "/report/preview");
+  const path = "/runs/" + run + "/report/preview";
+  const { data, isError } = useQuery({
+    queryKey: [path],
+    queryFn: () =>
+      api<{
+        valid: boolean;
+        partial: boolean;
+        count: number;
+        levels: Record<string, number>;
+        priorities: Finding[];
+      }>(path),
+  });
   const [chosen, choose] = useState<Finding | null>(null);
+  if (!data)
+    return (
+      <p role={isError ? "alert" : "status"}>
+        {translateText(
+          isError
+            ? "Не удалось загрузить сводку отчёта."
+            : "Загружаем сводку отчёта…",
+        )}
+      </p>
+    );
   return (
     <div className="reportPreview">
       <h3>{translateText("Проверка перед экспортом")}</h3>
@@ -466,13 +489,27 @@ function Stage({
   node: string;
   close: () => void;
 }) {
-  const data = useData<{ output: unknown }>("/runs/" + run + "/nodes/" + node);
+  const path = "/runs/" + run + "/nodes/" + node;
+  const { data, isError } = useQuery({
+    queryKey: [path],
+    queryFn: () => api<{ output: unknown }>(path),
+  });
   return (
     <Modal title={translateText("Выход узла")} close={close}>
       <code>{node}</code>
-      <pre className="block" style={{ whiteSpace: "pre-wrap" }}>
-        {JSON.stringify(data.output, null, 2)}
-      </pre>
+      {data ? (
+        <pre className="block" style={{ whiteSpace: "pre-wrap" }}>
+          {JSON.stringify(data.output, null, 2)}
+        </pre>
+      ) : (
+        <p role={isError ? "alert" : "status"}>
+          {translateText(
+            isError
+              ? "Не удалось загрузить выход узла."
+              : "Загружаем данные этапа…",
+          )}
+        </p>
+      )}
     </Modal>
   );
 }

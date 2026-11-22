@@ -1342,6 +1342,15 @@ dialog .repo-drop { position: absolute; inset: 8px; }
 .repo-profile input { width: auto; min-height: 0; accent-color: var(--accent); }
 .repo-profile:has(input:checked) { background: light-dark(#dcefe0, #292f35); }
 .repo-profile small, .repo-file small { display: block; }
+.repo-profiles .repo-new-profile {
+  align-items: center;
+  background: transparent;
+  border-inline: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  color: var(--teal);
+}
+.repo-profiles .repo-new-profile:hover { background: var(--surface-hover); }
 .tile .risk-badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
 .tile .risk-badges .severity { font-size: 9px; padding: 1px 3px; }
 .readgraph .tile[data-status="running"] {
@@ -1445,6 +1454,16 @@ dialog .repo-drop { position: absolute; inset: 8px; }
   font-weight: 600;
   border-bottom: 1px solid var(--line);
 }
+.session-list-labels { padding-inline-end: 60px; }
+.session-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
+}
+.session-list-item + .session-list-item { border-top: 1px solid var(--line); }
+.session-list-item .session-remove { justify-self: center; }
+.session-clear { min-height: 32px; padding: 5px 9px; font-size: 13px; }
+.session-clear svg { width: 14px; height: 14px; }
 .session-row b {
   overflow-wrap: anywhere;
 }
